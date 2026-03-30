@@ -367,10 +367,14 @@ export default function DashboardPage() {
                 <p className="text-xs text-[var(--text2)]">Escreva abaixo e clique <strong style={{color:'var(--accent)'}}>Publicar</strong> → aparece no seu mini site</p>
               </div>
               {site?.slug && (
-                <a href={`/s/${site.slug}`} target="_blank" 
-                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] transition-colors flex items-center gap-1.5">
-                  Ver mini site →
-                </a>
+                <a 
+  href={`https://${site.slug}.trustbank.xyz`} 
+  target="_blank"
+  rel="noopener noreferrer"
+  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] transition-colors flex items-center gap-1.5"
+>
+  Ver mini site →
+</a>
               )}
             </div>
 
