@@ -271,7 +271,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex gap-2">
                 <Link href="/editor" className="btn-secondary text-sm py-2 px-3">Editar</Link>
-                {site?.slug && <a href={`/s/${site.slug}`} target="_blank" className="btn-secondary text-sm py-2 px-3"><ExternalLink className="w-4 h-4" /></a>}
+                {site?.slug && <a href={`https://${site.slug}.trustbank.xyz`} target="_blank" className="btn-secondary text-sm py-2 px-3"><ExternalLink className="w-4 h-4" /></a>}
               </div>
             </div>
 
