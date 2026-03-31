@@ -187,6 +187,26 @@ export async function POST(request: NextRequest) {
       await db.from('mini_sites').update({ published: true }).eq('user_id', userId);
     }
 
+    // ── SLUG BID (auction) ────────────────────────────────────────────────────
+    else if (type === 'slug_bid' && itemId && userId) {
+      const { data: auction } = await db.from('slug_auctions' as any)
+        .select('id, current_bid, min_bid, min_increment, bid_count, status, ends_at')
+        .eq('id', itemId)
+        .maybeSingle();
+      if (auction && auction.status === 'active' && new Date(auction.ends_at) > new Date()) {
+        const current = Number((auction as any).current_bid || 0);
+        const minBid = Number((auction as any).min_bid || 0);
+        const increment = Number((auction as any).min_increment || 5);
+        const required = Math.max(minBid, current + increment);
+        const nextBid = Math.max(required, amountUsdc);
+        await db.from('slug_auctions' as any).update({
+          current_bid: nextBid,
+          bid_count: Number((auction as any).bid_count || 0) + 1,
+          winner_id: userId,
+        }).eq('id', itemId);
+      }
+    }
+
     // ── SLUG ──────────────────────────────────────────────────────────────────
     else if (type === 'slug' && itemId && userId) {
       await db.from('slug_registrations' as any).upsert({

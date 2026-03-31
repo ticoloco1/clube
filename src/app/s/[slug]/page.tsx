@@ -283,14 +283,14 @@ export default function SitePage() {
     return (
       <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, fontFamily: 'system-ui', padding: 24 }}>
         <p style={{ fontSize: 56, margin: 0 }}>🔒</p>
-        <h1 style={{ color: '#e6edf3', fontSize: 22, fontWeight: 900, margin: 0, textAlign: 'center' }}>Este perfil ainda não está online</h1>
+        <h1 style={{ color: '#e6edf3', fontSize: 22, fontWeight: 900, margin: 0, textAlign: 'center' }}>This profile is not online yet</h1>
         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, maxWidth: 360, textAlign: 'center', margin: 0 }}>
-          O criador precisa ativar o plano para aparecer publicamente no TrustBank.
+          The creator needs to activate a plan to appear publicly on TrustBank.
         </p>
         <Link href="/planos" style={{ padding: '12px 24px', borderRadius: 14, background: '#818cf8', color: '#fff', fontWeight: 700, textDecoration: 'none' }}>
-          Ver planos
+          View plans
         </Link>
-        <Link href="/" style={{ color: '#818cf8', fontSize: 13 }}>Voltar ao início</Link>
+        <Link href="/" style={{ color: '#818cf8', fontSize: 13 }}>Back to home</Link>
       </div>
     );
   }
@@ -322,8 +322,8 @@ export default function SitePage() {
           background: 'linear-gradient(135deg,rgba(245,158,11,0.25),rgba(234,88,12,0.15))',
           border: '1px solid rgba(245,158,11,0.45)', color: t.text, fontSize: 13, fontWeight: 700, textAlign: 'center', zIndex: 5, position: 'relative',
         }}>
-          Fique online: pague um plano e apareça para o mundo →{' '}
-          <Link href="/planos" style={{ color: accent, textDecoration: 'underline' }}>Planos</Link>
+          Stay online: pay for a plan and appear to the world →{' '}
+          <Link href="/planos" style={{ color: accent, textDecoration: 'underline' }}>Plans</Link>
         </div>
       )}
 
@@ -575,7 +575,7 @@ export default function SitePage() {
             ) : isOwner ? (
               <div style={{textAlign:'center',padding:'40px 0',border:`1.5px dashed ${t.border}`,borderRadius:16}}>
                 <p style={{fontSize:32,marginBottom:8}}>✏️</p>
-                <p style={{fontSize:14,color:t.text2,marginBottom:12}}>{T("page_no_content") || "Add content in the Editor"}</p>
+                <p style={{fontSize:14,color:t.text2,marginBottom:12}}>{T("page_no_content") || "Add content in the editor"}</p>
                 <a href="/editor" style={{color:accent,fontSize:13,fontWeight:700}}>{T("open_editor") || "Open Editor"} →</a>
               </div>
             ) : (

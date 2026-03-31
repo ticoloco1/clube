@@ -497,7 +497,7 @@ export default function EditorPage() {
               {T('ed_save')}
             </button>
             {siteUrl && (
-              <a href={`/s/${site?.slug}`} target="_blank" rel="noopener"
+              <a href={siteUrl} target="_blank" rel="noopener"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold border border-[var(--border)] hover:border-green-500/50 text-green-500 transition-all">
                 <Eye className="w-3.5 h-3.5" /> {T('ed_preview')}
               </a>
@@ -1140,7 +1140,7 @@ export default function EditorPage() {
             {user && <div className="mt-3"><EarningsWidget userId={user.id} accentColor={accentColor} compact /></div>}
 
             {siteUrl && (
-              <a href={`/s/${site?.slug}`} target="_blank" rel="noopener" className="btn-secondary w-full justify-center mt-3 text-sm py-2 gap-1">
+              <a href={siteUrl} target="_blank" rel="noopener" className="btn-secondary w-full justify-center mt-3 text-sm py-2 gap-1">
                 <ExternalLink className="w-3.5 h-3.5" /> Open full site
               </a>
             )}

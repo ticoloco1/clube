@@ -12,6 +12,7 @@ function buildHelioMeta(userId: string, items: { id: string; label: string; pric
 
   let type = rawType;
   if (rawType === 'plan') type = 'subscription';
+  if ((first?.id || '').startsWith('slug_bid_')) type = 'slug_bid';
 
   const meta: Record<string, string> = {
     user_id: userId,
@@ -38,7 +39,7 @@ function buildHelioMeta(userId: string, items: { id: string; label: string; pric
     meta.target_type = 'site';
   }
 
-  if (type === 'slug') {
+  if (type === 'slug' || type === 'slug_bid') {
     const id = first.id;
     let slugToken = id;
     if (id.startsWith('slug_')) slugToken = id.slice(5);
