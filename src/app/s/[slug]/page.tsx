@@ -75,6 +75,17 @@ function getPostMedia(post: any): string[] {
   return post?.image_url ? [post.image_url] : [];
 }
 
+function hasMeaningfulHtml(html?: string): boolean {
+  if (!html) return false;
+  const text = html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+  return text.length > 0;
+}
+
 function Countdown({ expiresAt, accent }: { expiresAt: string; accent: string }) {
   const [label, setLabel] = useState('');
   useEffect(() => {
@@ -137,12 +148,19 @@ export default function SitePage() {
   const [trialCountdown, setTrialCountdown] = useState('');
   const [warningHours, setWarningHours] = useState(1);
   const [testRibbonText, setTestRibbonText] = useState('TEST MODE');
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const warnedOneHour = useRef(false);
   useEffect(() => {
     if (!site) return;
     try { setPageContents(JSON.parse((site as any)?.page_contents || '{}')); }
     catch { setPageContents({}); }
   }, [site]);
+  useEffect(() => {
+    if (!sitePages.length) return;
+    if (!sitePages.find(p => p.id === activePage)) {
+      setActivePage(sitePages[0].id);
+    }
+  }, [sitePages, activePage]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -476,7 +494,7 @@ export default function SitePage() {
                   {getPostMedia(p).length > 0 && (
                     <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).length, 3)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
                       {getPostMedia(p).slice(0, 3).map((url:string, i:number) => (
-                        <img key={i} src={url} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)'}}/>
+                        <img key={i} src={url} onClick={() => setLightboxImage(url)} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)',cursor:'zoom-in'}}/>
                       ))}
                     </div>
                   )}
@@ -487,17 +505,17 @@ export default function SitePage() {
                   )}
                 </div>
               ))}
-              {/* Feed window 400x438 with internal scroll */}
+              {/* Feed window (Instagram-like) */}
               {posts.filter((p:any) => !p.pinned).length > 0 && (
-                <div style={{width:'100%',maxWidth:400,margin:'0 auto'}}>
+                <div style={{width:'100%',maxWidth:550,margin:'0 auto'}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                     <h2 style={{color:t.text,fontSize:14,fontWeight:800,margin:0}}>{T('site_posts')}</h2>
                     <span style={{fontSize:11,color:t.text2}}>{posts.filter((p:any)=>!p.pinned).length} posts</span>
                   </div>
-                  {/* Feed window 400x434 com scroll interno */}
+                  {/* Feed window 550x550 com scroll interno */}
                   <div style={{
                     width:'100%',
-                    height:434,
+                    height:550,
                     overflowY:'scroll',
                     overflowX:'hidden',
                     display:'flex',
@@ -522,7 +540,7 @@ export default function SitePage() {
                         {getPostMedia(p).length > 0 && (
                           <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).length, 3)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
                             {getPostMedia(p).slice(0, 3).map((url:string, i:number) => (
-                              <img key={i} src={url} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)'}}/>
+                              <img key={i} src={url} onClick={() => setLightboxImage(url)} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)',cursor:'zoom-in'}}/>
                             ))}
                           </div>
                         )}
@@ -548,7 +566,7 @@ export default function SitePage() {
         {/* Non-home page content */}
         {activePage !== 'home' && (
           <div style={{paddingBottom:32}}>
-            {pageContents[activePage] ? (
+            {hasMeaningfulHtml(pageContents[activePage]) ? (
               <div 
                 dangerouslySetInnerHTML={{ __html: pageContents[activePage] }}
                 style={{ fontSize:15, lineHeight:1.8, color:textMain, padding:'4px 0', maxWidth:(site as any)?.page_width||600, margin:'0 auto', width:'100%' }}
@@ -592,6 +610,17 @@ export default function SitePage() {
               Subscribe monthly or yearly (discount)
             </a>
           </div>
+        )}
+        {lightboxImage && (
+          <button
+            onClick={() => setLightboxImage(null)}
+            style={{
+              position:'fixed', inset:0, zIndex:120, background:'rgba(0,0,0,0.88)',
+              border:'none', padding:20, cursor:'zoom-out', display:'flex', alignItems:'center', justifyContent:'center',
+            }}
+          >
+            <img src={lightboxImage} style={{maxWidth:'95vw',maxHeight:'92vh',objectFit:'contain',borderRadius:10}} />
+          </button>
         )}
       </div>
       <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}`}</style>

@@ -329,7 +329,12 @@ export default function EditorPage() {
           setLastSaved(new Date());
           return;
         }
-        const price = slugPrice(slug);
+        const { count } = await (supabase as any).from('slug_registrations')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+        const ownCount = typeof count === 'number' ? count : 0;
+        const basePrice = slugPrice(slug);
+        const price = basePrice > 0 ? basePrice : (ownCount > 0 ? 12 : 0);
         if (price > 0) {
           // Check if user already owns this slug
           const { data: owned } = await (supabase as any)
@@ -343,6 +348,17 @@ export default function EditorPage() {
             if (!silent) { openCart(); toast.success(`Slug adicionado ao carrinho!`); }
           }
         } else {
+          const { data: existing } = await (supabase as any)
+            .from('slug_registrations').select('id').eq('slug', slug).maybeSingle();
+          if (!existing) {
+            await (supabase as any).from('slug_registrations').insert({
+              user_id: user.id,
+              slug,
+              status: 'active',
+              for_sale: false,
+              expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            });
+          }
           await supabase.from('mini_sites').update({ slug }).eq('id', site.id).eq('user_id', user.id);
           if (!silent) toast.success(`✅ ${slug}.trustbank.xyz`);
         }

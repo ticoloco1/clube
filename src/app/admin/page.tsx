@@ -41,6 +41,8 @@ export default function AdminPage() {
   // Wallet & URLs
   const [platformWallet, setPlatformWallet] = useState('');
   const [siteUrl, setSiteUrl] = useState('https://trustbank.xyz');
+  const [userWalletEmail, setUserWalletEmail] = useState('');
+  const [userWalletAddress, setUserWalletAddress] = useState('');
 
   // Slugs admin
   const [slugsBulk, setSlugsBulk]     = useState('');
@@ -264,6 +266,24 @@ export default function AdminPage() {
     await (supabase as any).from('premium_slugs').update({ price }).eq('id', id);
     toast.success('Preço atualizado');
     loadAdminSlugs();
+  };
+
+  const setWalletForUser = async () => {
+    if (!userWalletEmail || !userWalletAddress) {
+      toast.error('Informe email e wallet');
+      return;
+    }
+    const cleanEmail = userWalletEmail.trim().toLowerCase();
+    const cleanWallet = userWalletAddress.trim();
+    const { error } = await (supabase as any)
+      .from('mini_sites')
+      .update({ wallet_address: cleanWallet })
+      .eq('contact_email', cleanEmail);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`✅ Wallet atualizada para ${cleanEmail}`);
   };
 
   const sendBroadcast = async () => {
@@ -591,6 +611,21 @@ export default function AdminPage() {
               <label className="label block mb-1">URL do Site</label>
               <input value={siteUrl} onChange={e => setSiteUrl(e.target.value)}
                 className="input" placeholder="https://trustbank.xyz" />
+            </div>
+            <div className="border-t border-[var(--border)] pt-4">
+              <h4 className="font-black text-[var(--text)] mb-2">Wallet de Recebimento por Usuário</h4>
+              <p className="text-xs text-[var(--text2)] mb-3">
+                Define a carteira que recebe ganhos do mini-site (campo `wallet_address` em `mini_sites`).
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input value={userWalletEmail} onChange={e => setUserWalletEmail(e.target.value)}
+                  className="input" placeholder="email@usuario.com" />
+                <input value={userWalletAddress} onChange={e => setUserWalletAddress(e.target.value)}
+                  className="input font-mono text-sm" placeholder="0x..." />
+              </div>
+              <button onClick={setWalletForUser} className="btn-primary mt-3">
+                Aplicar wallet no usuário
+              </button>
             </div>
           </div>
         )}

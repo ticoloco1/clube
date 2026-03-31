@@ -225,6 +225,7 @@ export default function SlugsPage() {
   const [premiumSlugs, setPremiumSlugs] = useState<any[]>([]);
   const [auctions, setAuctions] = useState<any[]>([]);
   const [forSale, setForSale] = useState<any[]>([]);
+  const [mySlugCount, setMySlugCount] = useState(0);
   const [tab, setTab] = useState<'premium' | 'auctions' | 'market'>('market');
 
   const loadMarketData = useCallback(async () => {
@@ -259,6 +260,14 @@ export default function SlugsPage() {
   }, []);
 
   useEffect(() => { loadMarketData(); }, [loadMarketData]);
+
+  useEffect(() => {
+    if (!user?.id) { setMySlugCount(0); return; }
+    (supabase as any).from('slug_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .then(({ count }: any) => setMySlugCount(typeof count === 'number' ? count : 0));
+  }, [user?.id]);
 
   // Check availability
   useEffect(() => {
@@ -295,8 +304,23 @@ export default function SlugsPage() {
       return;
     }
     
-    const price = slugPrice(search);
-    add({ id: `slug_${search}`, label: `${search}.trustbank.xyz`, price: price || 12, type: 'slug' });
+    const basePrice = slugPrice(search);
+    const price = basePrice > 0 ? basePrice : (mySlugCount > 0 ? 12 : 0);
+    if (price === 0) {
+      await (supabase as any).from('slug_registrations').insert({
+        user_id: user.id,
+        slug: search,
+        status: 'active',
+        for_sale: false,
+        expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
+      });
+      toast.success(`✅ ${search}.trustbank.xyz registrado grátis (1º slug)!`);
+      setMySlugCount(1);
+      setAvailable(false);
+      loadMarketData();
+      return;
+    }
+    add({ id: `slug_${search}`, label: `${search}.trustbank.xyz`, price, type: 'slug' });
     toast.success(`${search} adicionado ao carrinho!`);
     openCart();
   };
@@ -354,6 +378,9 @@ export default function SlugsPage() {
           <label className="text-xs font-bold text-[var(--text2)] uppercase tracking-wider mb-2 block">
             Verificar disponibilidade
           </label>
+          <p className="text-xs text-[var(--text2)] mb-3">
+            Regra: 1 slug comum (7+ chars) grátis por usuário. A partir do 2º slug comum: $12/ano. Slugs premium (1-6 chars) seguem tabela fixa.
+          </p>
           <div className="flex gap-3">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text2)] font-mono text-sm">/</span>
@@ -380,7 +407,7 @@ export default function SlugsPage() {
                   : <><XCircle className="w-4 h-4 text-red-500" /><span className="text-sm font-semibold text-red-400">/{search} {T('slug_taken')}</span></>}
               </div>
               {available && tier && (
-                <span className="font-black text-[var(--text)]">${claimPrice || 12} USDC</span>
+                <span className="font-black text-[var(--text)]">${claimPrice > 0 ? claimPrice : (mySlugCount > 0 ? 12 : 0)} USDC</span>
               )}
             </div>
           )}

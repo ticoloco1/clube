@@ -13,36 +13,48 @@ export function SlugTicker({ siteUserId }: SlugTickerProps) {
 
   useEffect(() => {
     if (siteUserId) {
-      // Mini-site: mostra os slugs que o dono possui
+      // Mini-site: mostra slugs do dono que estão em venda/leilão
       supabase.from('slug_registrations' as any)
-        .select('slug, mini_sites(site_name)')
+        .select('slug, sale_price, status')
         .eq('user_id', siteUserId)
-        .eq('status', 'active')
+        .eq('for_sale', true)
         .limit(10)
         .then(r => {
           const slugs = (r.data || []).map((s: any) => ({
             slug: s.slug,
-            url: `https://${s.slug}.trustbank.xyz`,
-            label: s.mini_sites?.site_name || `\${slug}.trustbank.xyz`,
+            url: s.status === 'auction' ? '/slugs?tab=auctions' : '/slugs?tab=market',
+            label: `${s.slug}.trustbank.xyz · ${s.status === 'auction' ? 'Leilão' : `$${s.sale_price || 0} USDC`}`,
           }));
           setItems(slugs);
         });
     } else {
-      // Homepage: mostra slugs do marketplace à venda
-      supabase.from('premium_slugs' as any)
-        .select('slug, keyword, price')
-        .eq('active', true)
-        .is('sold_to', null)
-        .order('price', { ascending: false })
-        .limit(20)
-        .then(r => {
-          const slugs = (r.data || []).map((s: any) => ({
-            slug: s.slug || s.keyword,
-            url: `/slugs`,
-            label: `${(s.slug || s.keyword)}.trustbank.xyz — $${s.price?.toLocaleString()} USDC`,
-          }));
-          setItems(slugs);
-        });
+      // Site principal: mistura vendas diretas e leilões ativos
+      Promise.all([
+        supabase.from('slug_registrations' as any)
+          .select('slug, sale_price, status')
+          .eq('for_sale', true)
+          .neq('status', 'auction')
+          .order('sale_price', { ascending: true })
+          .limit(12),
+        supabase.from('slug_auctions' as any)
+          .select('slug, min_bid, current_bid, status, ends_at')
+          .eq('status', 'active')
+          .gt('ends_at', new Date().toISOString())
+          .order('ends_at', { ascending: true })
+          .limit(12),
+      ]).then(([sales, auctions]) => {
+        const saleItems = (sales.data || []).map((s: any) => ({
+          slug: s.slug,
+          url: '/slugs?tab=market',
+          label: `${s.slug}.trustbank.xyz · $${Number(s.sale_price || 0).toLocaleString()} USDC`,
+        }));
+        const auctionItems = (auctions.data || []).map((a: any) => ({
+          slug: a.slug,
+          url: '/slugs?tab=auctions',
+          label: `${a.slug}.trustbank.xyz · leilão $${Number(a.current_bid || a.min_bid || 0).toLocaleString()}`,
+        }));
+        setItems([...saleItems, ...auctionItems]);
+      });
     }
   }, [siteUserId]);
 
@@ -66,7 +78,7 @@ export function SlugTicker({ siteUserId }: SlugTickerProps) {
               style={{ flexShrink: 0, textDecoration: 'none' }}>
               <span className="font-mono font-black text-sm"
                 style={{ color, textShadow: `0 0 8px ${color}50` }}>
-                {siteUserId ? `${item.slug}.trustbank.xyz` : item.label}
+                {item.label}
               </span>
               {siteUserId && (
                 <span className="text-white/30 text-xs group-hover:text-white/60 transition-colors">↗</span>

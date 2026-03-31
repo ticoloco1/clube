@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { ShoppingCart, User, TrendingUp, LogOut, Settings, LayoutDashboard } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { SlugTicker } from '@/components/ui/SlugTicker';
 
 export function Header() {
   const { user, signOut } = useAuth();
@@ -31,7 +32,7 @@ export function Header() {
       background: 'rgba(13,17,23,0.95)',
       backdropFilter: 'blur(12px)',
       borderBottom: '1px solid var(--border)',
-      height: 64,
+      minHeight: 64,
     }}>
       <div style={{
         maxWidth: 1200, margin: '0 auto', padding: '0 20px',
@@ -157,6 +158,7 @@ export function Header() {
           )}
         </div>
       </div>
+      <SlugTicker />
     </header>
   );
 }
