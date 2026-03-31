@@ -678,6 +678,10 @@ export default function SitePage() {
         )}
       </div>
       <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}
+      .rich-content img{max-width:100%;height:auto;border-radius:10px;display:block;margin:10px 0}
+      .rich-content iframe{max-width:100%;width:100%;min-height:240px;border:0;border-radius:12px;display:block;margin:10px 0}
+      .rich-content .trust-video-wrapper{position:relative;padding-bottom:56.25%;height:0;margin:12px 0;border-radius:12px;overflow:hidden}
+      .rich-content .trust-video-wrapper iframe{position:absolute;inset:0;width:100%;height:100%}
       .rich-content .tb-paper{padding:14px 16px;border-radius:12px;margin:10px 0;border:1px solid rgba(255,255,255,.15)}
       .rich-content .tb-paper-yellow{
         background:repeating-linear-gradient(180deg, rgba(180,83,9,.12) 0 1px, transparent 1px 28px),linear-gradient(180deg,#fef3c7,#fde68a);

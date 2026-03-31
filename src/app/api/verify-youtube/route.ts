@@ -86,7 +86,7 @@ async function checkBacklink(youtubeUrl: string, backlink: string): Promise<{
 export async function POST(request: NextRequest) {
   const db = getDb();
   try {
-    const { userId, youtubeUrl, siteSlug } = await request.json();
+    const { userId, youtubeUrl, siteSlug, manualConfirm } = await request.json();
 
     if (!userId || !youtubeUrl) {
       return NextResponse.json({ error: 'userId and youtubeUrl required' }, { status: 400 });
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (!result.found) {
+    if (!result.found && manualConfirm !== true) {
       return NextResponse.json({
         success: false,
         verified: false,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Found! Mark as verified
+    // Found or manually confirmed: mark as verified
     await db.from('mini_sites')
       .update({ 
         is_verified: true,
@@ -135,7 +135,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       verified: true,
-      message: `✅ Verified! Channel "${result.channelName}" linked to your TrustBank profile.`,
+      message: manualConfirm === true
+        ? '✅ Verified with manual confirmation.'
+        : `✅ Verified! Channel "${result.channelName}" linked to your TrustBank profile.`,
       channelName: result.channelName,
       channelId: result.channelId,
     });

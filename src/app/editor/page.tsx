@@ -56,6 +56,18 @@ const BRAND_COLORS: Record<string,string> = {
   linkedin:'#0A66C2', spotify:'#1DB954', github:'#24292e', whatsapp:'#25D366',
   facebook:'#1877F2', link:'#818cf8',
 };
+const SOCIAL_URL_TEMPLATES: Record<string, string> = {
+  instagram: 'https://instagram.com/',
+  youtube: 'https://youtube.com/@',
+  tiktok: 'https://tiktok.com/@',
+  twitter: 'https://x.com/',
+  linkedin: 'https://linkedin.com/in/',
+  spotify: 'https://open.spotify.com/',
+  github: 'https://github.com/',
+  whatsapp: 'https://wa.me/',
+  facebook: 'https://facebook.com/',
+  link: 'https://',
+};
 
 export default function EditorPage() {
   const { user, loading: authLoading } = useAuth();
@@ -120,6 +132,7 @@ export default function EditorPage() {
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
   const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed'] });
   const [dragOverMod, setDragOverMod] = useState<string|null>(null);
+  const [feedPosts, setFeedPosts] = useState<any[]>([]);
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [activeTab,       setActiveTab]       = useState('profile');
@@ -221,6 +234,8 @@ export default function EditorPage() {
     if (!site?.id) return;
     supabase.from('mini_site_links').select('*').eq('site_id', site.id).order('sort_order').then(r => setLinks(r.data || []));
     supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order').then(r => setVideos(r.data || []));
+    (supabase as any).from('feed_posts').select('*').eq('site_id', site.id).order('created_at', { ascending: false }).limit(50)
+      .then((r: any) => setFeedPosts(r.data || []));
   }, [site?.id]);
 
   useEffect(() => {
@@ -368,7 +383,7 @@ export default function EditorPage() {
       setLastSaved(new Date());
       if (!silent) toast.success('✅ Salvo!');
     } catch (e: any) {
-      toast.error('Erro: ' + e.message);
+      toast.error('Error: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -383,7 +398,7 @@ export default function EditorPage() {
     }).select().single();
     if (data) setLinks(prev => [...prev, data]);
     setLinkTitle(''); setLinkUrl(''); setLinkColor('');
-    toast.success('Link adicionado!');
+    toast.success('Link added!');
   };
 
   const deleteLink = async (id: string) => {
@@ -405,11 +420,11 @@ export default function EditorPage() {
   const addVideo = async () => {
     if (!ytUrl || !site?.id) return;
     if (!site.is_verified) {
-      toast.error('Verifique seu canal YouTube (aba Verify) antes de publicar vídeos.');
+      toast.error('Verify your YouTube channel (Verify tab) before publishing videos.');
       return;
     }
     const ytId = extractYouTubeId(ytUrl);
-    if (!ytId) { toast.error('URL do YouTube inválida'); return; }
+    if (!ytId) { toast.error('Invalid YouTube URL'); return; }
     await supabase.from('mini_site_videos').insert({
       site_id: site.id, youtube_video_id: ytId,
       title: ytTitle || 'Video', paywall_enabled: paywallEnabled,
@@ -418,7 +433,7 @@ export default function EditorPage() {
     supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order')
       .then(r => setVideos(r.data || []));
     setYtUrl(''); setYtTitle('');
-    toast.success('Vídeo adicionado!');
+    toast.success('Video added!');
   };
 
   const deleteVideo = async (id: string) => {
@@ -439,11 +454,27 @@ export default function EditorPage() {
       const data = await res.json();
       if (data.verified) {
         await supabase.from('mini_sites').update({ is_verified: true, youtube_channel_id: data.channelId }).eq('id', site.id);
-        toast.success('✅ Canal verificado!');
+        toast.success('✅ Channel verified!');
       } else {
-        toast.error('Backlink não encontrado no canal');
+        const allow = window.confirm(`${data?.message || 'Backlink not found on channel.'}\n\nDo you want to verify manually anyway?`);
+        if (allow) {
+          const res2 = await fetch('/api/verify-youtube', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ youtubeUrl: ytVerifyUrl, siteSlug: site.slug, userId: user?.id, manualConfirm: true }),
+          });
+          const data2 = await res2.json();
+          if (data2.verified) {
+            await supabase.from('mini_sites').update({ is_verified: true, youtube_channel_id: data2.channelId }).eq('id', site.id);
+            toast.success('✅ Channel verified (manual confirmation).');
+          } else {
+            toast.error(data2?.message || 'Verification failed');
+          }
+        } else {
+          toast.error('Backlink not found on channel');
+        }
       }
-    } catch { toast.error('Erro ao verificar'); }
+    } catch { toast.error('Verification error'); }
     setVerifying(false);
   };
 
@@ -503,7 +534,7 @@ export default function EditorPage() {
               </a>
             )}
             <button onClick={async () => {
-              if (!user?.id) { toast.error('Faça login'); return; }
+              if (!user?.id) { toast.error('Please sign in'); return; }
               if (isAdminBypass) {
                 await save({ published: true } as any);
                 setPublished(true);
@@ -532,7 +563,7 @@ export default function EditorPage() {
               setPublished(true); markDirty();
               await handleSave(true);
               await save({ published: true } as any);
-              toast.success('🎉 Publicado!');
+              toast.success('🎉 Published!');
             }} className="px-4 py-1.5 rounded-xl text-sm font-black text-white"
               style={{ background: published ? '#22c55e' : 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
               {published ? '✓ Live' : T('ed_publish')}
@@ -751,6 +782,7 @@ export default function EditorPage() {
                     <button key={icon} onClick={() => {
                       setLinkIcon(icon);
                       if (icon !== 'link') setLinkTitle(icon.charAt(0).toUpperCase() + icon.slice(1));
+                      if (!linkUrl.trim()) setLinkUrl(SOCIAL_URL_TEMPLATES[icon] || 'https://');
                     }}
                       className="py-2 rounded-xl text-xs font-bold border transition-all capitalize"
                       style={{
@@ -964,6 +996,33 @@ export default function EditorPage() {
                     );
                   })}
                 </div>
+              </div>
+              <div className="card p-5">
+                <h2 className="font-black text-base text-[var(--text)] mb-3">Existing feed posts</h2>
+                {feedPosts.length === 0 ? (
+                  <p className="text-sm text-[var(--text2)]">No posts yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {feedPosts.map((p: any) => (
+                      <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--bg2)]">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-[var(--text)] truncate">{p.text || '(media post)'}</p>
+                          <p className="text-xs text-[var(--text2)]">{new Date(p.created_at).toLocaleString('en-US')}</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            await (supabase as any).from('feed_posts').delete().eq('id', p.id).eq('site_id', site?.id);
+                            setFeedPosts(prev => prev.filter(x => x.id !== p.id));
+                            toast.success('Post deleted');
+                          }}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
             </div>
