@@ -24,16 +24,24 @@ export function CartModal() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ userId: user.id, items }),
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data: any = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw || '' }; }
       if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
       if (data.url) {
         window.open(data.url, '_blank');
         setStep('paying');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Checkout error');
+      const msg = String(err?.message || '');
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
+        toast.error('Falha de conexao com checkout. Verifique deploy/env e tente novamente.');
+      } else {
+        toast.error(msg || 'Checkout error');
+      }
     } finally {
       setProcessing(false);
     }

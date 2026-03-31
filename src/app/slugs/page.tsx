@@ -8,7 +8,7 @@ import { slugPrice } from '@/lib/utils';
 import {
   Search, Crown, ShoppingCart, CheckCircle, XCircle,
   Gavel, Clock, Tag, Globe, Loader2, RefreshCw,
-  ChevronRight, Flame, Star, ArrowUpRight, Lock
+  ChevronRight, Flame, Star, ArrowUpRight, Lock, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
@@ -91,18 +91,20 @@ function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'pr
 }
 
 // ─── My Slugs panel ───────────────────────────────────────────────────────────
-function MySlugs({ userId }: { userId: string }) {
+function MySlugs({ userId, isAdmin = false, onChanged }: { userId: string; isAdmin?: boolean; onChanged?: () => void }) {
   const [slugs, setSlugs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { add, open } = useCart();
 
-  useEffect(() => {
+  const loadMySlugs = useCallback(() => {
     supabase.from('slug_registrations' as any)
       .select('*, mini_sites(site_name, published)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .then(r => { setSlugs(r.data || []); setLoading(false); });
   }, [userId]);
+
+  useEffect(() => { loadMySlugs(); }, [loadMySlugs]);
 
   const renewSlug = (slug: any) => {
     add({ id: `slug_renewal_${slug.slug}`, label: `Renovar ${slug.slug}.trustbank.xyz (1 ano)`, price: slug.renewal_fee || 12, type: 'slug' });
@@ -112,9 +114,38 @@ function MySlugs({ userId }: { userId: string }) {
   const listForSale = async (slug: any) => {
     const price = prompt(`Preço de venda para /${slug.slug} em USDC:`, '50');
     if (!price) return;
-    await supabase.from('slug_registrations' as any).update({ for_sale: true, sale_price: parseFloat(price) }).eq('id', slug.id);
-    setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: true, sale_price: parseFloat(price) } : s));
+    const { error } = await supabase.from('slug_registrations' as any).update({ for_sale: true, sale_price: parseFloat(price), status: 'active' }).eq('id', slug.id);
+    if (error) { toast.error(error.message); return; }
+    setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: true, sale_price: parseFloat(price), status: 'active' } : s));
     toast.success(`${slug.slug} listado por $${price} USDC`);
+    onChanged?.();
+  };
+
+  const removeListing = async (slug: any) => {
+    if (slug.status === 'auction') {
+      await supabase.from('slug_auctions' as any)
+        .update({ status: 'cancelled' })
+        .eq('slug_registration_id', slug.id)
+        .eq('status', 'active');
+    }
+    const { error } = await supabase.from('slug_registrations' as any)
+      .update({ for_sale: false, sale_price: null, status: 'active' })
+      .eq('id', slug.id);
+    if (error) { toast.error(error.message); return; }
+    setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: false, sale_price: null, status: 'active' } : s));
+    toast.success(`Venda removida: ${slug.slug}`);
+    onChanged?.();
+  };
+
+  const deleteSlug = async (slug: any) => {
+    const ok = window.confirm(`Apagar o slug ${slug.slug}.trustbank.xyz?\n\nEsta ação remove o registro de teste.`);
+    if (!ok) return;
+    await supabase.from('slug_auctions' as any).delete().eq('slug_registration_id', slug.id);
+    const { error } = await supabase.from('slug_registrations' as any).delete().eq('id', slug.id);
+    if (error) { toast.error(error.message); return; }
+    setSlugs(prev => prev.filter(s => s.id !== slug.id));
+    toast.success(`Slug apagado: ${slug.slug}`);
+    onChanged?.();
   };
 
   if (loading) return <div className="card p-6 text-center text-[var(--text2)]"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>;
@@ -140,7 +171,7 @@ function MySlugs({ userId }: { userId: string }) {
               </div>
               {slug.for_sale && (
                 <span className="text-xs text-green-400 font-bold border border-green-400/30 px-2 py-0.5 rounded-full">
-                  À venda ${slug.sale_price}
+                  {slug.status === 'auction' ? 'Leilão' : `À venda $${slug.sale_price}`}
                 </span>
               )}
               <div className="flex gap-1.5">
@@ -148,6 +179,18 @@ function MySlugs({ userId }: { userId: string }) {
                   className="text-xs px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--text2)] hover:border-brand/50 hover:text-brand transition-all">
                   {slug.for_sale ? 'Alterar preço' : 'Vender'}
                 </button>
+                {slug.for_sale && (
+                  <button onClick={() => removeListing(slug)}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-all">
+                    Tirar da venda
+                  </button>
+                )}
+                {(isAdmin || !slug.mini_sites?.published) && (
+                  <button onClick={() => deleteSlug(slug)}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-1">
+                    <Trash2 className="w-3 h-3" /> Apagar
+                  </button>
+                )}
                 {expiringSoon && (
                   <button onClick={() => renewSlug(slug)}
                     className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all">
@@ -179,7 +222,32 @@ export default function SlugsPage() {
   const [premiumSlugs, setPremiumSlugs] = useState<any[]>([]);
   const [auctions, setAuctions] = useState<any[]>([]);
   const [forSale, setForSale] = useState<any[]>([]);
-  const [tab, setTab] = useState<'premium' | 'auctions' | 'market'>('premium');
+  const [tab, setTab] = useState<'premium' | 'auctions' | 'market'>('market');
+
+  const loadMarketData = useCallback(async () => {
+    const [{ data: premium, error: premiumErr }, { data: activeAuctions, error: auctionsErr }, { data: saleRows, error: saleErr }] = await Promise.all([
+      supabase.from('premium_slugs' as any)
+        .select('*').eq('active', true).is('sold_to', null)
+        .order('price', { ascending: false })
+        .limit(24),
+      supabase.from('slug_auctions' as any)
+        .select('*').eq('status', 'active').gt('ends_at', new Date().toISOString())
+        .order('ends_at', { ascending: true })
+        .limit(24),
+      supabase.from('slug_registrations' as any)
+        .select('*, mini_sites(site_name, avatar_url)')
+        .eq('for_sale', true)
+        .neq('status', 'auction')
+        .order('sale_price', { ascending: true })
+        .limit(96),
+    ]);
+    if (premiumErr) toast.error(`Premium slugs: ${premiumErr.message}`);
+    if (auctionsErr) toast.error(`Leilões: ${auctionsErr.message}`);
+    if (saleErr) toast.error(`Vendas: ${saleErr.message}`);
+    setPremiumSlugs(premium || []);
+    setAuctions(activeAuctions || []);
+    setForSale(saleRows || []);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -187,30 +255,7 @@ export default function SlugsPage() {
     if (t === 'market' || t === 'auctions' || t === 'premium') setTab(t);
   }, []);
 
-  useEffect(() => {
-    // Premium slugs (admin listed)
-    supabase.from('premium_slugs' as any)
-      .select('*').eq('active', true).is('sold_to', null)
-      .order('price', { ascending: false })
-      .limit(24)
-      .then(r => setPremiumSlugs(r.data || []));
-
-    // Active auctions
-    supabase.from('slug_auctions' as any)
-      .select('*').eq('status', 'active').gt('ends_at', new Date().toISOString())
-      .order('ends_at', { ascending: true })
-      .limit(12)
-      .then(r => setAuctions(r.data || []));
-
-    // User-listed slugs for sale (direct sale only — not leilão)
-    supabase.from('slug_registrations' as any)
-      .select('*, mini_sites(site_name, avatar_url)')
-      .eq('for_sale', true)
-      .neq('status', 'auction')
-      .order('sale_price', { ascending: true })
-      .limit(48)
-      .then(r => setForSale(r.data || []));
-  }, []);
+  useEffect(() => { loadMarketData(); }, [loadMarketData]);
 
   // Check availability
   useEffect(() => {
@@ -339,7 +384,7 @@ export default function SlugsPage() {
         </div>
 
         {/* My slugs */}
-        {user && <MySlugs userId={user.id} />}
+        {user && <MySlugs userId={user.id} isAdmin={isAdmin} onChanged={loadMarketData} />}
 
         {/* Price table */}
         <div className="card p-5 mb-8">
@@ -362,7 +407,7 @@ export default function SlugsPage() {
           {[
             { id: 'premium', label: 'Premium', icon: <Star className="w-3.5 h-3.5" />, count: premiumSlugs.length },
             { id: 'auctions', label: 'Auctions', icon: <Gavel className="w-3.5 h-3.5" />, count: auctions.length },
-            { id: 'market', label: 'Market', icon: <Globe className="w-3.5 h-3.5" />, count: forSale.length },
+            { id: 'market', label: 'Market', icon: <Globe className="w-3.5 h-3.5" />, count: forSale.length + auctions.length },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all -mb-px ${
@@ -421,11 +466,43 @@ export default function SlugsPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-black text-[var(--text)]">${slug.sale_price} USDC</span>
-                    <button onClick={() => handleBuyMarket(slug)}
-                      className="text-xs px-3 py-1.5 rounded-xl font-bold text-white"
-                      style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-                      Comprar
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => handleBuyMarket(slug)}
+                        className="text-xs px-3 py-1.5 rounded-xl font-bold text-white"
+                        style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
+                        Comprar
+                      </button>
+                      {(isAdmin || (user && slug.user_id === user.id)) && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              const { error } = await supabase.from('slug_registrations' as any)
+                                .update({ for_sale: false, sale_price: null, status: 'active' })
+                                .eq('id', slug.id);
+                              if (error) return toast.error(error.message);
+                              toast.success(`Slug removido da vitrine: ${slug.slug}`);
+                              loadMarketData();
+                            }}
+                            className="text-xs px-2.5 py-1.5 rounded-xl border border-amber-500/40 text-amber-400"
+                          >
+                            Tirar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm(`Apagar ${slug.slug}.trustbank.xyz da base?`)) return;
+                              await supabase.from('slug_auctions' as any).delete().eq('slug_registration_id', slug.id);
+                              const { error } = await supabase.from('slug_registrations' as any).delete().eq('id', slug.id);
+                              if (error) return toast.error(error.message);
+                              toast.success(`Slug apagado: ${slug.slug}`);
+                              loadMarketData();
+                            }}
+                            className="text-xs px-2.5 py-1.5 rounded-xl border border-red-500/40 text-red-400"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
