@@ -367,7 +367,7 @@ export default function AdminPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${site.published ? 'bg-green-500/10 text-green-500' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}>
                           {site.published ? 'Live' : 'Draft'}
                         </span>
-                        <a href={`/s/${site.slug}`} target="_blank" className="text-xs text-brand hover:underline">View</a>
+                        <a href={`https://${site.slug}.trustbank.xyz`} target="_blank" className="text-xs text-brand hover:underline">View</a>
                       </div>
                     </div>
                   ))}
@@ -432,7 +432,7 @@ export default function AdminPage() {
                               className={`text-xs px-2 py-1 rounded-lg font-medium transition-all ${site.blocked ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-400'}`}>
                               {site.blocked ? 'Unblock' : 'Block'}
                             </button>
-                            <a href={`/s/${site.slug}`} target="_blank"
+                            <a href={`https://${site.slug}.trustbank.xyz`} target="_blank"
                               className="text-xs px-2 py-1 rounded-lg bg-[var(--bg2)] text-[var(--text2)] hover:text-[var(--text)]">
                               View
                             </a>

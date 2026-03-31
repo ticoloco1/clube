@@ -150,11 +150,21 @@ export default function SitePage() {
   const [testRibbonText, setTestRibbonText] = useState('TEST MODE');
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const warnedOneHour = useRef(false);
+  const hostRedirectDone = useRef(false);
   useEffect(() => {
     if (!site) return;
     try { setPageContents(JSON.parse((site as any)?.page_contents || '{}')); }
     catch { setPageContents({}); }
   }, [site]);
+  useEffect(() => {
+    if (!site?.slug || typeof window === 'undefined' || hostRedirectDone.current) return;
+    const host = window.location.hostname;
+    const canonical = `${site.slug}.trustbank.xyz`;
+    if ((host === 'trustbank.xyz' || host === 'www.trustbank.xyz') && window.location.pathname.startsWith('/s/')) {
+      hostRedirectDone.current = true;
+      window.location.replace(`https://${canonical}`);
+    }
+  }, [site?.slug]);
   useEffect(() => {
     if (!sitePages.length) return;
     if (!sitePages.find(p => p.id === activePage)) {
@@ -503,6 +513,25 @@ export default function SitePage() {
                       <iframe src={p.video_embed_url} width="100%" height="215" allowFullScreen style={{border:'none',display:'block'}} />
                     </div>
                   )}
+                  {isOwner && (
+                    <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+                      <button
+                        onClick={async () => {
+                          const ok = window.confirm('Delete this post?');
+                          if (!ok) return;
+                          await (supabase as any).from('feed_posts').delete().eq('id', p.id).eq('site_id', site.id);
+                          const now = new Date().toISOString();
+                          (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
+                            .or(`pinned.eq.true,expires_at.gt.${now}`)
+                            .order('pinned',{ascending:false}).order('created_at',{ascending:false}).limit(20)
+                            .then((r:any) => setPosts(r.data||[]));
+                        }}
+                        style={{fontSize:11,padding:'6px 10px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:'#f87171',cursor:'pointer'}}
+                      >
+                        Delete post
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
               {/* Feed window (Instagram-like) */}
@@ -551,7 +580,26 @@ export default function SitePage() {
                         )}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:8,paddingTop:6,borderTop:`1px solid ${t.border}`}}>
                           <span style={{fontSize:10,color:t.text2}}>{new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
-                          {p.expires_at && <Countdown expiresAt={p.expires_at} accent={accent}/>}
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            {p.expires_at && <Countdown expiresAt={p.expires_at} accent={accent}/>}
+                            {isOwner && (
+                              <button
+                                onClick={async () => {
+                                  const ok = window.confirm('Delete this post?');
+                                  if (!ok) return;
+                                  await (supabase as any).from('feed_posts').delete().eq('id', p.id).eq('site_id', site.id);
+                                  const now = new Date().toISOString();
+                                  (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
+                                    .or(`pinned.eq.true,expires_at.gt.${now}`)
+                                    .order('pinned',{ascending:false}).order('created_at',{ascending:false}).limit(20)
+                                    .then((r:any) => setPosts(r.data||[]));
+                                }}
+                                style={{fontSize:10,padding:'4px 8px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:'#f87171',cursor:'pointer'}}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -563,16 +611,21 @@ export default function SitePage() {
           return null;
         })}
 
-        {/* Non-home page content */}
-        {activePage !== 'home' && (
+        {/* Current page rich content */}
+        {hasMeaningfulHtml(pageContents[activePage]) && (
+          <div style={{paddingBottom:24}}>
+            <div
+              dangerouslySetInnerHTML={{ __html: pageContents[activePage] }}
+              style={{ fontSize:15, lineHeight:1.8, color:textMain, padding:'4px 0', maxWidth:(site as any)?.page_width||600, margin:'0 auto', width:'100%' }}
+              className="rich-content"
+            />
+          </div>
+        )}
+
+        {/* Empty state for custom pages */}
+        {activePage !== 'home' && !hasMeaningfulHtml(pageContents[activePage]) && (
           <div style={{paddingBottom:32}}>
-            {hasMeaningfulHtml(pageContents[activePage]) ? (
-              <div 
-                dangerouslySetInnerHTML={{ __html: pageContents[activePage] }}
-                style={{ fontSize:15, lineHeight:1.8, color:textMain, padding:'4px 0', maxWidth:(site as any)?.page_width||600, margin:'0 auto', width:'100%' }}
-                className="rich-content"
-              />
-            ) : isOwner ? (
+            {isOwner ? (
               <div style={{textAlign:'center',padding:'40px 0',border:`1.5px dashed ${t.border}`,borderRadius:16}}>
                 <p style={{fontSize:32,marginBottom:8}}>✏️</p>
                 <p style={{fontSize:14,color:t.text2,marginBottom:12}}>{T("page_no_content") || "Add content in the editor"}</p>

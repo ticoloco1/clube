@@ -10,7 +10,7 @@ function getDb() {
 }
 
 const DEFAULT_SPLITS = {
-  video:        { creator: 0.60, platform: 0.40 },
+  video:        { creator: 0.70, platform: 0.30 },
   cv:           { creator: 0.50, platform: 0.50 },
   cv_directory: { creator: 0.00, platform: 1.00 },
   slug:         { creator: 0.90, platform: 0.10 },

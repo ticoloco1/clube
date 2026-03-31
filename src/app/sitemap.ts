@@ -39,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .limit(1000);
 
     const siteUrls: MetadataRoute.Sitemap = (sites || []).map(s => ({
-      url: `${base}/s/${s.slug}`,
+      url: `https://${s.slug}.trustbank.xyz`,
       lastModified: new Date(s.updated_at || now),
       changeFrequency: 'weekly' as const,
       priority: 0.8,
