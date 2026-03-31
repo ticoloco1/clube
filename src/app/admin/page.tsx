@@ -120,6 +120,12 @@ export default function AdminPage() {
   // Code injection
   const [headCode,   setHeadCode]   = useState('');
   const [bodyCode,   setBodyCode]   = useState('');
+  const [termsContent, setTermsContent] = useState('');
+  const [privacyContent, setPrivacyContent] = useState('');
+  const [trialHours, setTrialHours] = useState('24');
+  const [graceDays, setGraceDays] = useState('7');
+  const [warningHours, setWarningHours] = useState('1');
+  const [testRibbonText, setTestRibbonText] = useState('TEST MODE');
 
   // API keys status
   const [apiStatus, setApiStatus] = useState({ helio: false, supabase: true, r2: false });
@@ -160,6 +166,12 @@ export default function AdminPage() {
         if (s.key === 'features') { try { setFeatures(JSON.parse(s.value)); } catch {} }
         if (s.key === 'head_code') setHeadCode(s.value || '');
         if (s.key === 'body_code') setBodyCode(s.value || '');
+        if (s.key === 'terms_content') setTermsContent(s.value || '');
+        if (s.key === 'privacy_content') setPrivacyContent(s.value || '');
+        if (s.key === 'trial_hours') setTrialHours(String(s.value || '24'));
+        if (s.key === 'grace_days') setGraceDays(String(s.value || '7'));
+        if (s.key === 'warning_hours') setWarningHours(String(s.value || '1'));
+        if (s.key === 'test_ribbon_text') setTestRibbonText(s.value || 'TEST MODE');
         if (s.key === 'pricing')  { try { setPricing(p => ({ ...p, ...JSON.parse(s.value) })); } catch {} }
       });
     });
@@ -208,6 +220,12 @@ export default function AdminPage() {
         saveSetting('features', JSON.stringify(features)),
         saveSetting('head_code', headCode),
         saveSetting('body_code', bodyCode),
+        saveSetting('terms_content', termsContent),
+        saveSetting('privacy_content', privacyContent),
+        saveSetting('trial_hours', trialHours),
+        saveSetting('grace_days', graceDays),
+        saveSetting('warning_hours', warningHours),
+        saveSetting('test_ribbon_text', testRibbonText),
         saveSetting('pricing', JSON.stringify(pricing)),
       ]);
       toast.success('✅ Salvo!');
@@ -615,6 +633,27 @@ export default function AdminPage() {
               <textarea value={bodyCode} onChange={e => setBodyCode(e.target.value)}
                 className="input w-full font-mono text-xs resize-none" rows={8}
                 placeholder="<!-- AdSense -->" />
+            </div>
+            <div className="card p-5">
+              <h3 className="font-black text-[var(--text)] mb-1">Editable Legal Pages (English)</h3>
+              <p className="text-xs text-[var(--text2)] mb-3">Use plain text or HTML. Terms/Privacy pages will load from here when set.</p>
+              <label className="label block mb-1">Terms Content</label>
+              <textarea value={termsContent} onChange={e => setTermsContent(e.target.value)}
+                className="input w-full font-mono text-xs resize-none mb-3" rows={8}
+                placeholder="Terms content in English..." />
+              <label className="label block mb-1">Privacy Content</label>
+              <textarea value={privacyContent} onChange={e => setPrivacyContent(e.target.value)}
+                className="input w-full font-mono text-xs resize-none" rows={8}
+                placeholder="Privacy content in English..." />
+            </div>
+            <div className="card p-5">
+              <h3 className="font-black text-[var(--text)] mb-1">Trial Settings</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div><label className="label block mb-1">Trial Hours</label><input value={trialHours} onChange={e => setTrialHours(e.target.value)} className="input" type="number" min="1" /></div>
+                <div><label className="label block mb-1">Grace Days</label><input value={graceDays} onChange={e => setGraceDays(e.target.value)} className="input" type="number" min="1" /></div>
+                <div><label className="label block mb-1">Warning (hours before)</label><input value={warningHours} onChange={e => setWarningHours(e.target.value)} className="input" type="number" min="1" /></div>
+                <div><label className="label block mb-1">Test Ribbon</label><input value={testRibbonText} onChange={e => setTestRibbonText(e.target.value)} className="input" /></div>
+              </div>
             </div>
             <p className="text-xs text-[var(--text2)]">Click "Save All" at the top to apply changes.</p>
           </div>

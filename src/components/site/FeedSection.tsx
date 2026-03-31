@@ -19,8 +19,9 @@ interface FeedSectionProps {
 export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark = true, textColor, onPost }: FeedSectionProps) {
   const { user } = useAuth();
   const [text, setText] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [videoEmbedUrl, setVideoEmbedUrl] = useState('');
   const [pinning, setPinning] = useState(false);
   const [posting, setPosting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -28,34 +29,53 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
   const T = useT();
   if (!isOwner) return null;
 
-  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB'); return; }
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
+  const toEmbedUrl = (raw: string) => {
+    const value = raw.trim();
+    if (!value) return '';
+    if (value.includes('youtube.com/watch?v=')) {
+      const id = value.split('watch?v=')[1]?.split('&')[0];
+      return id ? `https://www.youtube.com/embed/${id}` : '';
+    }
+    if (value.includes('youtu.be/')) {
+      const id = value.split('youtu.be/')[1]?.split('?')[0];
+      return id ? `https://www.youtube.com/embed/${id}` : '';
+    }
+    if (value.includes('vimeo.com/')) {
+      const id = value.split('vimeo.com/')[1]?.split('?')[0];
+      return id ? `https://player.vimeo.com/video/${id}` : '';
+    }
+    return value.includes('/embed/') ? value : '';
   };
 
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    if (fileRef.current) fileRef.current.value = '';
+  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files || []).slice(0, 3 - imageFiles.length);
+    if (!picked.length) return;
+    const oversized = picked.some(file => file.size > 5 * 1024 * 1024);
+    if (oversized) { toast.error('Cada foto deve ter no maximo 5MB'); return; }
+    setImageFiles(prev => [...prev, ...picked].slice(0, 3));
+    picked.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => setImagePreviews(prev => [...prev, reader.result as string].slice(0, 3));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    if (fileRef.current && imageFiles.length <= 1) fileRef.current.value = '';
   };
 
   const post = async (pinIt: boolean) => {
-    if (!text.trim() && !imageFile) return;
+    if (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim()) return;
     if (!user) return;
 
     setPosting(true);
     if (pinIt) setPinning(true);
 
     try {
-      let imageUrl: string | null = null;
-      if (imageFile) {
-        imageUrl = await uploadFile(imageFile, 'feed', user.id);
-      }
+      const uploaded = await Promise.all(imageFiles.map(file => uploadFile(file, 'feed', user.id)));
+      const embedUrl = toEmbedUrl(videoEmbedUrl);
 
       const expiresAt = pinIt
         ? new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()
@@ -65,7 +85,9 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
         site_id: siteId,
         user_id: user.id,
         text: text.trim() || null,
-        image_url: imageUrl,
+        image_url: uploaded[0] || null,
+        media_urls: uploaded,
+        video_embed_url: embedUrl || null,
         pinned: pinIt,
         expires_at: expiresAt,
       });
@@ -81,7 +103,10 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
       }
 
       setText('');
-      removeImage();
+      setImageFiles([]);
+      setImagePreviews([]);
+      setVideoEmbedUrl('');
+      if (fileRef.current) fileRef.current.value = '';
       onPost?.();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao publicar');
@@ -120,14 +145,26 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
         }}
       />
 
+      <input
+        value={videoEmbedUrl}
+        onChange={e => setVideoEmbedUrl(e.target.value)}
+        className="input"
+        placeholder="Link de video para embed (YouTube/Vimeo)"
+        style={{ marginTop: 8 }}
+      />
+
       {/* Image preview */}
-      {imagePreview && (
-        <div style={{ position: 'relative', marginTop: 8, display: 'inline-block' }}>
-          <img src={imagePreview} style={{ width: '100%', maxHeight: 200, borderRadius: 10, objectFit: 'cover', display: 'block' }} />
-          <button onClick={removeImage}
-            style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X style={{ width: 12, height: 12 }} />
-          </button>
+      {imagePreviews.length > 0 && (
+        <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
+          {imagePreviews.map((preview, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <img src={preview} style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: 10, objectFit: 'cover', display: 'block' }} />
+              <button onClick={() => removeImage(i)}
+                style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -137,22 +174,22 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
         <button onClick={() => fileRef.current?.click()}
           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           <ImageIcon style={{ width: 14, height: 14 }} />
-          Foto
+          Foto ({imageFiles.length}/3)
         </button>
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImage} />
+        <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleImage} />
 
         <div style={{ flex: 1 }} />
 
         {/* Pin button - $10 USDC */}
-        <button onClick={() => post(true)} disabled={posting || (!text.trim() && !imageFile)}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (posting || (!text.trim() && !imageFile)) ? 0.4 : 1 }}>
+        <button onClick={() => post(true)} disabled={posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())) ? 0.4 : 1 }}>
           {pinning ? <Loader2 style={{ width: 13, height: 13, animation: 'spin .8s linear infinite' }} /> : <Pin style={{ width: 13, height: 13 }} />}
           📌 Fixar · $10
         </button>
 
         {/* Post button */}
-        <button onClick={() => post(false)} disabled={posting || (!text.trim() && !imageFile)}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 8, background: accentColor, border: 'none', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (posting || (!text.trim() && !imageFile)) ? 0.4 : 1 }}>
+        <button onClick={() => post(false)} disabled={posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 8, background: accentColor, border: 'none', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())) ? 0.4 : 1 }}>
           {posting && !pinning ? <Loader2 style={{ width: 13, height: 13, animation: 'spin .8s linear infinite' }} /> : <Send style={{ width: 13, height: 13 }} />}
           Publicar
         </button>

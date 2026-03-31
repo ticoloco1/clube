@@ -51,6 +51,54 @@ create policy "sv_read"   on site_visits for select using (
 );
 create policy "sv_insert" on site_visits for insert with check (true);
 
+alter table if exists site_visits add column if not exists utm_source text;
+alter table if exists site_visits add column if not exists utm_medium text;
+alter table if exists site_visits add column if not exists utm_campaign text;
+
+-- Link click analytics (funnel step)
+create table if not exists site_link_clicks (
+  id              uuid default gen_random_uuid() primary key,
+  site_id         uuid references mini_sites(id) on delete cascade,
+  link_id         uuid,
+  slug            text,
+  destination_url text,
+  utm_source      text,
+  utm_medium      text,
+  utm_campaign    text,
+  created_at      timestamptz default now()
+);
+
+alter table site_link_clicks enable row level security;
+drop policy if exists "slc_read" on site_link_clicks;
+drop policy if exists "slc_insert" on site_link_clicks;
+create policy "slc_read" on site_link_clicks for select using (
+  exists (select 1 from mini_sites where id = site_id and user_id = auth.uid())
+);
+create policy "slc_insert" on site_link_clicks for insert with check (true);
+
+-- Mini-site SEO and trial publish window
+alter table if exists mini_sites add column if not exists seo_title text;
+alter table if exists mini_sites add column if not exists seo_description text;
+alter table if exists mini_sites add column if not exists seo_og_image text;
+alter table if exists mini_sites add column if not exists page_modules jsonb default '{}'::jsonb;
+alter table if exists mini_sites add column if not exists banner_focus_x integer default 50;
+alter table if exists mini_sites add column if not exists banner_focus_y integer default 50;
+alter table if exists mini_sites add column if not exists trial_publish_until timestamptz;
+alter table if exists mini_sites add column if not exists trial_grace_until timestamptz;
+alter table if exists mini_sites add column if not exists trial_notice_sent_at timestamptz;
+
+-- Feed richer media (Instagram-like)
+alter table if exists feed_posts add column if not exists media_urls jsonb default '[]'::jsonb;
+alter table if exists feed_posts add column if not exists video_embed_url text;
+
+-- Runtime/admin settings used by trial + legal pages (requires platform_settings table)
+insert into platform_settings (key, value, updated_at) values
+  ('trial_hours', '24', now()),
+  ('grace_days', '7', now()),
+  ('warning_hours', '1', now()),
+  ('test_ribbon_text', 'TEST MODE', now())
+on conflict (key) do nothing;
+
 -- Site messages (contact box on mini site)
 create table if not exists site_messages (
   id           uuid default gen_random_uuid() primary key,

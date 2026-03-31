@@ -52,6 +52,15 @@ export interface MiniSite {
   site_pages?: string;
   page_width?: number;
   page_contents?: string;
+  page_modules?: string;
+  banner_focus_x?: number;
+  banner_focus_y?: number;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  seo_og_image?: string | null;
+  trial_publish_until?: string | null;
+  trial_grace_until?: string | null;
+  trial_notice_sent_at?: string | null;
 }
 
 export function useMySite() {

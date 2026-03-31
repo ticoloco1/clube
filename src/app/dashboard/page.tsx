@@ -16,6 +16,7 @@ import {
   CheckCircle, RefreshCw, Sparkles, Clock, Shield, Send
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 type SlugRow = {
   id: string; slug: string; status: string;
@@ -37,6 +38,17 @@ function rarity(slug: string) {
   if (l <= 5) return { label: 'Popular', color: '#38bdf8', icon: '🔹' };
   if (l <= 6) return { label: 'Standard', color: '#4ade80', icon: '🔑' };
   return { label: 'Free', color: '#94a3b8', icon: '🔓' };
+}
+
+function getPostMedia(post: any): string[] {
+  if (Array.isArray(post?.media_urls)) return post.media_urls;
+  if (typeof post?.media_urls === 'string') {
+    try {
+      const parsed = JSON.parse(post.media_urls);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  return post?.image_url ? [post.image_url] : [];
 }
 
 function SlugCard({ s, onUpdate, siteSlug }: { s: SlugRow; onUpdate: () => void; siteSlug: string }) {
@@ -165,6 +177,7 @@ function SlugCard({ s, onUpdate, siteSlug }: { s: SlugRow; onUpdate: () => void;
 }
 
 export default function DashboardPage() {
+  const T = useT();
   const { user, loading: authLoading } = useAuth();
   const { site, loading: siteLoading } = useMySite();
   const router = useRouter();
@@ -174,6 +187,8 @@ export default function DashboardPage() {
   const [listings, setListings] = useState<any[]>([]);
   const [earnings, setEarnings] = useState({ total: 0, videos: 0, cv: 0 });
   const [visitCount, setVisitCount] = useState<number | null>(null);
+  const [clickCount, setClickCount] = useState<number | null>(null);
+  const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
   const [tab, setTab] = useState<'overview' | 'slugs' | 'feed' | 'listings'>('overview');
 
   const loadSlugs = async () => {
@@ -215,7 +230,11 @@ export default function DashboardPage() {
     if (!site?.id) return;
     (supabase as any).from('site_visits').select('id', { count: 'exact', head: true }).eq('site_id', site.id)
       .then(({ count }: any) => setVisitCount(typeof count === 'number' ? count : 0));
-  }, [site?.id]);
+    (supabase as any).from('site_link_clicks').select('id', { count: 'exact', head: true }).eq('site_id', site.id)
+      .then(({ count }: any) => setClickCount(typeof count === 'number' ? count : 0));
+    (supabase as any).from('paywall_unlocks').select('id', { count: 'exact', head: true }).eq('creator_id', user?.id)
+      .then(({ count }: any) => setPurchaseCount(typeof count === 'number' ? count : 0));
+  }, [site?.id, user?.id]);
 
   if (authLoading || siteLoading) return (
     <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand" /></div>
@@ -225,10 +244,10 @@ export default function DashboardPage() {
   const expiring = slugs.filter(s => daysLeft(s.expires_at) <= 30).length;
 
   const TABS = [
-    { id: 'overview', label: 'Visão Geral', icon: TrendingUp },
-    { id: 'slugs', label: `🔐 Cofre (${slugs.length})`, icon: Key },
-    { id: 'feed', label: '📝 Feed', icon: FileText },
-    { id: 'listings', label: `🏠 Anúncios (${listings.length})`, icon: Home },
+    { id: 'overview', label: T('dashboard_overview'), icon: TrendingUp },
+    { id: 'slugs', label: `🔐 ${T('dashboard_slug_vault')} (${slugs.length})`, icon: Key },
+    { id: 'feed', label: `📝 ${T('dashboard_feed')}`, icon: FileText },
+    { id: 'listings', label: `🏠 ${T('dashboard_listings')} (${listings.length})`, icon: Home },
   ];
 
   return (
@@ -238,10 +257,10 @@ export default function DashboardPage() {
 
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="font-black text-2xl text-[var(--text)]">Dashboard</h1>
+            <h1 className="font-black text-2xl text-[var(--text)]">{T('dashboard_title')}</h1>
             <p className="text-[var(--text2)] text-sm">{user.email}</p>
           </div>
-          <Link href="/editor" className="btn-primary gap-2"><Edit3 className="w-4 h-4" />Editor</Link>
+          <Link href="/editor" className="btn-primary gap-2"><Edit3 className="w-4 h-4" />{T('dashboard_edit')}</Link>
         </div>
 
         {/* Tabs */}
@@ -276,12 +295,14 @@ export default function DashboardPage() {
             </div>
 
             {/* Earnings */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               {[
-                { label: 'Visitas', value: visitCount, color: 'text-cyan-400', kind: 'int' as const },
-                { label: 'Total', value: earnings.total, color: 'text-brand', kind: 'money' as const },
-                { label: 'Vídeos', value: earnings.videos, color: 'text-red-400', kind: 'money' as const },
-                { label: 'CVs', value: earnings.cv, color: 'text-blue-400', kind: 'money' as const },
+                { label: T('dashboard_visits'), value: visitCount, color: 'text-cyan-400', kind: 'int' as const },
+                { label: T('dashboard_clicks'), value: clickCount, color: 'text-violet-400', kind: 'int' as const },
+                { label: T('dashboard_purchases'), value: purchaseCount, color: 'text-emerald-400', kind: 'int' as const },
+                { label: T('dashboard_total'), value: earnings.total, color: 'text-brand', kind: 'money' as const },
+                { label: T('dashboard_videos'), value: earnings.videos, color: 'text-red-400', kind: 'money' as const },
+                { label: T('dashboard_cvs'), value: earnings.cv, color: 'text-blue-400', kind: 'money' as const },
               ].map(e => (
                 <div key={e.label} className="card p-4 text-center">
                   <p className="text-xs text-[var(--text2)] mb-1">{e.label}</p>
@@ -290,6 +311,12 @@ export default function DashboardPage() {
                   </p>
                 </div>
               ))}
+            </div>
+            <div className="card p-4">
+              <p className="text-xs text-[var(--text2)] mb-1">{T('dashboard_funnel')}</p>
+              <p className="text-sm text-[var(--text)]">
+                {visitCount ?? 0} visitas -> {clickCount ?? 0} cliques -> {purchaseCount ?? 0} compras
+              </p>
             </div>
 
             {/* Quick actions */}
@@ -394,7 +421,18 @@ export default function DashboardPage() {
                   <div key={p.id} className={`p-4 rounded-xl border ${p.pinned ? 'border-brand/30 bg-brand/5' : 'border-[var(--border)] bg-[var(--bg2)]'}`}>
                     {p.pinned && <p className="text-xs text-brand font-bold mb-2">📌 FIXADO</p>}
                     <p className="text-sm text-[var(--text)] whitespace-pre-wrap">{p.text}</p>
-                    {p.image_url && <img src={p.image_url} className="w-full rounded-xl mt-2 max-h-48 object-cover" />}
+                    {getPostMedia(p).length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {getPostMedia(p).slice(0, 3).map((url: string, i: number) => (
+                          <img key={i} src={url} className="w-full rounded-xl aspect-square object-contain bg-black/10" />
+                        ))}
+                      </div>
+                    )}
+                    {p.video_embed_url && (
+                      <div className="mt-2 rounded-xl overflow-hidden border border-[var(--border)]">
+                        <iframe src={p.video_embed_url} width="100%" height="230" allowFullScreen style={{ border: 'none', display: 'block' }} />
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--border)]">
                       <span className="text-xs text-[var(--text2)]">{new Date(p.created_at).toLocaleDateString('pt-BR')}</span>
                       <button onClick={async () => {

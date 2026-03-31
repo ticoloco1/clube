@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
 import { BoostButton } from '@/components/ui/BoostButton';
+import { useT } from '@/lib/i18n';
 import { Shield, Search, Globe, Users, Zap, ExternalLink } from 'lucide-react';
 
 interface SiteEntry {
@@ -15,6 +16,7 @@ interface SiteEntry {
 const PAGE_SIZE = 16;
 
 export default function SitesDirectoryPage() {
+  const T = useT();
   const [sites, setSites] = useState<SiteEntry[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -54,13 +56,13 @@ export default function SitesDirectoryPage() {
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="flex items-end justify-between gap-4 mb-5 flex-wrap">
             <div>
-              <h1 className="text-2xl font-black text-[var(--text)] flex items-center gap-2"><Globe className="w-6 h-6 text-brand" /> Mini Sites</h1>
-              <p className="text-sm text-[var(--text2)]">Discover creators, professionals and brands</p>
+              <h1 className="text-2xl font-black text-[var(--text)] flex items-center gap-2"><Globe className="w-6 h-6 text-brand" /> {T('sites_title')}</h1>
+              <p className="text-sm text-[var(--text2)]">{T('sites_subtitle')}</p>
             </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} className="input pl-10" placeholder="Search by name, slug or bio..." />
+            <input value={search} onChange={e => setSearch(e.target.value)} className="input pl-10" placeholder={T('sites_search_placeholder')} />
           </div>
         </div>
       </div>
@@ -86,7 +88,7 @@ export default function SitesDirectoryPage() {
                 <div className="flex gap-1.5 mt-3">
                   <a href={`https://${site.slug}.trustbank.xyz`} target="_blank" rel="noopener"
                     className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold border border-[var(--border)] text-[var(--text2)] hover:border-brand/50 hover:text-brand transition-all">
-                    <ExternalLink className="w-3 h-3" /> Visit
+                    <ExternalLink className="w-3 h-3" /> {T('sites_visit')}
                   </a>
                   <BoostButton targetType="site" targetId={site.id} targetName={site.site_name} compact />
                 </div>
@@ -104,7 +106,7 @@ export default function SitesDirectoryPage() {
         {!loading && sites.length === 0 && (
           <div className="text-center py-20">
             <Users className="w-12 h-12 text-brand/30 mx-auto mb-3" />
-            <p className="text-[var(--text2)]">No sites found</p>
+            <p className="text-[var(--text2)]">{T('sites_not_found')}</p>
           </div>
         )}
         <div ref={observerRef} className="h-10" />

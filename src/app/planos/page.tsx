@@ -4,8 +4,10 @@ import { Header } from '@/components/layout/Header';
 import { useCart } from '@/store/cart';
 import { Check, Loader2, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useT } from '@/lib/i18n';
 
 export default function PlanosPage() {
+  const T = useT();
   const [annual, setAnnual] = useState(false);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,18 +33,18 @@ export default function PlanosPage() {
       <Header />
       <div className="max-w-4xl mx-auto px-4 py-16">
         <div className="text-center mb-12">
-          <h1 className="font-black text-4xl text-[var(--text)] mb-3">Planos</h1>
-          <p className="text-[var(--text2)] text-lg">Comece grátis. Pague apenas quando quiser mais.</p>
+          <h1 className="font-black text-4xl text-[var(--text)] mb-3">{T('plans_title')}</h1>
+          <p className="text-[var(--text2)] text-lg">{T('plans_subtitle')}</p>
 
           {/* Toggle */}
           <div className="flex items-center justify-center gap-3 mt-6">
-            <span className={`text-sm font-semibold ${!annual ? 'text-[var(--text)]' : 'text-[var(--text2)]'}`}>Mensal</span>
+            <span className={`text-sm font-semibold ${!annual ? 'text-[var(--text)]' : 'text-[var(--text2)]'}`}>{T('plans_monthly')}</span>
             <button onClick={() => setAnnual(!annual)}
               className={`relative w-14 h-7 rounded-full transition-colors ${annual ? 'bg-brand' : 'bg-[var(--border)]'}`}>
               <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${annual ? 'left-8' : 'left-1'}`} />
             </button>
             <span className={`text-sm font-semibold ${annual ? 'text-[var(--text)]' : 'text-[var(--text2)]'}`}>
-              Anual <span className="text-green-400 font-black">-20%</span>
+              {T('plans_yearly')} <span className="text-green-400 font-black">-20%</span>
             </span>
           </div>
         </div>
@@ -63,7 +65,7 @@ export default function PlanosPage() {
                 <div key={plan.id} className={`card p-8 relative transition-all hover:-translate-y-1 ${isPopular ? 'ring-2 ring-brand shadow-xl shadow-brand/20' : ''}`}>
                   {isPopular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand text-white text-xs font-black px-4 py-1 rounded-full whitespace-nowrap">
-                      Mais popular
+                      {T('plans_most_popular')}
                     </div>
                   )}
                   <div className="mb-6">
@@ -93,7 +95,7 @@ export default function PlanosPage() {
                     onClick={() => handleBuy(plan)}
                     className={`w-full py-3.5 rounded-xl font-black text-base transition-all hover:opacity-90 ${isPopular ? 'btn-primary' : 'btn border-2 border-brand text-brand hover:bg-brand hover:text-white'}`}>
                     <Zap className="w-4 h-4 inline mr-2" />
-                    Começar com {plan.name}
+                    {T('plans_start_with')} {plan.name}
                   </button>
                 </div>
               );
@@ -101,7 +103,7 @@ export default function PlanosPage() {
 
             {plans.length === 0 && (
               <div className="col-span-3 text-center py-20 text-[var(--text2)]">
-                Nenhum plano disponível no momento.
+                {T('plans_no_plans')}
               </div>
             )}
           </div>

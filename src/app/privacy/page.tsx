@@ -1,14 +1,31 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { createClient } from '@supabase/supabase-js';
 
-export default function PrivacyPage() {
+function getDb() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+export default async function PrivacyPage() {
+  const { data: setting } = await getDb()
+    .from('platform_settings' as any)
+    .select('value')
+    .eq('key', 'privacy_content')
+    .maybeSingle();
+  const customContent = setting?.value || '';
   return (
     <div className="min-h-screen bg-[var(--bg)] flex flex-col">
       <Header />
       <main className="max-w-3xl mx-auto px-4 py-12 flex-1">
         <h1 className="text-3xl font-black text-[var(--text)] mb-2">Privacy Policy</h1>
         <p className="text-[var(--text2)] text-sm mb-8">Last updated: March 2026</p>
-        <div className="space-y-6 text-[var(--text2)] text-sm">
+        {customContent ? (
+          <div className="prose prose-sm max-w-none text-[var(--text2)]" dangerouslySetInnerHTML={{ __html: customContent }} />
+        ) : (
+          <div className="space-y-6 text-[var(--text2)] text-sm">
           {[
             ['What We Collect', 'Email address and name (from Google OAuth or email signup). Profile information you voluntarily provide (bio, avatar, links, CV). Polygon wallet address (only if you provide it for receiving payments). Payment metadata (amounts, transaction hashes — not card numbers, which are handled by Helio). Usage data (page views, feature usage) via anonymous analytics.'],
             ['What We Do NOT Collect', 'We do not store passwords. We do not store credit card numbers. We do not sell your data to third parties. We do not run ads.'],
@@ -24,7 +41,8 @@ export default function PrivacyPage() {
               <p className="leading-relaxed">{text}</p>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </main>
       <Footer />
     </div>

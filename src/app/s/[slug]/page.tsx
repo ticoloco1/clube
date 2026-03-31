@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 import { usePublicSite } from '@/hooks/useSite';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/store/cart';
@@ -64,6 +64,17 @@ const THEMES: Record<string, any> = {
   sakura:    { bg:'#fff1f5', text:'#4a1530', text2:'#e11d79', accent:'#e11d79', btn:'rgba(225,29,121,0.07)', btnHover:'rgba(225,29,121,0.13)', border:'rgba(225,29,121,0.1)', radius:24, font:'"Georgia",serif' },
 };
 
+function getPostMedia(post: any): string[] {
+  if (Array.isArray(post?.media_urls)) return post.media_urls;
+  if (typeof post?.media_urls === 'string') {
+    try {
+      const parsed = JSON.parse(post.media_urls);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  return post?.image_url ? [post.image_url] : [];
+}
+
 function Countdown({ expiresAt, accent }: { expiresAt: string; accent: string }) {
   const [label, setLabel] = useState('');
   useEffect(() => {
@@ -107,17 +118,40 @@ export default function SitePage() {
     try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed"]'); }
     catch { return ['links','videos','cv','feed']; }
   })();
+  const pageModulesMap: Record<string, string[]> = (() => {
+    try {
+      const parsed = JSON.parse((site as any)?.page_modules || '{}');
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+    return { home: moduleOrder };
+  })();
   const sitePages: {id:string;label:string}[] = (() => {
     try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home"}]'); }
     catch { return [{id:'home',label:'Home'}]; }
   })();
   const [activePage, setActivePage] = useState('home');
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
+  const activeModules = pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : []);
+  const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
+  const [subActive, setSubActive] = useState(false);
+  const [trialCountdown, setTrialCountdown] = useState('');
+  const [warningHours, setWarningHours] = useState(1);
+  const [testRibbonText, setTestRibbonText] = useState('TEST MODE');
+  const warnedOneHour = useRef(false);
   useEffect(() => {
     if (!site) return;
     try { setPageContents(JSON.parse((site as any)?.page_contents || '{}')); }
     catch { setPageContents({}); }
   }, [site]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    setUtm({
+      source: params.get('utm_source') || '',
+      medium: params.get('utm_medium') || '',
+      campaign: params.get('utm_campaign') || '',
+    });
+  }, []);
   const isDark = !['ivory','editorial','sky','mint','lavender','peach','lemon','blush','paper','geo','cream','cloud','sand','nordic','sakura'].includes(site?.theme||'');
 
   // Auto-open cart if returning from auth with items pending
@@ -141,8 +175,11 @@ export default function SitePage() {
       slug: site.slug,
       referrer: ref?.slice(0, 500) || null,
       device: device?.slice(0, 200) || null,
+      utm_source: utm.source || null,
+      utm_medium: utm.medium || null,
+      utm_campaign: utm.campaign || null,
     }).then(() => {});
-  }, [site?.id, site?.published, site?.slug, site?.user_id, user?.id, authLoading]);
+  }, [site?.id, site?.published, site?.slug, site?.user_id, user?.id, authLoading, utm.source, utm.medium, utm.campaign]);
 
   useEffect(() => {
     if (!site?.id) return;
@@ -158,6 +195,43 @@ export default function SitePage() {
         .then(({data}:any) => { if (data) setCvUnlocked(true); });
     }
   }, [site?.id, user]);
+
+  useEffect(() => {
+    if (!isOwner || !site?.user_id || !user?.id) return;
+    supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user.id).maybeSingle().then(({ data }) => {
+      const active = !!(data?.expires_at && new Date(data.expires_at) > new Date());
+      setSubActive(active);
+    });
+  }, [isOwner, site?.user_id, user?.id]);
+
+  useEffect(() => {
+    (supabase as any).from('platform_settings').select('key,value').in('key', ['warning_hours', 'test_ribbon_text']).then(({ data }: any) => {
+      (data || []).forEach((s: any) => {
+        if (s.key === 'warning_hours') setWarningHours(Math.max(1, Number(s.value) || 1));
+        if (s.key === 'test_ribbon_text') setTestRibbonText(s.value || 'TEST MODE');
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isOwner || subActive) return;
+    if (!(site as any)?.trial_publish_until) return;
+    const tick = () => {
+      const diff = new Date((site as any).trial_publish_until).getTime() - Date.now();
+      if (diff <= 0) { setTrialCountdown('00:00:00'); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTrialCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+      if (diff <= warningHours * 3600000 && !warnedOneHour.current) {
+        warnedOneHour.current = true;
+        toast.error(`${warningHours} hour(s) left in trial. Subscribe monthly or yearly (discount) to stay online.`);
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [isOwner, subActive, (site as any)?.trial_publish_until, warningHours]);
 
   const handleCvUnlock = () => {
     if (!user) { 
@@ -215,6 +289,15 @@ export default function SitePage() {
       {/* Slug ticker */}
       <SlugTicker siteUserId={site.user_id} />
 
+      {Boolean((site as any)?.trial_publish_until && !subActive) && (
+        <div style={{
+          position:'fixed', top: 30, right: 12, zIndex: 20, padding:'6px 10px', borderRadius: 999,
+          background:'linear-gradient(135deg,#f59e0b,#d97706)', color:'#fff', fontSize:11, fontWeight:900, letterSpacing:0.3,
+        }}>
+          {testRibbonText}
+        </div>
+      )}
+
       {isOwner && !site.published && (
         <div style={{
           margin: '0 auto', maxWidth: 580, padding: '12px 16px', borderRadius: 14,
@@ -228,9 +311,8 @@ export default function SitePage() {
 
       {/* Banner — acima do feed visual; avatar sobrepõe com z-index */}
       {site.banner_url && (
-        <div style={{width:'100%',height:220,maxHeight:'42vh',overflow:'hidden',position:'relative',flexShrink:0,zIndex:1}}>
-          <img src={site.banner_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block',verticalAlign:'top'}}/>
-          <div style={{position:'absolute',inset:0,background:`linear-gradient(to bottom,transparent 25%,${pageBg} 100%)`}}/>
+        <div style={{width:'100%',height:220,maxHeight:'42vh',overflow:'hidden',position:'relative',flexShrink:0,zIndex:1,background:pageBg}}>
+          <img src={site.banner_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:`${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,display:'block',verticalAlign:'top'}}/>
         </div>
       )}
 
@@ -279,7 +361,7 @@ export default function SitePage() {
         )}
 
         {/* ── DYNAMIC MODULE ORDER ── */}
-        {activePage === 'home' && moduleOrder.map(mod => {
+        {activeModules.map(mod => {
           if (mod === 'links' && links.length > 0) return (
             <div key="links" style={{display:'flex',flexDirection:'column',gap:12,marginBottom:32}}>
               {links.map((link:any) => {
@@ -294,6 +376,17 @@ export default function SitePage() {
                   <a key={link.id} href={link.url} target="_blank" rel="noopener"
                     onMouseEnter={() => setHoveredLink(link.id)}
                     onMouseLeave={() => setHoveredLink(null)}
+                    onClick={() => {
+                      (supabase as any).from('site_link_clicks').insert({
+                        site_id: site.id,
+                        link_id: link.id,
+                        slug: site.slug,
+                        destination_url: link.url,
+                        utm_source: utm.source || null,
+                        utm_medium: utm.medium || null,
+                        utm_campaign: utm.campaign || null,
+                      }).then(() => {});
+                    }}
                     style={{
                       display:'flex', alignItems:'center', gap:0,
                       height:56, borderRadius:r, overflow:'hidden',
@@ -366,7 +459,7 @@ export default function SitePage() {
           if (mod === 'feed' && (site as any).show_feed !== false) return (
             <div key="feed" style={{marginBottom:32}}>
               {/* Owner composer */}
-              {isOwner && site.id && activePage === 'home' && (
+              {isOwner && site.id && activeModules.includes('feed') && (
                 <FeedSection siteId={site.id} isOwner={isOwner} accentColor={accent} isDark={isDark} textColor={textMain} onPost={() => {
                   const now = new Date().toISOString();
                   (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
@@ -380,7 +473,18 @@ export default function SitePage() {
                 <div key={p.id} style={{padding:'14px 16px',borderRadius:r,border:`2px solid ${accent}`,background:`${accent}10`,marginBottom:10}}>
                   <p style={{color:accent,fontSize:11,fontWeight:800,margin:'0 0 6px'}}>📌 FIXADO</p>
                   <p style={{margin:0,color:t.text,fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{p.text}</p>
-                  {p.image_url && <img src={p.image_url} style={{width:'100%',borderRadius:8,marginTop:8,objectFit:'cover',maxHeight:200}}/>}
+                  {getPostMedia(p).length > 0 && (
+                    <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).length, 3)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
+                      {getPostMedia(p).slice(0, 3).map((url:string, i:number) => (
+                        <img key={i} src={url} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)'}}/>
+                      ))}
+                    </div>
+                  )}
+                  {p.video_embed_url && (
+                    <div style={{marginTop:8,borderRadius:8,overflow:'hidden'}}>
+                      <iframe src={p.video_embed_url} width="100%" height="215" allowFullScreen style={{border:'none',display:'block'}} />
+                    </div>
+                  )}
                 </div>
               ))}
               {/* Feed window 400x438 with internal scroll */}
@@ -415,7 +519,18 @@ export default function SitePage() {
                         flexShrink:0,
                       }}>
                         <p style={{margin:0,color:t.text,fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{p.text}</p>
-                        {p.image_url && <img src={p.image_url} style={{width:'100%',borderRadius:8,marginTop:8,objectFit:'cover',maxHeight:200}}/>}
+                        {getPostMedia(p).length > 0 && (
+                          <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).length, 3)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
+                            {getPostMedia(p).slice(0, 3).map((url:string, i:number) => (
+                              <img key={i} src={url} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)'}}/>
+                            ))}
+                          </div>
+                        )}
+                        {p.video_embed_url && (
+                          <div style={{marginTop:8,borderRadius:8,overflow:'hidden'}}>
+                            <iframe src={p.video_embed_url} width="100%" height="215" allowFullScreen style={{border:'none',display:'block'}} />
+                          </div>
+                        )}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:8,paddingTop:6,borderTop:`1px solid ${t.border}`}}>
                           <span style={{fontSize:10,color:t.text2}}>{new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
                           {p.expires_at && <Countdown expiresAt={p.expires_at} accent={accent}/>}
@@ -464,6 +579,20 @@ export default function SitePage() {
             trustbank.xyz
           </a>
         </div>
+        {isOwner && !subActive && Boolean((site as any)?.trial_publish_until) && (
+          <div style={{
+            position:'fixed', left:12, right:12, bottom:12, zIndex:30, padding:'10px 14px', borderRadius:12,
+            background:'rgba(0,0,0,0.82)', border:'1px solid rgba(245,158,11,0.4)', color:'#fff',
+            display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap',
+          }}>
+            <span style={{ fontSize:12, fontWeight:700 }}>
+              Trial active: {trialCountdown || '--:--:--'} · then it moves to draft
+            </span>
+            <a href="/planos" style={{ color:'#fbbf24', fontSize:12, fontWeight:800, textDecoration:'underline' }}>
+              Subscribe monthly or yearly (discount)
+            </a>
+          </div>
+        )}
       </div>
       <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>

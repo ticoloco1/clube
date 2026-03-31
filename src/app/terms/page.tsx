@@ -1,14 +1,31 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { createClient } from '@supabase/supabase-js';
 
-export default function TermsPage() {
+function getDb() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+export default async function TermsPage() {
+  const { data: setting } = await getDb()
+    .from('platform_settings' as any)
+    .select('value')
+    .eq('key', 'terms_content')
+    .maybeSingle();
+  const customContent = setting?.value || '';
   return (
     <div className="min-h-screen bg-[var(--bg)] flex flex-col">
       <Header />
       <main className="max-w-3xl mx-auto px-4 py-12 flex-1">
         <h1 className="text-3xl font-black text-[var(--text)] mb-2">Terms of Service</h1>
         <p className="text-[var(--text2)] text-sm mb-8">Last updated: March 2026</p>
-        <div className="prose prose-sm max-w-none text-[var(--text2)] space-y-6">
+        {customContent ? (
+          <div className="prose prose-sm max-w-none text-[var(--text2)]" dangerouslySetInnerHTML={{ __html: customContent }} />
+        ) : (
+          <div className="prose prose-sm max-w-none text-[var(--text2)] space-y-6">
           {[
             ['1. Platform Nature', 'TrustBank is a decentralized content, classifieds, and identity platform. We are NOT a bank, financial institution, money transmitter, or payment processor. We do not hold, custody, or manage user funds. All payments are peer-to-peer in USDC (a stablecoin) on the Polygon blockchain network.'],
             ['2. Eligibility', 'You must be at least 18 years old to use TrustBank. By using the platform, you confirm that you meet this requirement and that your use complies with all applicable local laws.'],
@@ -27,7 +44,8 @@ export default function TermsPage() {
               <p className="leading-relaxed">{text}</p>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </main>
       <Footer />
     </div>

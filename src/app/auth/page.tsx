@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 import { Mail, Lock, Eye, EyeOff, Loader2, Shield, Coins, Zap } from 'lucide-react';
 
 function AuthForm() {
@@ -15,6 +16,7 @@ function AuthForm() {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const T = useT();
 
   useEffect(() => { if (user) router.push(redirect); }, [user]);
 
@@ -51,7 +53,7 @@ function AuthForm() {
           </div>
           <h1 className="font-black text-2xl text-[var(--text)]">TrustBank</h1>
           <p className="text-sm text-[var(--text2)] mt-1">
-            {mode === 'signin' ? 'Bem-vindo de volta' : 'Crie sua conta'}
+            {mode === 'signin' ? T('auth_welcome_back') : T('auth_create_account')}
           </p>
         </div>
 
@@ -67,7 +69,7 @@ function AuthForm() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Continuar com Google
+            {T('auth_continue_google')}
           </button>
 
           {/* Silent wallet info */}
@@ -80,7 +82,7 @@ function AuthForm() {
 
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-[var(--border)]" />
-            <span className="text-xs text-[var(--text2)]">ou email</span>
+            <span className="text-xs text-[var(--text2)]">{T('auth_or_email')}</span>
             <div className="flex-1 h-px bg-[var(--border)]" />
           </div>
 
@@ -94,7 +96,7 @@ function AuthForm() {
               </div>
             </div>
             <div>
-              <label className="label block mb-1">Senha</label>
+              <label className="label block mb-1">{T('auth_password')}</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
                 <input type={showPw ? 'text' : 'password'} value={password}
@@ -109,15 +111,15 @@ function AuthForm() {
             <button type="submit" disabled={loading}
               className="btn-primary w-full justify-center py-2.5">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {loading ? 'Carregando...' : mode === 'signin' ? 'Entrar' : 'Criar Conta'}
+              {loading ? T('auth_loading') : mode === 'signin' ? T('auth_signin') : T('auth_signup')}
             </button>
           </form>
 
           <p className="text-center text-sm text-[var(--text2)]">
-            {mode === 'signin' ? 'Não tem conta? ' : 'Já tem conta? '}
+            {mode === 'signin' ? `${T('auth_no_account')} ` : `${T('auth_have_account')} `}
             <button onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
               className="text-brand hover:underline font-semibold">
-              {mode === 'signin' ? 'Criar grátis' : 'Entrar'}
+              {mode === 'signin' ? T('auth_create_free') : T('auth_signin')}
             </button>
           </p>
         </div>

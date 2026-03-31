@@ -27,6 +27,7 @@ const PRICE_TIERS = [
 
 // ─── Slug card ────────────────────────────────────────────────────────────────
 function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'premium' | 'auction'; onBuy: (s: any) => void; isAdmin?: boolean }) {
+  const T = useT();
   const [timeLeft, setTimeLeft] = useState('');
   const isAuction = type === 'auction';
 
@@ -82,7 +83,7 @@ function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'pr
         <button onClick={() => onBuy(slug)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90"
           style={{ background: isAuction ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-          {isAuction ? <><Gavel className="w-3.5 h-3.5" /> Dar lance</> : <><ShoppingCart className="w-3.5 h-3.5" /> Comprar</>}
+          {isAuction ? <><Gavel className="w-3.5 h-3.5" /> Dar lance</> : <><ShoppingCart className="w-3.5 h-3.5" /> {T('slug_buy')}</>}
         </button>
       </div>
     </div>
@@ -164,6 +165,7 @@ function MySlugs({ userId }: { userId: string }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SlugsPage() {
+  const T = useT();
   const { user } = useAuth();
   const { add, open: openCart } = useCart();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -292,7 +294,7 @@ export default function SlugsPage() {
             <Flame className="w-3.5 h-3.5" /> Slugs são ativos digitais únicos
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-[var(--text)] mb-3">
-            Slug Marketplace
+            {T('slug_title')}
           </h1>
           <p className="text-[var(--text2)] text-lg max-w-xl mx-auto">
             Register your identity. Sell. Auction. <span className="text-brand font-semibold">trustbank.xyz/seunome</span>
@@ -318,7 +320,7 @@ export default function SlugsPage() {
             <button onClick={handleClaim} disabled={!search || available === false}
               className="px-6 py-2 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-              {available === false ? 'Indisponível' : 'Registrar'}
+              {available === false ? T('slug_taken') : T('slug_register')}
             </button>
           </div>
 
@@ -326,8 +328,8 @@ export default function SlugsPage() {
             <div className={`mt-3 flex items-center justify-between p-3 rounded-xl ${available ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
               <div className="flex items-center gap-2">
                 {available
-                  ? <><CheckCircle className="w-4 h-4 text-green-500" /><span className="text-sm font-semibold text-green-400">/{search} está disponível!</span></>
-                  : <><XCircle className="w-4 h-4 text-red-500" /><span className="text-sm font-semibold text-red-400">/{search} já está registrado</span></>}
+                  ? <><CheckCircle className="w-4 h-4 text-green-500" /><span className="text-sm font-semibold text-green-400">/{search} {T('slug_available')}</span></>
+                  : <><XCircle className="w-4 h-4 text-red-500" /><span className="text-sm font-semibold text-red-400">/{search} {T('slug_taken')}</span></>}
               </div>
               {available && tier && (
                 <span className="font-black text-[var(--text)]">${claimPrice || 12} USDC</span>

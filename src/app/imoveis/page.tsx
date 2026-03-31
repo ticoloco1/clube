@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BoostButton } from '@/components/ui/BoostButton';
+import { useT } from '@/lib/i18n';
 
 // ─── Regions ──────────────────────────────────────────────────────────────────
 const REGIONS = ['Todos', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Middle East'];
@@ -179,6 +180,7 @@ function AdvertiseModal({ onClose }: { onClose: ()=>void }) {
 const PAGE_SIZE = 12;
 
 export default function ImoveisPage() {
+  const T = useT();
   const [items, setItems] = useState<Listing[]>([]);
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('Todos');
@@ -228,10 +230,10 @@ export default function ImoveisPage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
-            <input value={search} onChange={e=>setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Buscar imóvel, bairro, cidade..."/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder={T('imoveis_search_placeholder')}/>
           </div>
           <a href="/imoveis/novo" className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex-shrink-0" style={{background:'linear-gradient(135deg,#2563eb,#3b82f6)'}}>
-            <Plus className="w-4 h-4"/> List Property
+            <Plus className="w-4 h-4"/> {T('imoveis_list_property')}
           </a>
         </div>
 
@@ -252,10 +254,10 @@ export default function ImoveisPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <Globe className="w-6 h-6 text-blue-500"/> Imóveis
+              <Globe className="w-6 h-6 text-blue-500"/> {T('imoveis_title')}
               {region!=='Todos' && <span className="text-base text-blue-500 font-semibold">· {region}</span>}
             </h1>
-            <p className="text-sm text-slate-500">{items.length} imóveis encontrados</p>
+            <p className="text-sm text-slate-500">{items.length} {T('imoveis_found')}</p>
           </div>
         </div>
 
@@ -303,9 +305,9 @@ export default function ImoveisPage() {
         {!loading && items.length===0 && (
           <div className="text-center py-24">
             <div className="w-20 h-20 bg-blue-50 dark:bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4"><Home className="w-10 h-10 text-blue-400"/></div>
-            <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-1">Nenhum imóvel nessa região</h3>
-            <p className="text-slate-500 text-sm mb-4">Seja o primeiro a anunciar aqui!</p>
-            <button onClick={()=>setShowAdvertise(true)} className="btn-primary">Anunciar meu imóvel</button>
+            <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-1">{T('imoveis_none_region')}</h3>
+            <p className="text-slate-500 text-sm mb-4">{T('imoveis_first_list')}</p>
+            <button onClick={()=>setShowAdvertise(true)} className="btn-primary">{T('imoveis_list_mine')}</button>
           </div>
         )}
         <div ref={observerRef} className="h-10"/>

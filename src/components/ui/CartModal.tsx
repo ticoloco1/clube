@@ -28,14 +28,6 @@ export function CartModal() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
-      if (data.test) {
-        toast('⚠️ Modo Teste — sem chave Helio', { 
-          description: 'Adicione HELIO_API_KEY nas variáveis da Vercel para cobranças reais.',
-          duration: 8000,
-        });
-        close();
-        return;
-      }
       if (data.url) {
         window.open(data.url, '_blank');
         setStep('paying');

@@ -13,7 +13,7 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { data: site } = await getDb()
     .from('mini_sites')
-    .select('site_name, bio, avatar_url, cv_headline, cv_skills, slug')
+    .select('site_name, bio, avatar_url, cv_headline, cv_skills, slug, seo_title, seo_description, seo_og_image')
     .eq('slug', params.slug)
     .eq('published', true)
     .maybeSingle();
@@ -25,10 +25,10 @@ export async function generateMetadata(
     };
   }
 
-  const title = `${site.site_name} | TrustBank`;
-  const description = site.cv_headline
+  const title = site.seo_title?.trim() || `${site.site_name} | TrustBank`;
+  const description = site.seo_description?.trim() || (site.cv_headline
     ? `${site.cv_headline} — ${site.bio || ''}`
-    : site.bio || `${site.site_name}'s professional mini site on TrustBank`;
+    : site.bio || `${site.site_name}'s professional mini site on TrustBank`);
 
   const url = `https://${params.slug}.trustbank.xyz`;
 
@@ -45,14 +45,14 @@ export async function generateMetadata(
       siteName: 'TrustBank',
       type: 'profile',
       images: site.avatar_url
-        ? [{ url: site.avatar_url, width: 400, height: 400, alt: site.site_name }]
+        ? [{ url: site.seo_og_image || site.avatar_url, width: 1200, height: 630, alt: site.site_name }]
         : [{ url: 'https://trustbank.xyz/og-default.png', width: 1200, height: 630 }],
     },
     twitter: {
       card: 'summary',
       title,
       description: description.slice(0, 160),
-      images: site.avatar_url ? [site.avatar_url] : [],
+      images: site.seo_og_image ? [site.seo_og_image] : (site.avatar_url ? [site.avatar_url] : []),
     },
     other: {
       // Schema.org Person markup

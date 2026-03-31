@@ -70,9 +70,14 @@ export default function EditorPage() {
   const [bio,          setBio]          = useState('');
   const [avatarUrl,    setAvatarUrl]    = useState('');
   const [bannerUrl,    setBannerUrl]    = useState('');
+  const [bannerFocusX, setBannerFocusX] = useState(50);
+  const [bannerFocusY, setBannerFocusY] = useState(50);
   const [walletAddr,   setWalletAddr]   = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [published,    setPublished]    = useState(false);
+  const [seoTitle,     setSeoTitle]     = useState('');
+  const [seoDescription, setSeoDescription] = useState('');
+  const [seoOgImage,   setSeoOgImage]   = useState('');
 
   // ── Theme state ──────────────────────────────────────────────────────────
   const [theme,       setTheme]       = useState('midnight');
@@ -113,6 +118,7 @@ export default function EditorPage() {
   const [pageWidth, setPageWidth] = useState<number>(600);
   const [sitePages,   setSitePages]   = useState<{id:string;label:string}[]>([{id:'home',label:'Home'}]);
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
+  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed'] });
   const [dragOverMod, setDragOverMod] = useState<string|null>(null);
 
   // ── UI state ─────────────────────────────────────────────────────────────
@@ -125,6 +131,8 @@ export default function EditorPage() {
   const [verifying,       setVerifying]       = useState(false);
   const isDirty = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const [trialHours, setTrialHours] = useState(24);
+  const [graceDays, setGraceDays] = useState(7);
 
   // ── Load site data ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -134,9 +142,14 @@ export default function EditorPage() {
     setBio(site.bio || '');
     setAvatarUrl(site.avatar_url || '');
     setBannerUrl((site as any).banner_url || '');
+    setBannerFocusX((site as any).banner_focus_x ?? 50);
+    setBannerFocusY((site as any).banner_focus_y ?? 50);
     setWalletAddr((site as any).wallet_address || '');
     setContactEmail((site as any).contact_email || '');
     setPublished(site.published || false);
+    setSeoTitle((site as any).seo_title || '');
+    setSeoDescription((site as any).seo_description || '');
+    setSeoOgImage((site as any).seo_og_image || '');
     setTheme(site.theme || 'midnight');
     setAccentColor(site.accent_color || '#818cf8');
     setPhotoShape(site.photo_shape || 'round');
@@ -162,7 +175,44 @@ export default function EditorPage() {
     if ((site as any).page_contents) {
       try { setPageContents(JSON.parse((site as any).page_contents)); } catch {}
     }
+    if ((site as any).page_modules) {
+      try { setPageModules(JSON.parse((site as any).page_modules)); } catch {}
+    }
   }, [site]);
+
+  useEffect(() => {
+    const enforceTrialLifecycle = async () => {
+      if (!site?.id || !user?.id) return;
+      const { data: sub } = await supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user?.id).maybeSingle();
+      const active = sub?.expires_at && new Date(sub.expires_at) > new Date();
+      if (active) return;
+      const now = new Date();
+      const trialEndRaw = (site as any).trial_publish_until;
+      const graceEndRaw = (site as any).trial_grace_until;
+      const trialEnd = trialEndRaw ? new Date(trialEndRaw) : null;
+      const graceEnd = graceEndRaw ? new Date(graceEndRaw) : null;
+
+      if (site.published && trialEnd && trialEnd <= now) {
+        const nextGrace = graceEnd || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        await save({ published: false, trial_grace_until: nextGrace.toISOString() } as any);
+        setPublished(false);
+        toast.error('Trial expired. Your mini-site is now in a 7-day grace period.');
+        return;
+      }
+
+      if (!site.published && graceEnd && graceEnd <= now) {
+        await Promise.all([
+          supabase.from('mini_site_links').delete().eq('site_id', site.id),
+          supabase.from('mini_site_videos').delete().eq('site_id', site.id),
+          (supabase as any).from('feed_posts').delete().eq('site_id', site.id),
+          (supabase as any).from('slug_registrations').delete().eq('user_id', user.id).eq('slug', site.slug),
+        ]);
+        await supabase.from('mini_sites').delete().eq('id', site.id).eq('user_id', user.id);
+        toast.error('Grace period ended. Profile data was removed and slug returned to marketplace.');
+      }
+    };
+    enforceTrialLifecycle();
+  }, [site?.id, site?.published, site?.slug, user?.id]);
 
   // ── Load links & videos ───────────────────────────────────────────────────
   useEffect(() => {
@@ -170,6 +220,15 @@ export default function EditorPage() {
     supabase.from('mini_site_links').select('*').eq('site_id', site.id).order('sort_order').then(r => setLinks(r.data || []));
     supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order').then(r => setVideos(r.data || []));
   }, [site?.id]);
+
+  useEffect(() => {
+    (supabase as any).from('platform_settings').select('key,value').in('key', ['trial_hours', 'grace_days']).then(({ data }: any) => {
+      (data || []).forEach((s: any) => {
+        if (s.key === 'trial_hours') setTrialHours(Math.max(1, Number(s.value) || 24));
+        if (s.key === 'grace_days') setGraceDays(Math.max(1, Number(s.value) || 7));
+      });
+    });
+  }, []);
 
   // ── Auto-create site ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -187,9 +246,9 @@ export default function EditorPage() {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => { if (isDirty.current) handleSave(true); }, 2500);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
-  }, [siteName, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
+  }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
       showCv, cvLocked, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
-      showFeed, feedCols, moduleOrder, sitePages, walletAddr, contactEmail]);
+      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY]);
 
   // ── Upload helper ─────────────────────────────────────────────────────────
   const uploadToStorage = async (file: File, folder: string): Promise<string> => {
@@ -210,6 +269,8 @@ export default function EditorPage() {
         bio,
         avatar_url:    avatarUrl,
         banner_url:    bannerUrl,
+        banner_focus_x: bannerFocusX,
+        banner_focus_y: bannerFocusY,
         theme,
         accent_color:  accentColor,
         photo_shape:   photoShape,
@@ -229,8 +290,12 @@ export default function EditorPage() {
         site_pages:    JSON.stringify(sitePages),
         page_width: pageWidth,
         page_contents: JSON.stringify(pageContents),
+        page_modules: JSON.stringify(pageModules),
         wallet_address: walletAddr,
         contact_email: contactEmail,
+        seo_title: seoTitle || null,
+        seo_description: seoDescription || null,
+        seo_og_image: seoOgImage || null,
         published,
       } as any);
 
@@ -359,6 +424,7 @@ export default function EditorPage() {
     { id:'cv',      label:T('ed_cv'),      icon:FileText },
     { id:'feed',    label:'Feed',        icon:ChevronDown },
     { id:'pages',   label:'Páginas',     icon:FileText },
+    { id:'seo',     label:'SEO',         icon:Globe },
     { id:'verify',  label:'Verify',         icon:Shield },
   ];
 
@@ -397,7 +463,18 @@ export default function EditorPage() {
               const { data: sub } = await supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user.id).maybeSingle();
               const active = sub?.expires_at && new Date(sub.expires_at) > new Date();
               if (!active) {
-                toast.error('Assine um plano para ficar online e visível publicamente.');
+                const currentTrial = (site as any)?.trial_publish_until ? new Date((site as any).trial_publish_until) : null;
+                const trialStillValid = !!currentTrial && currentTrial > new Date();
+                if (!trialStillValid) {
+                  const trialEnd = new Date(Date.now() + trialHours * 60 * 60 * 1000).toISOString();
+                  const graceEnd = new Date(Date.now() + (trialHours + graceDays * 24) * 60 * 60 * 1000).toISOString();
+                  await save({ trial_publish_until: trialEnd, trial_grace_until: graceEnd, trial_notice_sent_at: null, published: true } as any);
+                  setPublished(true);
+                  markDirty();
+                  toast.success('🎉 Published for a free 24h trial. Subscribe to keep it online after that.');
+                  return;
+                }
+                toast.error('Free trial already used. Subscribe to keep your mini-site online.');
                 router.push('/planos');
                 return;
               }
@@ -469,7 +546,25 @@ export default function EditorPage() {
                           className="text-red-400 hover:opacity-70"><X className="w-4 h-4" /></button>
                       )}
                     </div>
-                    {bannerUrl && <img src={bannerUrl} className="w-full h-20 object-cover rounded-xl mt-2 border border-[var(--border)]" />}
+                    {bannerUrl && (
+                      <>
+                        <img src={bannerUrl} className="w-full h-20 object-cover rounded-xl mt-2 border border-[var(--border)]" style={{ objectPosition: `${bannerFocusX}% ${bannerFocusY}%` }} />
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                          <div>
+                            <label className="label block mb-1 text-xs">Banner Focus X</label>
+                            <input type="range" min={0} max={100} value={bannerFocusX}
+                              onChange={e => { setBannerFocusX(Number(e.target.value)); markDirty(); }}
+                              className="w-full" />
+                          </div>
+                          <div>
+                            <label className="label block mb-1 text-xs">Banner Focus Y</label>
+                            <input type="range" min={0} max={100} value={bannerFocusY}
+                              onChange={e => { setBannerFocusY(Number(e.target.value)); markDirty(); }}
+                              className="w-full" />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -837,12 +932,30 @@ export default function EditorPage() {
                       <input value={page.label}
                         onChange={e => { setSitePages(prev => prev.map(p => p.id===page.id ? {...p,label:e.target.value} : p)); markDirty(); }}
                         className="input flex-1 py-1.5 text-sm" placeholder={idx===0?'Home':`Page ${idx+1}`} />
-                      {idx > 0 && <button onClick={() => { setSitePages(prev => prev.filter(p => p.id!==page.id)); markDirty(); }} className="text-red-400 hover:opacity-70"><X className="w-4 h-4" /></button>}
+                      {idx > 0 && <button onClick={() => {
+                        setSitePages(prev => prev.filter(p => p.id!==page.id));
+                        setPageContents(prev => {
+                          const next = { ...prev };
+                          delete next[page.id];
+                          return next;
+                        });
+                        setPageModules(prev => {
+                          const next = { ...prev };
+                          delete next[page.id];
+                          return next;
+                        });
+                        markDirty();
+                      }} className="text-red-400 hover:opacity-70"><X className="w-4 h-4" /></button>}
                     </div>
                   ))}
                 </div>
                 {sitePages.length < 3 && (
-                  <button onClick={() => { setSitePages(prev => [...prev, {id:`p_${Date.now()}`, label:`Page ${prev.length+1}`}]); markDirty(); }}
+                  <button onClick={() => {
+                    const newId = `p_${Date.now()}`;
+                    setSitePages(prev => [...prev, {id:newId, label:`Page ${prev.length+1}`}]);
+                    setPageModules(prev => ({ ...prev, [newId]: [] }));
+                    markDirty();
+                  }}
                     className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> Add Page</button>
                 )}
               </div>
@@ -850,6 +963,30 @@ export default function EditorPage() {
               {sitePages.map((page) => (
                 <div key={page.id} className="card p-5 mt-3">
                   <h3 className="font-black text-sm text-[var(--text)] mb-3">✏️ Conteúdo: {page.label}</h3>
+                  <div className="mb-3">
+                    <p className="text-xs text-[var(--text2)] font-bold mb-2">Módulos desta página</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['links','videos','cv','feed'] as const).map(mod => {
+                        const enabled = (pageModules[page.id] || (page.id === 'home' ? moduleOrder : [])).includes(mod);
+                        return (
+                          <button
+                            key={mod}
+                            onClick={() => {
+                              setPageModules(prev => {
+                                const current = prev[page.id] || (page.id === 'home' ? moduleOrder : []);
+                                const next = enabled ? current.filter(m => m !== mod) : [...current, mod];
+                                return { ...prev, [page.id]: next };
+                              });
+                              markDirty();
+                            }}
+                            className={`py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'}`}
+                          >
+                            {mod.toUpperCase()}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   {/* Width slider */}
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-xs text-[var(--text2)] font-bold whitespace-nowrap">Largura:</span>
@@ -867,6 +1004,29 @@ export default function EditorPage() {
                   <p className="text-xs text-[var(--text2)] mt-2">Este conteúdo aparece quando o visitante clica em "{page.label}" no mini site.</p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'seo' && (
+            <div className="card p-6 space-y-4">
+              <h2 className="font-black text-lg text-[var(--text)]">SEO por mini-site</h2>
+              <div>
+                <label className="label block mb-1">SEO Title</label>
+                <input value={seoTitle} onChange={e => { setSeoTitle(e.target.value); markDirty(); }}
+                  className="input" maxLength={70} placeholder="Titulo para Google e redes" />
+                <p className="text-xs text-[var(--text2)] mt-1">{seoTitle.length}/70</p>
+              </div>
+              <div>
+                <label className="label block mb-1">Meta Description</label>
+                <textarea value={seoDescription} onChange={e => { setSeoDescription(e.target.value); markDirty(); }}
+                  className="input resize-none" rows={3} maxLength={160} placeholder="Descricao curta para Google/preview" />
+                <p className="text-xs text-[var(--text2)] mt-1">{seoDescription.length}/160</p>
+              </div>
+              <div>
+                <label className="label block mb-1">OG Image URL</label>
+                <input value={seoOgImage} onChange={e => { setSeoOgImage(e.target.value); markDirty(); }}
+                  className="input" placeholder="https://..." />
+              </div>
             </div>
           )}
 
@@ -895,9 +1055,8 @@ export default function EditorPage() {
             <div className="rounded-2xl overflow-hidden border border-[var(--border)]" style={{ background: currentTheme.bg }}>
               {/* Banner preview */}
               {bannerUrl && (
-                <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative' }}>
-                  <img src={bannerUrl} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
-                  <div style={{ position:'absolute', inset:0, background:`linear-gradient(to bottom,transparent,${currentTheme.bg})` }} />
+                <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative', background: currentTheme.bg }}>
+                  <img src={bannerUrl} style={{ width:'100%', height:'100%', objectFit:'cover', objectPosition:`${bannerFocusX}% ${bannerFocusY}%`, display:'block' }} />
                 </div>
               )}
               <div style={{ padding: bannerUrl ? '0 16px 16px' : '20px 16px 16px', textAlign:'center' }}>

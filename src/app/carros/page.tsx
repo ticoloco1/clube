@@ -4,6 +4,7 @@ import { BoostButton } from '@/components/ui/BoostButton';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
+import { useT } from '@/lib/i18n';
 import {
   Car, Search, SlidersHorizontal, ChevronLeft, ChevronRight,
   Heart, MapPin, Gauge, Fuel, Settings, X, ExternalLink, Shield, Zap
@@ -128,7 +129,7 @@ function Lightbox({ images, startIdx, onClose }: { images: string[]; startIdx: n
 }
 
 // ─── Car Card (horizontal list style like Cars.com) ───────────────────────────
-function CarCard({ item, onClick }: { item: Listing; onClick: () => void }) {
+function CarCard({ item, onClick, detailsLabel }: { item: Listing; onClick: () => void; detailsLabel: string }) {
   return (
     <article className="group bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg border border-zinc-100 dark:border-zinc-800 transition-all duration-300 cursor-pointer flex flex-col sm:flex-row"
       onClick={onClick}>
@@ -211,7 +212,7 @@ function CarCard({ item, onClick }: { item: Listing; onClick: () => void }) {
             )}
           </div>
           <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors flex-shrink-0">
-            Ver detalhes
+            {detailsLabel}
           </button>
         </div>
       </div>
@@ -340,6 +341,7 @@ const BRANDS = ['Todos', 'Toyota', 'Honda', 'Volkswagen', 'Chevrolet', 'Ford', '
 const PAGE_SIZE = 10;
 
 export default function CarrosPage() {
+  const T = useT();
   const [items, setItems] = useState<Listing[]>([]);
   const [search, setSearch] = useState('');
   const [brand, setBrand] = useState('Todos');
@@ -386,7 +388,7 @@ export default function CarrosPage() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Buscar por modelo, marca, ano..." />
+              placeholder={T('carros_search_placeholder')} />
           </div>
           {/* Brand filter */}
           <div className="flex gap-2 mt-3 overflow-x-auto pb-1 -mx-1 px-1">
@@ -404,15 +406,15 @@ export default function CarrosPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white">Carros</h1>
-            <p className="text-sm text-zinc-500">{items.length} {items.length === 1 ? 'veículo encontrado' : 'veículos encontrados'}</p>
+            <h1 className="text-2xl font-black text-zinc-900 dark:text-white">{T('carros_title')}</h1>
+            <p className="text-sm text-zinc-500">{items.length} {items.length === 1 ? T('carros_vehicle_found_one') : T('carros_vehicle_found_many')}</p>
           </div>
         </div>
 
         {/* List */}
         <div className="space-y-4">
           {items.map(item => (
-            <CarCard key={item.id} item={item} onClick={() => setSelected(item)} />
+            <CarCard key={item.id} item={item} onClick={() => setSelected(item)} detailsLabel={T('carros_details')} />
           ))}
           {loading && [...Array(3)].map((_, i) => (
             <div key={i} className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-sm border border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row animate-pulse">
@@ -433,8 +435,8 @@ export default function CarrosPage() {
             <div className="w-20 h-20 bg-blue-50 dark:bg-blue-950 rounded-full flex items-center justify-center mx-auto mb-4">
               <Car className="w-10 h-10 text-blue-400" />
             </div>
-            <h3 className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">Nenhum veículo encontrado</h3>
-            <p className="text-zinc-500 text-sm">Tente ajustar a busca ou filtros</p>
+            <h3 className="font-bold text-zinc-700 dark:text-zinc-300 mb-1">{T('carros_none_found')}</h3>
+            <p className="text-zinc-500 text-sm">{T('carros_try_filters')}</p>
           </div>
         )}
 
