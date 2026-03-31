@@ -23,6 +23,12 @@ function parseYouTubeUrl(url: string): { type: 'channel'|'handle'|'video'|'unkno
     const channelMatch = path.match(/^\/channel\/([^/?]+)/);
     if (channelMatch) return { type: 'channel', id: channelMatch[1] };
 
+    // studio.youtube.com/channel/UCxxx/editing/profile
+    const studioChannelMatch = path.match(/^\/channel\/([^/]+)/);
+    if (u.hostname.includes('studio.youtube.com') && studioChannelMatch) {
+      return { type: 'channel', id: studioChannelMatch[1] };
+    }
+
     // /c/name format
     const cMatch = path.match(/^\/c\/([^/?]+)/);
     if (cMatch) return { type: 'handle', id: cMatch[1] };
@@ -48,7 +54,11 @@ async function checkBacklink(youtubeUrl: string, backlink: string): Promise<{
   channelId?: string;
   error?: string;
 }> {
-  const normalizedUrl = youtubeUrl.startsWith('http') ? youtubeUrl : `https://www.youtube.com/${youtubeUrl}`;
+  let normalizedUrl = youtubeUrl.startsWith('http') ? youtubeUrl : `https://www.youtube.com/${youtubeUrl}`;
+  if (normalizedUrl.includes('studio.youtube.com/channel/')) {
+    const m = normalizedUrl.match(/studio\.youtube\.com\/channel\/([^/?]+)/);
+    if (m?.[1]) normalizedUrl = `https://www.youtube.com/channel/${m[1]}`;
+  }
   
   const res = await fetch(normalizedUrl, {
     headers: {

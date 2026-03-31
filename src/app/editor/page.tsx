@@ -488,6 +488,7 @@ export default function EditorPage() {
 
   const currentTheme = THEMES.find(t => t.id === theme) || THEMES[0];
   const siteUrl = site?.slug ? `https://${site.slug}.trustbank.xyz` : null;
+  const managePreviewUrl = site?.slug ? `/s/${site.slug}?manage=1` : null;
   const photoSizePx: Record<string,number> = { sm:72, md:96, lg:128, xl:160 };
   const avatarPx = photoSizePx[photoSize] || 96;
 
@@ -498,7 +499,7 @@ export default function EditorPage() {
     { id:'videos',  label:T('ed_videos'),  icon:Video },
     { id:'cv',      label:T('ed_cv'),      icon:FileText },
     { id:'feed',    label:'Feed',        icon:ChevronDown },
-    { id:'pages',   label:'Páginas',     icon:FileText },
+    { id:'pages',   label:'Pages',     icon:FileText },
     { id:'seo',     label:'SEO',         icon:Globe },
     { id:'verify',  label:'Verify',         icon:Shield },
   ];
@@ -528,7 +529,7 @@ export default function EditorPage() {
               {T('ed_save')}
             </button>
             {siteUrl && (
-              <a href={siteUrl} target="_blank" rel="noopener"
+              <a href={managePreviewUrl || siteUrl || '#'} target="_blank" rel="noopener"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold border border-[var(--border)] hover:border-green-500/50 text-green-500 transition-all">
                 <Eye className="w-3.5 h-3.5" /> {T('ed_preview')}
               </a>
@@ -539,7 +540,7 @@ export default function EditorPage() {
                 await save({ published: true } as any);
                 setPublished(true);
                 markDirty();
-                toast.success('✅ Publicado via admin bypass.');
+                toast.success('✅ Published via admin bypass.');
                 return;
               }
               const { data: sub } = await supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user.id).maybeSingle();
@@ -1072,9 +1073,9 @@ export default function EditorPage() {
               {/* Page content editors */}
               {sitePages.map((page) => (
                 <div key={page.id} className="card p-5 mt-3">
-                  <h3 className="font-black text-sm text-[var(--text)] mb-3">✏️ Conteúdo: {page.label}</h3>
+                  <h3 className="font-black text-sm text-[var(--text)] mb-3">✏️ Content: {page.label}</h3>
                   <div className="mb-3">
-                    <p className="text-xs text-[var(--text2)] font-bold mb-2">Módulos desta página</p>
+                    <p className="text-xs text-[var(--text2)] font-bold mb-2">Modules on this page</p>
                     <div className="grid grid-cols-2 gap-2">
                       {(['links','videos','cv','feed'] as const).map(mod => {
                         const enabled = (pageModules[page.id] || (page.id === 'home' ? moduleOrder : [])).includes(mod);
@@ -1108,10 +1109,10 @@ export default function EditorPage() {
                   <RichTextEditor
                     value={pageContents[page.id] || ''}
                     onChange={v => { setPageContents(prev => ({...prev, [page.id]: v})); markDirty(); }}
-                    placeholder={`Escreva o conteúdo da página "${page.label}"...`}
+                    placeholder={`Write content for "${page.label}"...`}
                     pageWidth={pageWidth}
                   />
-                  <p className="text-xs text-[var(--text2)] mt-2">Este conteúdo aparece quando o visitante clica em "{page.label}" no mini site.</p>
+                  <p className="text-xs text-[var(--text2)] mt-2">This content appears when a visitor opens "{page.label}" on your mini-site.</p>
                 </div>
               ))}
             </div>

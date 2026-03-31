@@ -118,6 +118,7 @@ export default function SitePage() {
   const accent = site?.accent_color || t.accent;
   const isOwner = user?.id === site?.user_id;
   const isAdminViewer = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
+  const canManageFeed = isOwner || isAdminViewer || ((user?.email || '').toLowerCase() === (site?.contact_email || '').toLowerCase());
   const T = useT();
   const feedCols: 1|2|3 = (site as any)?.feed_cols || 1;
   const photoSizeMap: Record<string,number> = { sm:72, md:96, lg:128, xl:160 };
@@ -161,7 +162,8 @@ export default function SitePage() {
     if (!site?.slug || typeof window === 'undefined' || hostRedirectDone.current) return;
     const host = window.location.hostname;
     const canonical = `${site.slug}.trustbank.xyz`;
-    if ((host === 'trustbank.xyz' || host === 'www.trustbank.xyz') && window.location.pathname.startsWith('/s/')) {
+    const manageMode = new URLSearchParams(window.location.search).get('manage') === '1';
+    if (!manageMode && (host === 'trustbank.xyz' || host === 'www.trustbank.xyz') && window.location.pathname.startsWith('/s/')) {
       hostRedirectDone.current = true;
       window.location.replace(`https://${canonical}`);
     }
@@ -514,7 +516,7 @@ export default function SitePage() {
                       <iframe src={p.video_embed_url} width="100%" height="215" allowFullScreen style={{border:'none',display:'block'}} />
                     </div>
                   )}
-                  {(isOwner || isAdminViewer || user?.id === p.user_id) && (
+                  {(canManageFeed || user?.id === p.user_id) && (
                     <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
                       <button
                         onClick={async () => {
@@ -583,7 +585,7 @@ export default function SitePage() {
                           <span style={{fontSize:10,color:t.text2}}>{new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
                           <div style={{display:'flex',alignItems:'center',gap:8}}>
                             {p.expires_at && <Countdown expiresAt={p.expires_at} accent={accent}/>}
-                            {(isOwner || isAdminViewer || user?.id === p.user_id) && (
+                            {(canManageFeed || user?.id === p.user_id) && (
                               <button
                                 onClick={async () => {
                                   const ok = window.confirm('Delete this post?');

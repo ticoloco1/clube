@@ -21,6 +21,16 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
     if (editorRef.current) onChange(editorRef.current.innerHTML);
   };
 
+  const applyHighlight = (color: string) => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const text = sel.toString();
+    if (!text) return;
+    const html = `<mark style="background:${color};color:inherit;padding:0 2px;border-radius:2px;">${text}</mark>`;
+    document.execCommand('insertHTML', false, html);
+    if (editorRef.current) onChange(editorRef.current.innerHTML);
+  };
+
   // Strip formatting on paste — clean HTML
   const onPaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
@@ -85,8 +95,8 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
         <button onClick={() => exec('insertUnorderedList')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><List size={16}/></button>
         <button onClick={() => exec('formatBlock','blockquote')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Quote size={16}/></button>
         <button onClick={() => exec('formatBlock','pre')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Code size={16}/></button>
-        <button title="Highlight yellow" onClick={() => exec('hiliteColor','#fef08a')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-yellow-400"><Highlighter size={16}/></button>
-        <button title="Highlight pink" onClick={() => exec('hiliteColor','#f9a8d4')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-pink-400"><Highlighter size={16}/></button>
+        <button title="Highlight yellow" onClick={() => applyHighlight('#fde047')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-yellow-400"><Highlighter size={16}/></button>
+        <button title="Highlight pink" onClick={() => applyHighlight('#f9a8d4')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-pink-400"><Highlighter size={16}/></button>
         <button title="Dark text" onClick={() => exec('foreColor','#111827')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
         <button title="Light text" onClick={() => exec('foreColor','#f8fafc')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
         <button title="Notebook paper" onClick={() => insertPaperBlock('yellow')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-amber-400"><StickyNote size={16}/></button>
