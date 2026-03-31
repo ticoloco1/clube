@@ -6,12 +6,22 @@ interface SlugTickerProps {
   // Se passado, mostra os slugs do dono do site
   siteUserId?: string;
   // Se não passado, mostra slugs do marketplace (homepage)
+  customItems?: { label: string; url: string }[];
+  enabled?: boolean;
 }
 
-export function SlugTicker({ siteUserId }: SlugTickerProps) {
+export function SlugTicker({ siteUserId, customItems = [], enabled = true }: SlugTickerProps) {
   const [items, setItems] = useState<{ slug: string; url: string; label: string }[]>([]);
 
   useEffect(() => {
+    if (!enabled) { setItems([]); return; }
+    const normalizedCustom = (customItems || [])
+      .filter((it) => it?.label && it?.url)
+      .map((it, idx) => ({ slug: `custom_${idx}`, label: it.label, url: it.url }));
+    if (normalizedCustom.length > 0) {
+      setItems(normalizedCustom);
+      return;
+    }
     if (siteUserId) {
       // Mini-site: mostra slugs do dono que estão em venda/leilão
       supabase.from('slug_registrations' as any)
@@ -56,7 +66,7 @@ export function SlugTicker({ siteUserId }: SlugTickerProps) {
         setItems([...saleItems, ...auctionItems]);
       });
     }
-  }, [siteUserId]);
+  }, [siteUserId, customItems, enabled]);
 
   if (items.length === 0) return null;
 

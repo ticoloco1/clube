@@ -119,6 +119,18 @@ export default function SitePage() {
   const [posts, setPosts] = useState<any[]>([]);
   const [cvUnlocked, setCvUnlocked] = useState(false);
   const [hoveredLink, setHoveredLink] = useState<string|null>(null);
+  const customTickerItems: { label: string; url: string }[] = (() => {
+    const raw = (site as any)?.ticker_items;
+    try {
+      if (Array.isArray(raw)) return raw.filter((x: any) => x?.label && x?.url);
+      if (typeof raw === 'string') {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter((x: any) => x?.label && x?.url);
+      }
+    } catch {}
+    return [];
+  })();
+  const tickerEnabled = (site as any)?.ticker_enabled !== false;
 
   const t = (site?.theme && THEMES[site.theme]) ? THEMES[site.theme] : THEMES.midnight;
   const accent = site?.accent_color || t.accent;
@@ -368,7 +380,7 @@ export default function SitePage() {
       {t.aurora && <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,background:`radial-gradient(ellipse at 30% 20%,${accent}22 0%,transparent 55%),radial-gradient(ellipse at 70% 80%,${accent}14 0%,transparent 55%)`}}/>}
 
       {/* Slug ticker */}
-      <SlugTicker siteUserId={site.user_id} />
+      <SlugTicker siteUserId={site.user_id} customItems={customTickerItems} enabled={tickerEnabled} />
 
       {Boolean((site as any)?.trial_publish_until && !subActive) && (
         <div style={{

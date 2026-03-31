@@ -61,6 +61,8 @@ export interface MiniSite {
   trial_publish_until?: string | null;
   trial_grace_until?: string | null;
   trial_notice_sent_at?: string | null;
+  ticker_enabled?: boolean;
+  ticker_items?: any;
 }
 
 export function useMySite() {

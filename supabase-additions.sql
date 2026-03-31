@@ -86,6 +86,8 @@ alter table if exists mini_sites add column if not exists banner_focus_y integer
 alter table if exists mini_sites add column if not exists trial_publish_until timestamptz;
 alter table if exists mini_sites add column if not exists trial_grace_until timestamptz;
 alter table if exists mini_sites add column if not exists trial_notice_sent_at timestamptz;
+alter table if exists mini_sites add column if not exists ticker_enabled boolean default true;
+alter table if exists mini_sites add column if not exists ticker_items jsonb default '[]'::jsonb;
 
 -- Feed richer media (Instagram-like)
 alter table if exists feed_posts add column if not exists media_urls jsonb default '[]'::jsonb;

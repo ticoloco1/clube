@@ -136,6 +136,8 @@ export default function EditorPage() {
   const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({ home: { links: 1, videos: 1, cv: 1, feed: 1 } });
   const [dragOverMod, setDragOverMod] = useState<string|null>(null);
   const [feedPosts, setFeedPosts] = useState<any[]>([]);
+  const [tickerEnabled, setTickerEnabled] = useState(true);
+  const [tickerItems, setTickerItems] = useState<{ label: string; url: string }[]>([]);
   const [cvExperience, setCvExperience] = useState<any[]>([]);
   const [cvEducation, setCvEducation] = useState<any[]>([]);
   const [cvProjects, setCvProjects] = useState<any[]>([]);
@@ -176,6 +178,15 @@ export default function EditorPage() {
     setWalletAddr((site as any).wallet_address || '');
     setContactEmail((site as any).contact_email || '');
     setPublished(site.published || false);
+    setTickerEnabled((site as any).ticker_enabled !== false);
+    try {
+      const ti = (site as any).ticker_items;
+      if (Array.isArray(ti)) setTickerItems(ti.filter((x: any) => x?.label && x?.url));
+      else if (typeof ti === 'string') {
+        const parsed = JSON.parse(ti);
+        if (Array.isArray(parsed)) setTickerItems(parsed.filter((x: any) => x?.label && x?.url));
+      }
+    } catch {}
     setSeoTitle((site as any).seo_title || '');
     setSeoDescription((site as any).seo_description || '');
     setSeoOgImage((site as any).seo_og_image || '');
@@ -327,7 +338,7 @@ export default function EditorPage() {
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
       showCv, cvLocked, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
-      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY]);
+      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY, tickerEnabled, tickerItems]);
 
   // ── Upload helper ─────────────────────────────────────────────────────────
   const uploadToStorage = async (file: File, folder: string): Promise<string> => {
@@ -392,6 +403,8 @@ export default function EditorPage() {
         page_modules: JSON.stringify(combinedPageModules),
         wallet_address: walletAddr,
         contact_email: contactEmail,
+        ticker_enabled: tickerEnabled,
+        ticker_items: tickerItems,
         seo_title: seoTitle || null,
         seo_description: seoDescription || null,
         seo_og_image: seoOgImage || null,
@@ -654,6 +667,12 @@ export default function EditorPage() {
           {activeTab === 'profile' && (
             <div className="card p-6 space-y-5">
               <h2 className="font-black text-lg text-[var(--text)]">Profile</h2>
+              {!walletAddr.trim() && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                  <p className="text-xs font-bold text-amber-300">Set wallet to receive payments</p>
+                  <p className="text-xs text-amber-200/90">Add Polygon wallet below so paid content and payouts work correctly.</p>
+                </div>
+              )}
 
               {/* Avatar */}
               <div className="flex items-start gap-4">
@@ -754,6 +773,55 @@ export default function EditorPage() {
                 <label className="label block mb-1">Contact Email</label>
                 <input value={contactEmail} onChange={e => { setContactEmail(e.target.value); markDirty(); }}
                   className="input" type="email" placeholder="you@example.com" />
+              </div>
+
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-[var(--text)]">Mini-site ticker</p>
+                  <button onClick={() => { setTickerEnabled(v => !v); markDirty(); }}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${tickerEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${tickerEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--text2)]">Add custom slug and link messages for the scrolling top ticker on your mini-site.</p>
+                {tickerEnabled && (
+                  <div className="space-y-2">
+                    {tickerItems.map((it, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2">
+                        <input
+                          value={it.label}
+                          onChange={e => {
+                            setTickerItems(prev => prev.map((x, i) => i === idx ? { ...x, label: e.target.value } : x));
+                            markDirty();
+                          }}
+                          className="input col-span-5 py-2 text-xs"
+                          placeholder="Label shown in ticker"
+                        />
+                        <input
+                          value={it.url}
+                          onChange={e => {
+                            setTickerItems(prev => prev.map((x, i) => i === idx ? { ...x, url: e.target.value } : x));
+                            markDirty();
+                          }}
+                          className="input col-span-6 py-2 text-xs"
+                          placeholder="https://..."
+                        />
+                        <button
+                          onClick={() => { setTickerItems(prev => prev.filter((_, i) => i !== idx)); markDirty(); }}
+                          className="col-span-1 text-red-400 hover:opacity-70"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => { setTickerItems(prev => [...prev, { label: '', url: 'https://' }]); markDirty(); }}
+                      className="btn-secondary w-full justify-center text-sm"
+                    >
+                      <Plus className="w-4 h-4" /> Add ticker item
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
