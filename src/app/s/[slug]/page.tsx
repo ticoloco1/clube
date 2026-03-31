@@ -117,6 +117,7 @@ export default function SitePage() {
   const t = (site?.theme && THEMES[site.theme]) ? THEMES[site.theme] : THEMES.midnight;
   const accent = site?.accent_color || t.accent;
   const isOwner = user?.id === site?.user_id;
+  const isAdminViewer = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
   const T = useT();
   const feedCols: 1|2|3 = (site as any)?.feed_cols || 1;
   const photoSizeMap: Record<string,number> = { sm:72, md:96, lg:128, xl:160 };
@@ -513,7 +514,7 @@ export default function SitePage() {
                       <iframe src={p.video_embed_url} width="100%" height="215" allowFullScreen style={{border:'none',display:'block'}} />
                     </div>
                   )}
-                  {isOwner && (
+                  {(isOwner || isAdminViewer || user?.id === p.user_id) && (
                     <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
                       <button
                         onClick={async () => {
@@ -582,7 +583,7 @@ export default function SitePage() {
                           <span style={{fontSize:10,color:t.text2}}>{new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
                           <div style={{display:'flex',alignItems:'center',gap:8}}>
                             {p.expires_at && <Countdown expiresAt={p.expires_at} accent={accent}/>}
-                            {isOwner && (
+                            {(isOwner || isAdminViewer || user?.id === p.user_id) && (
                               <button
                                 onClick={async () => {
                                   const ok = window.confirm('Delete this post?');
@@ -676,7 +677,19 @@ export default function SitePage() {
           </button>
         )}
       </div>
-      <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}
+      .rich-content .tb-paper{padding:14px 16px;border-radius:12px;margin:10px 0;border:1px solid rgba(255,255,255,.15)}
+      .rich-content .tb-paper-yellow{
+        background:repeating-linear-gradient(180deg, rgba(180,83,9,.12) 0 1px, transparent 1px 28px),linear-gradient(180deg,#fef3c7,#fde68a);
+        color:#5b3a09;border-color:#f59e0b66
+      }
+      .rich-content .tb-paper-white{background:#ffffff;color:#111827;border-color:#d1d5db}
+      .rich-content .tb-paper-map{
+        background:radial-gradient(circle at 20% 30%, rgba(56,189,248,.25), transparent 40%),radial-gradient(circle at 80% 70%, rgba(251,113,133,.25), transparent 45%),linear-gradient(135deg,#ecfeff,#f0fdf4,#fff7ed);
+        color:#134e4a;border-color:#99f6e4
+      }
+      .rich-content .tb-paper-dark{background:linear-gradient(135deg,#0f172a,#1e1b4b);color:#e2e8f0;border-color:#4f46e5}
+      `}</style>
     </div>
   );
 }

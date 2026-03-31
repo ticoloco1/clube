@@ -1,6 +1,6 @@
 'use client';
 import { useRef, useState, useEffect } from 'react';
-import { Bold, Italic, List, Heading1, Heading2, Video, Link2, Quote, Code, Image as ImgIcon, X, Loader2 } from 'lucide-react';
+import { Bold, Italic, List, Heading1, Heading2, Video, Link2, Quote, Code, Image as ImgIcon, X, Loader2, Highlighter, Palette, StickyNote } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export function RichTextEditor({ value, onChange, placeholder }: any) {
@@ -50,6 +50,17 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
     setEmbedUrl('');
   };
 
+  const insertPaperBlock = (kind: 'yellow' | 'white' | 'map' | 'dark') => {
+    const map: Record<string, string> = {
+      yellow: '<div class="tb-paper tb-paper-yellow"><p><strong>Notebook block</strong></p><p>Write your content here...</p></div><p><br></p>',
+      white: '<div class="tb-paper tb-paper-white"><p><strong>White paper block</strong></p><p>Write your content here...</p></div><p><br></p>',
+      map: '<div class="tb-paper tb-paper-map"><p><strong>Map style block</strong></p><p>Write your content here...</p></div><p><br></p>',
+      dark: '<div class="tb-paper tb-paper-dark"><p><strong>Dark card block</strong></p><p>Write your content here...</p></div><p><br></p>',
+    };
+    document.execCommand('insertHTML', false, map[kind]);
+    if (editorRef.current) onChange(editorRef.current.innerHTML);
+  };
+
   const uploadImage = async (file: File) => {
     setUploading(true);
     try {
@@ -74,6 +85,14 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
         <button onClick={() => exec('insertUnorderedList')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><List size={16}/></button>
         <button onClick={() => exec('formatBlock','blockquote')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Quote size={16}/></button>
         <button onClick={() => exec('formatBlock','pre')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Code size={16}/></button>
+        <button title="Highlight yellow" onClick={() => exec('hiliteColor','#fef08a')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-yellow-400"><Highlighter size={16}/></button>
+        <button title="Highlight pink" onClick={() => exec('hiliteColor','#f9a8d4')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-pink-400"><Highlighter size={16}/></button>
+        <button title="Dark text" onClick={() => exec('foreColor','#111827')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
+        <button title="Light text" onClick={() => exec('foreColor','#f8fafc')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
+        <button title="Notebook paper" onClick={() => insertPaperBlock('yellow')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-amber-400"><StickyNote size={16}/></button>
+        <button title="White paper" onClick={() => insertPaperBlock('white')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-slate-300"><StickyNote size={16}/></button>
+        <button title="Map paper" onClick={() => insertPaperBlock('map')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-emerald-400"><StickyNote size={16}/></button>
+        <button title="Dark paper" onClick={() => insertPaperBlock('dark')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-violet-400"><StickyNote size={16}/></button>
         <button onClick={() => setShowEmbed(true)} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-blue-400"><Video size={16}/></button>
         <label className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)] cursor-pointer">
           {uploading ? <Loader2 size={16} className="animate-spin"/> : <ImgIcon size={16}/>}
@@ -130,6 +149,27 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
         [contenteditable] a{color:var(--accent,#818cf8);text-decoration:underline;}
         [contenteditable] img{max-width:100%;border-radius:10px;display:block;margin:8px 0;}
         [contenteditable] .trust-video-wrapper iframe{border-radius:16px;}
+        [contenteditable] .tb-paper{padding:14px 16px;border-radius:12px;margin:10px 0;border:1px solid rgba(255,255,255,.15);}
+        [contenteditable] .tb-paper-yellow{
+          background:
+            repeating-linear-gradient(180deg, rgba(180,83,9,.12) 0 1px, transparent 1px 28px),
+            linear-gradient(180deg,#fef3c7,#fde68a);
+          color:#5b3a09;
+        }
+        [contenteditable] .tb-paper-white{background:#ffffff;color:#111827;border-color:#d1d5db;}
+        [contenteditable] .tb-paper-map{
+          background:
+            radial-gradient(circle at 20% 30%, rgba(56,189,248,.25), transparent 40%),
+            radial-gradient(circle at 80% 70%, rgba(251,113,133,.25), transparent 45%),
+            linear-gradient(135deg,#ecfeff,#f0fdf4,#fff7ed);
+          color:#134e4a;
+          border-color:#99f6e4;
+        }
+        [contenteditable] .tb-paper-dark{
+          background:linear-gradient(135deg,#0f172a,#1e1b4b);
+          color:#e2e8f0;
+          border-color:#4f46e5;
+        }
       `}</style>
     </div>
   );
