@@ -133,6 +133,8 @@ export default function EditorPage() {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const [trialHours, setTrialHours] = useState(24);
   const [graceDays, setGraceDays] = useState(7);
+  const ADMIN_BYPASS_EMAIL = 'arytcf@gmail.com';
+  const [isAdminBypass, setIsAdminBypass] = useState(false);
 
   // ── Load site data ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -230,6 +232,15 @@ export default function EditorPage() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const byEmail = (user.email || '').toLowerCase() === ADMIN_BYPASS_EMAIL;
+    if (byEmail) { setIsAdminBypass(true); return; }
+    (supabase as any).from('user_roles')
+      .select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle()
+      .then(({ data }: any) => setIsAdminBypass(!!data));
+  }, [user?.id, user?.email]);
+
   // ── Auto-create site ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!siteLoading && !site && user) {
@@ -301,6 +312,23 @@ export default function EditorPage() {
 
       // Handle slug change
       if (slug !== site.slug) {
+        if (isAdminBypass) {
+          await supabase.from('mini_sites').update({ slug }).eq('id', site.id).eq('user_id', user.id);
+          const { data: owned } = await (supabase as any).from('slug_registrations').select('id').eq('user_id', user.id).eq('slug', slug).maybeSingle();
+          if (!owned) {
+            await (supabase as any).from('slug_registrations').insert({
+              user_id: user.id,
+              slug,
+              status: 'active',
+              for_sale: false,
+              expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            });
+          }
+          if (!silent) toast.success(`✅ Slug ${slug}.trustbank.xyz aplicado (admin bypass)!`);
+          isDirty.current = false;
+          setLastSaved(new Date());
+          return;
+        }
         const price = slugPrice(slug);
         if (price > 0) {
           // Check if user already owns this slug
@@ -460,6 +488,13 @@ export default function EditorPage() {
             )}
             <button onClick={async () => {
               if (!user?.id) { toast.error('Faça login'); return; }
+              if (isAdminBypass) {
+                await save({ published: true } as any);
+                setPublished(true);
+                markDirty();
+                toast.success('✅ Publicado via admin bypass.');
+                return;
+              }
               const { data: sub } = await supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user.id).maybeSingle();
               const active = sub?.expires_at && new Date(sub.expires_at) > new Date();
               if (!active) {

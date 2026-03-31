@@ -10,6 +10,7 @@ export function CartModal() {
   const { user } = useAuth();
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<'cart' | 'paying' | 'done'>('cart');
+  const CHECKOUT_FALLBACK_BASE = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/+$/, '');
 
   if (!isOpen) return null;
 
@@ -21,16 +22,29 @@ export function CartModal() {
     if (items.length === 0) return;
     setProcessing(true);
     try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ userId: user.id, items }),
-      });
-      const raw = await res.text();
+      const payload = JSON.stringify({ userId: user.id, items });
+      const urls = ['/api/checkout', CHECKOUT_FALLBACK_BASE ? `${CHECKOUT_FALLBACK_BASE}/api/checkout` : ''].filter(Boolean);
       let data: any = {};
-      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw || '' }; }
-      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+      let lastErr: any = null;
+
+      for (const url of urls) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: payload,
+          });
+          const raw = await res.text();
+          try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw || '' }; }
+          if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+          lastErr = null;
+          break;
+        } catch (e: any) {
+          lastErr = e;
+        }
+      }
+      if (lastErr) throw lastErr;
       if (data.url) {
         window.open(data.url, '_blank');
         setStep('paying');

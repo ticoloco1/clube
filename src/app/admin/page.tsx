@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const OWNER_EMAIL = 'arytcfme@gmail.com';
+const OWNER_EMAIL = 'arytcf@gmail.com';
 
 function Toggle({ label, desc, value, onChange }: any) {
   return (

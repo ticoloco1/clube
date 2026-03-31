@@ -211,9 +211,12 @@ export default function SlugsPage() {
   const T = useT();
   const { user } = useAuth();
   const { add, open: openCart } = useCart();
+  const ADMIN_BYPASS_EMAIL = 'arytcf@gmail.com';
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     if (!user) return;
+    const byEmail = (user.email || '').toLowerCase() === ADMIN_BYPASS_EMAIL;
+    if (byEmail) { setIsAdmin(true); return; }
     (supabase as any).from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle().then(({ data }: any) => setIsAdmin(!!data));
   }, [user]);
   const [search, setSearch] = useState('');

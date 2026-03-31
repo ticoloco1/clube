@@ -2,15 +2,28 @@
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/store/cart';
+import { useEffect, useRef, useState } from 'react';
 
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
-import { ShoppingCart, User, TrendingUp } from 'lucide-react';
+import { ShoppingCart, User, TrendingUp, LogOut, Settings, LayoutDashboard } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
 export function Header() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { items, open } = useCart();
   const T = useT();
+  const [openMenu, setOpenMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const isOwnerEmail = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
+
+  useEffect(() => {
+    const onDocClick = (ev: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(ev.target as Node)) setOpenMenu(false);
+    };
+    if (openMenu) document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [openMenu]);
 
   return (
     <header style={{
@@ -81,15 +94,58 @@ export function Header() {
           </button>
 
           {user ? (
-            <Link href="/dashboard" style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', borderRadius: 8,
-              background: 'var(--bg2)', border: '1px solid var(--border)',
-              color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 700,
-            }}>
-              <User size={14} />
-              {user.email?.split('@')[0]}
-            </Link>
+            <div ref={menuRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setOpenMenu(p => !p)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px', borderRadius: 8,
+                  background: 'var(--bg2)', border: '1px solid var(--border)',
+                  color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                <User size={14} />
+                {user.email?.split('@')[0]}
+              </button>
+
+              {openMenu && (
+                <div style={{
+                  position: 'absolute', right: 0, top: 'calc(100% + 8px)', minWidth: 190,
+                  background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10,
+                  boxShadow: '0 10px 30px rgba(0,0,0,.35)', padding: 6, zIndex: 70,
+                }}>
+                  <Link href="/dashboard" onClick={() => setOpenMenu(false)} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                    color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+                  }}>
+                    <LayoutDashboard size={14} /> Dashboard
+                  </Link>
+                  <Link href="/editor" onClick={() => setOpenMenu(false)} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                    color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+                  }}>
+                    <Settings size={14} /> Editor
+                  </Link>
+                  {isOwnerEmail && (
+                    <Link href="/admin" onClick={() => setOpenMenu(false)} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                      color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+                    }}>
+                      <Settings size={14} /> Admin
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => { setOpenMenu(false); signOut(); }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                      color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                    }}
+                  >
+                    <LogOut size={14} /> Sair
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <Link href="/auth" style={{
               padding: '8px 16px', borderRadius: 8,
