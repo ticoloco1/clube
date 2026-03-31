@@ -13,6 +13,7 @@ function buildHelioMeta(userId: string, items: { id: string; label: string; pric
   let type = rawType;
   if (rawType === 'plan') type = 'subscription';
   if ((first?.id || '').startsWith('slug_bid_')) type = 'slug_bid';
+  if (rawType === 'brand_ad') type = 'brand_ad';
 
   const meta: Record<string, string> = {
     user_id: userId,
@@ -48,6 +49,12 @@ function buildHelioMeta(userId: string, items: { id: string; label: string; pric
     if (id.startsWith('slug_renewal_')) slugToken = id.replace(/^slug_renewal_/, '');
     if (id.startsWith('slug_bid_')) slugToken = id.replace(/^slug_bid_/, '');
     meta.item_id = slugToken;
+  }
+
+  // Pagamento de proposta de anúncio (marketplace) — meta.item_id = UUID da linha ad_proposals
+  if (type === 'brand_ad') {
+    const id = first?.id || '';
+    meta.item_id = id.startsWith('ad_proposal_') ? id.replace(/^ad_proposal_/, '') : id;
   }
 
   return { type, meta };

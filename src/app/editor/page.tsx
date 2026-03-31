@@ -131,13 +131,18 @@ export default function EditorPage() {
   // ── Feed state ───────────────────────────────────────────────────────────
   const [showFeed,    setShowFeed]    = useState(true);
   const [feedCols,    setFeedCols]    = useState<1|2|3>(1);
-  const [moduleOrder, setModuleOrder] = useState(['links','videos','cv','feed']);
+  const [moduleOrder, setModuleOrder] = useState(['links','videos','cv','feed','ads']);
   const [pageWidth, setPageWidth] = useState<number>(600);
   const [sitePages,   setSitePages]   = useState<{id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[]>([{id:'home',label:'Home',template:'default'}]);
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
-  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed'] });
+  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed','ads'] });
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
-  const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({ home: { links: 1, videos: 1, cv: 1, feed: 1 } });
+  const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({ home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 } });
+  const [adAskingPrice, setAdAskingPrice] = useState('');
+  const [adShowPricePublic, setAdShowPricePublic] = useState(true);
+  const [directoryProfileSlug, setDirectoryProfileSlug] = useState('');
+  const [siteCategorySlug, setSiteCategorySlug] = useState('');
+  const [suggestingPrice, setSuggestingPrice] = useState(false);
   const [dragOverMod, setDragOverMod] = useState<string|null>(null);
   const [feedPosts, setFeedPosts] = useState<any[]>([]);
   const [tickerEnabled, setTickerEnabled] = useState(true);
@@ -169,6 +174,8 @@ export default function EditorPage() {
   const ADMIN_BYPASS_EMAIL = 'arytcf@gmail.com';
   const [isAdminBypass, setIsAdminBypass] = useState(false);
   const [creatingSite, setCreatingSite] = useState(false);
+  const [newSiteSlug, setNewSiteSlug] = useState('');
+  const [newSiteName, setNewSiteName] = useState('My Site');
 
   // ── Load site data ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -225,6 +232,11 @@ export default function EditorPage() {
     setSectionOrder((site as any).section_order || ['summary','experience','education','skills','projects','languages','certificates','contact']);
     setShowFeed((site as any).show_feed !== false);
     setFeedCols((site as any).feed_cols || 1);
+    setAdAskingPrice((site as any).ad_asking_price_usdc != null && (site as any).ad_asking_price_usdc !== ''
+      ? String((site as any).ad_asking_price_usdc) : '');
+    setAdShowPricePublic((site as any).ad_show_price_public !== false);
+    setDirectoryProfileSlug((site as any).directory_profile_slug || '');
+    setSiteCategorySlug((site as any).site_category_slug || '');
     if ((site as any).module_order) {
       try { setModuleOrder(JSON.parse((site as any).module_order)); } catch {}
     }
@@ -246,10 +258,10 @@ export default function EditorPage() {
             if (Array.isArray(raw)) {
               pm[pageId] = raw;
               pc[pageId] = 1;
-              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1 };
+              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 };
               return;
             }
-            const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
+            const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed','ads'];
             const cols = [1,2,3].includes(Number(raw?.columns)) ? Number(raw.columns) as 1|2|3 : 1;
             pm[pageId] = modules;
             pc[pageId] = cols;
@@ -258,6 +270,7 @@ export default function EditorPage() {
               videos: [1,2,3].includes(Number(raw?.moduleColumns?.videos)) ? Number(raw.moduleColumns.videos) as 1|2|3 : 1,
               cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
               feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
+              ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
             };
           });
         }
@@ -343,7 +356,8 @@ export default function EditorPage() {
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
       showCv, cvLocked, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
-      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems]);
+      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
+      adAskingPrice, adShowPricePublic, directoryProfileSlug, siteCategorySlug]);
 
   // ── Upload helper ─────────────────────────────────────────────────────────
   const uploadToStorage = async (file: File, folder: string): Promise<string> => {
@@ -364,7 +378,7 @@ export default function EditorPage() {
         combinedPageModules[p.id] = {
           modules: pageModules[p.id] || (p.id === 'home' ? moduleOrder : []),
           columns: pageColumns[p.id] || 1,
-          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1 },
+          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 },
         };
       });
 
@@ -418,6 +432,16 @@ export default function EditorPage() {
         seo_description: seoDescription || null,
         seo_og_image: seoOgImage || null,
         published,
+        ad_asking_price_usdc: (() => {
+          const t = adAskingPrice.trim();
+          if (!t) return null;
+          const n = parseFloat(t.replace(',', '.'));
+          if (Number.isNaN(n) || n <= 0) return null;
+          return n;
+        })(),
+        ad_show_price_public: adShowPricePublic,
+        directory_profile_slug: directoryProfileSlug.trim() || null,
+        site_category_slug: siteCategorySlug.trim() || null,
       } as any);
 
       // Handle slug change
@@ -581,35 +605,68 @@ export default function EditorPage() {
   );
   if (!user) { router.push('/auth'); return null; }
   if (!site) {
+    const slugPreview = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || '(slug)';
     return (
       <div className="min-h-screen bg-[var(--bg)]">
         <Header />
         <div className="max-w-2xl mx-auto px-4 py-14">
-          <div className="card p-6">
-            <h1 className="font-black text-xl text-[var(--text)] mb-2">No mini-site loaded</h1>
-            <p className="text-sm text-[var(--text2)] mb-4">
-              To prevent accidental profile/slug creation, mini-sites are now created only manually.
+          <div className="card p-6 space-y-4">
+            <h1 className="font-black text-xl text-[var(--text)] mb-1">Criar mini-site</h1>
+            <p className="text-sm text-[var(--text2)]">
+              Escolhe o <strong>slug</strong> (endereço) antes de criar — só letras minúsculas, números e hífen.
+              Não usamos mais um código automático com letras/números aleatórios.
             </p>
-            <div className="flex gap-2">
+            <div>
+              <label className="text-xs font-bold text-[var(--text2)] block mb-1">Nome do site</label>
+              <input
+                value={newSiteName}
+                onChange={e => setNewSiteName(e.target.value)}
+                className="input w-full"
+                placeholder="My Site"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-[var(--text2)] block mb-1">Slug (username)</label>
+              <input
+                value={newSiteSlug}
+                onChange={e => setNewSiteSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                className="input w-full font-mono"
+                placeholder="omeunome"
+              />
+              <p className="text-xs text-brand mt-1 font-mono">
+                {slugPreview}.trustbank.xyz
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-2">
               <button
+                type="button"
                 onClick={() => window.location.reload()}
                 className="btn-secondary"
               >
-                Reload
+                Recarregar
               </button>
               <button
+                type="button"
                 onClick={async () => {
                   if (!user?.id) return;
+                  const clean = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+                  if (clean.length < 2) {
+                    toast.error('Slug deve ter pelo menos 2 caracteres (a-z, 0-9, -).');
+                    return;
+                  }
                   setCreatingSite(true);
                   try {
-                    const defaultSlug = (user.email?.split('@')[0] || 'user')
-                      .replace(/[^a-z0-9]/gi, '')
-                      .toLowerCase() + user.id.slice(0, 6);
-                    await save({ site_name: 'My Site', slug: defaultSlug, bio: '', published: false } as any);
-                    toast.success('Mini-site created.');
+                    await save({
+                      site_name: newSiteName.trim() || 'My Site',
+                      slug: clean,
+                      bio: '',
+                      published: false,
+                    } as any);
+                    toast.success('Mini-site criado.');
                     window.location.reload();
-                  } catch (e: any) {
-                    toast.error(e?.message || 'Failed to create mini-site');
+                  } catch (e: unknown) {
+                    const msg = e instanceof Error ? e.message : 'Falha ao criar';
+                    toast.error(msg);
                   } finally {
                     setCreatingSite(false);
                   }
@@ -617,9 +674,14 @@ export default function EditorPage() {
                 className="btn-primary"
                 disabled={creatingSite}
               >
-                {creatingSite ? 'Creating...' : 'Create mini-site'}
+                {creatingSite ? 'A criar…' : 'Criar mini-site'}
               </button>
             </div>
+            <p className="text-xs text-amber-400/90 border border-amber-500/30 rounded-xl p-3">
+              Se ao gravar aparecer erro de coluna em falta (ex.: <code className="text-amber-200">banner_fit</code>),
+              executa no Supabase o ficheiro <code className="text-amber-200">supabase-mini-sites-editor-columns.sql</code> e
+              recarrega o schema da API.
+            </p>
           </div>
         </div>
       </div>
@@ -1230,11 +1292,115 @@ export default function EditorPage() {
               </div>
 
               <div className="card p-5">
+                <h2 className="font-black text-base text-[var(--text)] mb-1">Patrocínios & diretório</h2>
+                <p className="text-xs text-[var(--text2)] mb-4">
+                  Valor mínimo para aceitar anúncios (US$ / semana). Marcas veem no diretório TrustBank e no bloco &quot;Ads&quot; do teu site.
+                </p>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <label className="text-xs font-bold text-[var(--text2)]">Preço mínimo (US$ / semana)</label>
+                      <button
+                        type="button"
+                        disabled={suggestingPrice || !site?.id}
+                        onClick={async () => {
+                          if (!site?.id) return;
+                          setSuggestingPrice(true);
+                          try {
+                            const res = await fetch('/api/pricing-suggest', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ siteId: site.id }),
+                              credentials: 'include',
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) throw new Error(data.error || 'Falha');
+                            const v =
+                              data.ai?.min_usd_week ??
+                              data.heuristic?.base ??
+                              data.heuristic?.min;
+                            if (v != null && !Number.isNaN(Number(v))) {
+                              setAdAskingPrice(String(Math.round(Number(v))));
+                              markDirty();
+                              toast.success('Sugestão aplicada — ajusta se quiseres');
+                            } else {
+                              toast.info('Heurística aplicada. Ativa IA no Admin para refinamento opcional.');
+                            }
+                          } catch (e: unknown) {
+                            toast.error(e instanceof Error ? e.message : 'Erro');
+                          } finally {
+                            setSuggestingPrice(false);
+                          }
+                        }}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-50 inline-flex items-center gap-1.5"
+                      >
+                        {suggestingPrice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                        Sugerir (visitas + seguidores + IA)
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={adAskingPrice}
+                      onChange={e => { setAdAskingPrice(e.target.value); markDirty(); }}
+                      className="input w-full mt-1"
+                      placeholder="ex: 2000"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--text)]">
+                    <input
+                      type="checkbox"
+                      checked={adShowPricePublic}
+                      onChange={e => { setAdShowPricePublic(e.target.checked); markDirty(); }}
+                    />
+                    Mostrar preço no mini-site (hover / destaque)
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-[var(--text2)]">Tipo de perfil (diretório)</label>
+                      <select
+                        value={directoryProfileSlug}
+                        onChange={e => { setDirectoryProfileSlug(e.target.value); markDirty(); }}
+                        className="input w-full mt-1"
+                      >
+                        <option value="">—</option>
+                        <option value="creator">Criador de conteúdo</option>
+                        <option value="influencer">Influencer</option>
+                        <option value="actor">Ator</option>
+                        <option value="actress">Atriz</option>
+                        <option value="athlete">Jogador / Atleta</option>
+                        <option value="entrepreneur">Empresário</option>
+                        <option value="automotive">Carros / Automotivo</option>
+                        <option value="services">Serviços</option>
+                        <option value="other">Outro</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-[var(--text2)]">Categoria do site</label>
+                      <select
+                        value={siteCategorySlug}
+                        onChange={e => { setSiteCategorySlug(e.target.value); markDirty(); }}
+                        className="input w-full mt-1"
+                      >
+                        <option value="">—</option>
+                        <option value="creator">Criador / Influencer</option>
+                        <option value="services">Serviços</option>
+                        <option value="tech">Tech &amp; Dev</option>
+                        <option value="business">Negócios</option>
+                        <option value="local">Local / Comunidade</option>
+                        <option value="other">Outros</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card p-5">
                 <h2 className="font-black text-base text-[var(--text)] mb-1">Module Order</h2>
                 <p className="text-xs text-[var(--text2)] mb-4">Drag to reorder</p>
                 <div className="space-y-2">
                   {moduleOrder.map((mod, idx) => {
-                    const labels: Record<string,string> = { links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed' };
+                    const labels: Record<string,string> = { links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads' };
                     return (
                       <div key={mod} draggable
                         onDragStart={e => e.dataTransfer.setData('text/plain', String(idx))}
@@ -1356,7 +1522,7 @@ export default function EditorPage() {
                     setSitePages(prev => [...prev, {id:newId, label:`Page ${prev.length+1}`}]);
                     setPageModules(prev => ({ ...prev, [newId]: [] }));
                     setPageColumns(prev => ({ ...prev, [newId]: 1 }));
-                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1 } }));
+                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 } }));
                     markDirty();
                   }}
                     className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> Add Page</button>
@@ -1385,7 +1551,7 @@ export default function EditorPage() {
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {(['links','videos','cv','feed'] as const).map(mod => {
+                      {(['links','videos','cv','feed','ads'] as const).map(mod => {
                         const enabled = (pageModules[page.id] || (page.id === 'home' ? moduleOrder : [])).includes(mod);
                         return (
                           <div key={mod} className="flex items-center gap-2">
@@ -1409,7 +1575,7 @@ export default function EditorPage() {
                                   const col = Number(e.target.value) as 1|2|3;
                                   setModuleColumns(prev => ({
                                     ...prev,
-                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1 }), [mod]: col },
+                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1, ads:1 }), [mod]: col },
                                   }));
                                   markDirty();
                                 }}

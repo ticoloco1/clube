@@ -67,6 +67,12 @@ export interface MiniSite {
   banner_fit?: 'cover' | 'contain';
   banner_placeholder_enabled?: boolean;
   banner_placeholder_color?: string | null;
+  site_category_slug?: string | null;
+  directory_profile_slug?: string | null;
+  follower_count?: number;
+  ad_asking_price_usdc?: number | null;
+  ad_show_price_public?: boolean;
+  ad_notes?: string | null;
 }
 
 export function useMySite() {
@@ -118,8 +124,16 @@ export function useMySite() {
           throw new Error(`Failed to save: ${error.message}`);
         }
       } else {
-        const slug = (cleanValues.slug || user.email?.split('@')[0] || 'user') +
-          user.id.slice(0, 6);
+        let slug = String(cleanValues.slug || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, '');
+        if (!slug || slug.length < 2) {
+          slug = (user.email?.split('@')[0] || 'site')
+            .replace(/[^a-z0-9]/gi, '')
+            .toLowerCase()
+            .slice(0, 30) || 'site';
+        }
         const { error } = await supabase
           .from('mini_sites')
           .insert({ ...cleanValues, user_id: user.id, slug });

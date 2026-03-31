@@ -135,6 +135,14 @@ export default function AdminPage() {
   // API keys status
   const [apiStatus, setApiStatus] = useState({ helio: false, supabase: true, r2: false });
 
+  /** DeepSeek / OpenAI-compatible: sugestão de preços (opcional). Chave também pode ir só em DEEPSEEK_API_KEY na Vercel. */
+  const [aiConfig, setAiConfig] = useState({
+    enabled: false,
+    baseUrl: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    apiKey: '',
+  });
+
   useEffect(() => {
     if (!loading && user && user.email !== OWNER_EMAIL) {
       router.push('/');
@@ -178,6 +186,12 @@ export default function AdminPage() {
         if (s.key === 'warning_hours') setWarningHours(String(s.value || '1'));
         if (s.key === 'test_ribbon_text') setTestRibbonText(s.value || 'TEST MODE');
         if (s.key === 'pricing')  { try { setPricing(p => ({ ...p, ...JSON.parse(s.value) })); } catch {} }
+        if (s.key === 'ai_config') {
+          try {
+            const j = JSON.parse(s.value) as typeof aiConfig;
+            setAiConfig(prev => ({ ...prev, ...j, apiKey: j.apiKey || '' }));
+          } catch { /* ignore */ }
+        }
       });
     });
 
@@ -232,6 +246,7 @@ export default function AdminPage() {
         saveSetting('warning_hours', warningHours),
         saveSetting('test_ribbon_text', testRibbonText),
         saveSetting('pricing', JSON.stringify(pricing)),
+        saveSetting('ai_config', JSON.stringify(aiConfig)),
       ]);
       toast.success('✅ Salvo!');
     } catch (e: any) {
@@ -298,31 +313,19 @@ export default function AdminPage() {
     }
     setDeletingSite(true);
     try {
-      let query: any = (supabase as any).from('mini_sites').select('id,user_id,slug,site_name,contact_email').limit(1);
-      if (slug) query = query.eq('slug', slug);
-      else query = query.eq('contact_email', email);
-      const { data: site, error: siteErr } = await query.maybeSingle();
-      if (siteErr) throw siteErr;
-      if (!site) {
-        toast.error('Mini-site não encontrado');
-        return;
-      }
-
-      const ok = window.confirm(`Tem certeza que deseja apagar o mini-site "${site.site_name || site.slug}" (${site.slug})?`);
+      const label = slug || email;
+      const ok = window.confirm(`Tem certeza que deseja apagar o mini-site "${label}"?`);
       if (!ok) return;
 
-      await Promise.all([
-        supabase.from('mini_site_links').delete().eq('site_id', site.id),
-        supabase.from('mini_site_videos').delete().eq('site_id', site.id),
-        (supabase as any).from('feed_posts').delete().eq('site_id', site.id),
-        (supabase as any).from('site_visits').delete().eq('site_id', site.id),
-        (supabase as any).from('site_link_clicks').delete().eq('site_id', site.id),
-      ]);
-      await (supabase as any).from('slug_registrations').delete().eq('user_id', site.user_id).eq('slug', site.slug);
-      const { error: delErr } = await supabase.from('mini_sites').delete().eq('id', site.id);
-      if (delErr) throw delErr;
+      const res = await fetch('/api/admin/delete-mini-site', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(slug ? { slug } : { email }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || 'Falha ao deletar');
 
-      toast.success(`✅ Mini-site ${site.slug} removido.`);
+      toast.success(`✅ Mini-site ${(payload as { slug?: string }).slug || label} removido.`);
       setDeleteSiteSlug('');
       setDeleteSiteEmail('');
     } catch (e: any) {
@@ -705,22 +708,74 @@ export default function AdminPage() {
 
         {/* APIS */}
         {tab === 'apis' && (
-          <div className="card p-5 space-y-3">
-            <h3 className="font-black text-[var(--text)] mb-2">Status das Integrações</h3>
-            {[
-              { key:'supabase', label:'Supabase (Banco de dados + Auth)', ok: apiStatus.supabase },
-              { key:'helio',    label:'Helio (Pagamentos USDC)', ok: apiStatus.helio },
-              { key:'r2',       label:'Cloudflare R2 (Upload de mídia)', ok: apiStatus.r2 },
-            ].map(a => (
-              <div key={a.key} className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)]">
-                {a.ok
-                  ? <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-                  : <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />}
-                <span className="flex-1 text-sm font-semibold text-[var(--text)]">{a.label}</span>
-                <span className={`text-xs font-bold ${a.ok ? 'text-green-400' : 'text-red-400'}`}>{a.ok ? 'OK' : 'Não configurado'}</span>
+          <div className="space-y-5">
+            <div className="card p-5 space-y-3">
+              <h3 className="font-black text-[var(--text)] mb-2">Status das Integrações</h3>
+              {[
+                { key:'supabase', label:'Supabase (Banco de dados + Auth)', ok: apiStatus.supabase },
+                { key:'helio',    label:'Helio (Pagamentos USDC)', ok: apiStatus.helio },
+                { key:'r2',       label:'Cloudflare R2 (Upload de mídia)', ok: apiStatus.r2 },
+              ].map(a => (
+                <div key={a.key} className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)]">
+                  {a.ok
+                    ? <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    : <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />}
+                  <span className="flex-1 text-sm font-semibold text-[var(--text)]">{a.label}</span>
+                  <span className={`text-xs font-bold ${a.ok ? 'text-green-400' : 'text-red-400'}`}>{a.ok ? 'OK' : 'Não configurado'}</span>
+                </div>
+              ))}
+              <p className="text-xs text-[var(--text2)] mt-2">Helio e R2: variáveis na Vercel. A chave DeepSeek pode ficar só no servidor (recomendado).</p>
+            </div>
+
+            <div className="card p-5 space-y-4">
+              <h3 className="font-black text-[var(--text)]">IA · Bolsa de preços (DeepSeek ou API compatível)</h3>
+              <p className="text-xs text-[var(--text2)] leading-relaxed">
+                O TrustBank já calcula uma faixa com seguidores, visitas (30d) e nicho. Se ativares, o modelo pode refinar o valor.
+                DeepSeek costuma ser mais barato que GPT-4. Alternativa: define <code className="text-brand">DEEPSEEK_API_KEY</code> na Vercel e deixa a chave aqui vazia.
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--text)]">
+                <input
+                  type="checkbox"
+                  checked={aiConfig.enabled}
+                  onChange={e => setAiConfig(c => ({ ...c, enabled: e.target.checked }))}
+                />
+                Ativar refinamento por IA (ou define <code className="text-brand">AI_PRICING_ENABLED=true</code> na Vercel com <code className="text-brand">DEEPSEEK_API_KEY</code>)
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--text2)]">Base URL (OpenAI-compatible)</label>
+                  <input
+                    value={aiConfig.baseUrl}
+                    onChange={e => setAiConfig(c => ({ ...c, baseUrl: e.target.value }))}
+                    className="input w-full mt-1 font-mono text-xs"
+                    placeholder="https://api.deepseek.com/v1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--text2)]">Modelo</label>
+                  <input
+                    value={aiConfig.model}
+                    onChange={e => setAiConfig(c => ({ ...c, model: e.target.value }))}
+                    className="input w-full mt-1 font-mono text-xs"
+                    placeholder="deepseek-chat"
+                  />
+                </div>
               </div>
-            ))}
-            <p className="text-xs text-[var(--text2)] mt-2">Configure as variáveis de ambiente na Vercel para ativar cada serviço.</p>
+              <div>
+                <label className="text-xs font-bold text-[var(--text2)]">API Key (opcional se usares só env)</label>
+                <input
+                  type="password"
+                  value={aiConfig.apiKey}
+                  onChange={e => setAiConfig(c => ({ ...c, apiKey: e.target.value }))}
+                  className="input w-full mt-1 font-mono text-xs"
+                  placeholder="sk-… ou deixa vazio"
+                  autoComplete="off"
+                />
+              </div>
+              <p className="text-xs text-amber-400/90">
+                Guardar chave aqui grava em platform_settings (acesso admin). Em produção preferir variável de ambiente.
+              </p>
+            </div>
           </div>
         )}
 

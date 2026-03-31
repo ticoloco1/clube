@@ -18,6 +18,8 @@ const DEFAULT_SPLITS = {
   boost:        { creator: 0.00, platform: 0.80, jackpot: 0.20 },
   credits:      { creator: 0.00, platform: 1.00 },
   classified:   { creator: 0.00, platform: 1.00 },
+  /** Marketplace: 80% pool para criadores (por mini-site em ad_proposal_targets), 20% plataforma */
+  brand_ad:     { creator: 0.80, platform: 0.20 },
 };
 
 export async function POST(request: NextRequest) {
@@ -220,6 +222,64 @@ export async function POST(request: NextRequest) {
     // ── CLASSIFIED LISTING ────────────────────────────────────────────────────
     else if (type === 'classified' && itemId) {
       await db.from('classified_listings').update({ status: 'active' }).eq('id', itemId);
+    }
+
+    // ── BRAND AD / MARKETPLACE (proposta aceita → pagamento Helio → campanhas) ─
+    else if (type === 'brand_ad' && itemId && userId) {
+      const platformPct = DEFAULT_SPLITS.brand_ad.platform;
+
+      const { data: proposal } = await db.from('ad_proposals' as any)
+        .select('id,status,duration_days,advertiser_user_id')
+        .eq('id', itemId)
+        .maybeSingle();
+
+      if (!proposal || (proposal as any).advertiser_user_id !== userId) {
+        console.warn('[Webhook] brand_ad: proposta inexistente ou anunciante incorreto');
+      } else if ((proposal as any).status !== 'fully_accepted') {
+        console.warn('[Webhook] brand_ad: status não é fully_accepted — pagamento não aplicado à campanha');
+      } else {
+        await db.from('ad_proposals' as any).update({
+          payment_status: 'paid_escrow',
+          paid_amount_usdc: amountUsdc,
+          helio_tx_ref: txHash || null,
+          paid_at: new Date().toISOString(),
+          status: 'paid',
+          updated_at: new Date().toISOString(),
+        }).eq('id', itemId);
+
+        const { data: targets } = await db.from('ad_proposal_targets' as any)
+          .select('id, site_id, bid_amount_usdc')
+          .eq('proposal_id', itemId)
+          .eq('owner_status', 'accepted');
+
+        const durationDays = Math.max(1, Number((proposal as any).duration_days) || 7);
+        const endsAt = new Date(Date.now() + durationDays * 24 * 3600 * 1000).toISOString();
+
+        for (const t of targets || []) {
+          const bid = Number((t as any).bid_amount_usdc || 0);
+          const creatorShare = bid * (1 - platformPct);
+          await db.from('ad_proposal_targets' as any).update({
+            creator_share_usdc: creatorShare,
+            creator_payout_status: 'pending_release',
+          }).eq('id', (t as any).id);
+
+          await db.from('ad_campaigns' as any).insert({
+            proposal_id: itemId,
+            target_id: (t as any).id,
+            site_id: (t as any).site_id,
+            starts_at: new Date().toISOString(),
+            ends_at: endsAt,
+            delete_locked_until: endsAt,
+            ticker_items: [],
+            status: 'active',
+          });
+        }
+
+        await db.from('ad_proposals' as any).update({
+          status: 'live',
+          updated_at: new Date().toISOString(),
+        }).eq('id', itemId);
+      }
     }
 
     return NextResponse.json({ ok: true, type, amountUsdc });

@@ -44,7 +44,7 @@ export function SecureVideoPlayer({
 
       setToken(data.token);
       // Verify and get ytId
-      const verify = await fetch(`/api/video-token?t=${data.token}`);
+      const verify = await fetch(`/api/video-token?t=${encodeURIComponent(data.token)}`);
       const vdata = await verify.json();
       if (!vdata.valid) throw new Error('Token invalid');
       setYtId(vdata.ytId);

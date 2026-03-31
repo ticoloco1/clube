@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
 import { BoostButton } from '@/components/ui/BoostButton';
+import { SiteFollowButton } from '@/components/site/SiteFollowButton';
 import { useT } from '@/lib/i18n';
 import { Shield, Search, Globe, Users, Zap, ExternalLink } from 'lucide-react';
 
@@ -11,7 +12,23 @@ interface SiteEntry {
   id: string; slug: string; site_name: string; bio?: string;
   avatar_url?: string; accent_color?: string; theme?: string;
   is_verified?: boolean; boost_score?: number;
+  follower_count?: number | null;
+  directory_profile_slug?: string | null;
+  site_category_slug?: string | null;
+  ad_asking_price_usdc?: number | null;
 }
+
+const PROFILE_SHORT: Record<string, string> = {
+  influencer: 'Influencer',
+  actor: 'Ator',
+  actress: 'Atriz',
+  athlete: 'Atleta',
+  entrepreneur: 'Empresário',
+  automotive: 'Auto',
+  creator: 'Criador',
+  services: 'Serviços',
+  other: 'Outro',
+};
 
 const PAGE_SIZE = 16;
 
@@ -19,6 +36,9 @@ export default function SitesDirectoryPage() {
   const T = useT();
   const [sites, setSites] = useState<SiteEntry[]>([]);
   const [search, setSearch] = useState('');
+  const [profileFilter, setProfileFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [sortBy, setSortBy] = useState<'recent' | 'followers'>('followers');
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
@@ -28,20 +48,23 @@ export default function SitesDirectoryPage() {
     setLoading(true);
     const from = reset ? 0 : page * PAGE_SIZE;
     let q = supabase.from('mini_sites')
-      .select('id, slug, site_name, bio, avatar_url, accent_color, theme, is_verified')
-      .eq('published', true)
-      .order('created_at', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
+      .select('id, slug, site_name, bio, avatar_url, accent_color, theme, is_verified, follower_count, directory_profile_slug, site_category_slug, ad_asking_price_usdc')
+      .eq('published', true);
     if (search) q = (q as any).or(`site_name.ilike.%${search}%,bio.ilike.%${search}%,slug.ilike.%${search}%`);
+    if (profileFilter) q = q.eq('directory_profile_slug', profileFilter);
+    if (categoryFilter) q = q.eq('site_category_slug', categoryFilter);
+    if (sortBy === 'followers') q = q.order('follower_count', { ascending: false });
+    else q = q.order('created_at', { ascending: false });
+    q = q.range(from, from + PAGE_SIZE - 1);
     const { data } = await q;
     const items = (data || []) as SiteEntry[];
     setSites(prev => reset ? items : [...prev, ...items]);
     setHasMore(items.length === PAGE_SIZE);
     if (!reset) setPage(p => p + 1);
     setLoading(false);
-  }, [page, search]);
+  }, [page, search, profileFilter, categoryFilter, sortBy]);
 
-  useEffect(() => { load(true); setPage(1); }, [search]);
+  useEffect(() => { load(true); setPage(1); }, [search, profileFilter, categoryFilter, sortBy]);
 
   useEffect(() => {
     const obs = new IntersectionObserver(entries => { if (entries[0].isIntersecting && hasMore && !loading) load(); }, { threshold: 0.1 });
@@ -64,6 +87,39 @@ export default function SitesDirectoryPage() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
             <input value={search} onChange={e => setSearch(e.target.value)} className="input pl-10" placeholder={T('sites_search_placeholder')} />
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+            <select value={profileFilter} onChange={e => setProfileFilter(e.target.value)} className="input text-sm">
+              <option value="">Todos os perfis</option>
+              <option value="influencer">Influencer</option>
+              <option value="actor">Ator</option>
+              <option value="actress">Atriz</option>
+              <option value="athlete">Jogador / Atleta</option>
+              <option value="entrepreneur">Empresário</option>
+              <option value="automotive">Carros / Automotivo</option>
+              <option value="creator">Criador</option>
+              <option value="services">Serviços</option>
+              <option value="other">Outro</option>
+            </select>
+            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="input text-sm">
+              <option value="">Todas as categorias</option>
+              <option value="creator">Criador / Influencer</option>
+              <option value="services">Serviços</option>
+              <option value="tech">Tech &amp; Dev</option>
+              <option value="business">Negócios</option>
+              <option value="local">Local</option>
+              <option value="other">Outros</option>
+            </select>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as 'recent' | 'followers')} className="input text-sm">
+              <option value="followers">Ordenar: seguidores</option>
+              <option value="recent">Ordenar: recentes</option>
+            </select>
+            <a
+              href="/marketplace/ads"
+              className="input text-sm flex items-center justify-center font-semibold text-brand border-brand/40 hover:bg-brand/10"
+            >
+              Patrocínios TrustBank →
+            </a>
+          </div>
         </div>
       </div>
 
@@ -84,11 +140,41 @@ export default function SitesDirectoryPage() {
                   {site.is_verified && <Shield className="w-3 h-3 text-blue-500" />}
                 </p>
                 <p className="text-xs text-center font-mono mt-0.5" style={{ color: accent }}>{site.slug}.trustbank.xyz</p>
+                <div className="flex flex-wrap items-center justify-center gap-1 mt-1.5 min-h-[22px]">
+                  {site.directory_profile_slug && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--bg2)] text-[var(--text2)] border border-[var(--border)]">
+                      {PROFILE_SHORT[site.directory_profile_slug] || site.directory_profile_slug}
+                    </span>
+                  )}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/25">
+                    <Users className="w-3 h-3 inline mr-0.5 align-text-bottom" />
+                    {(site.follower_count ?? 0).toLocaleString('pt-BR')}
+                  </span>
+                  {site.ad_asking_price_usdc != null && site.ad_asking_price_usdc > 0 && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30" title="Valor mínimo indicado pelo criador">
+                      desde US${Number(site.ad_asking_price_usdc).toLocaleString('en-US')}
+                    </span>
+                  )}
+                </div>
                 {site.bio && <p className="text-xs text-[var(--text2)] text-center mt-1.5 line-clamp-2">{site.bio}</p>}
-                <div className="flex gap-1.5 mt-3">
+                <div className="flex flex-wrap gap-1.5 mt-3 items-center justify-center">
+                  <SiteFollowButton
+                    siteId={site.id}
+                    siteSlug={site.slug}
+                    accentColor={accent}
+                    textColor="var(--text)"
+                    borderColor="var(--border)"
+                    compact
+                  />
                   <a href={`https://${site.slug}.trustbank.xyz`} target="_blank" rel="noopener"
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold border border-[var(--border)] text-[var(--text2)] hover:border-brand/50 hover:text-brand transition-all">
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold border border-[var(--border)] text-[var(--text2)] hover:border-brand/50 hover:text-brand transition-all">
                     <ExternalLink className="w-3 h-3" /> {T('sites_visit')}
+                  </a>
+                  <a
+                    href={`/marketplace/ads?slug=${encodeURIComponent(site.slug)}`}
+                    className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold border border-amber-500/40 text-amber-500 hover:bg-amber-500/10 transition-all"
+                  >
+                    Ads
                   </a>
                   <BoostButton targetType="site" targetId={site.id} targetName={site.site_name} compact />
                 </div>

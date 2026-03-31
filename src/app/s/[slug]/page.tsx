@@ -12,10 +12,25 @@ import { SecureVideoPlayer } from '@/components/site/SecureVideoPlayer';
 import { ShareWidget } from '@/components/ui/ShareWidget';
 import { SlugTicker } from '@/components/ui/SlugTicker';
 import { FeedSection } from '@/components/site/FeedSection';
+import { MiniSiteAdsPanel } from '@/components/site/MiniSiteAdsPanel';
+import { SiteFollowButton } from '@/components/site/SiteFollowButton';
 import { CVView } from '@/components/editor/CVEditor';
 import { useT } from '@/lib/i18n';
 import { Lock, Unlock, Shield, Clock, CheckCircle, ExternalLink, Play } from 'lucide-react';
 import Link from 'next/link';
+
+/** Labels para directory_profile_slug (tabela directory_profile_types) */
+const PROFILE_LABELS: Record<string, string> = {
+  creator: 'Criador de conteúdo',
+  influencer: 'Influencer',
+  actor: 'Ator',
+  actress: 'Atriz',
+  athlete: 'Jogador / Atleta',
+  entrepreneur: 'Empresário',
+  automotive: 'Carros / Automotivo',
+  services: 'Serviços',
+  other: 'Outro',
+};
 
 // ─── Social brand colors & SVG paths ─────────────────────────────────────────
 const BRANDS: Record<string, { color: string; bg: string; path: string }> = {
@@ -153,8 +168,8 @@ export default function SitePage() {
   const bannerPlaceholderEnabled = (site as any)?.banner_placeholder_enabled !== false;
   const bannerPlaceholderColor = (site as any)?.banner_placeholder_color || '#1f2937';
   const moduleOrder: string[] = (() => {
-    try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed"]'); }
-    catch { return ['links','videos','cv','feed']; }
+    try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed","ads"]'); }
+    catch { return ['links','videos','cv','feed','ads']; }
   })();
   const pageModulesMap: Record<string, string[]> = (() => {
     try {
@@ -195,12 +210,13 @@ export default function SitePage() {
             videos: [1,2,3].includes(Number(raw?.moduleColumns?.videos)) ? Number(raw.moduleColumns.videos) as 1|2|3 : 1,
             cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
             feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
+            ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
           };
         });
         return out;
       }
     } catch {}
-    return { home: { links: 1, videos: 1, cv: 1, feed: 1 } };
+    return { home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 } };
   })();
   const sitePages: {id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[] = (() => {
     try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home","template":"default"}]'); }
@@ -210,7 +226,7 @@ export default function SitePage() {
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
   const activeModules = pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : []);
   const activeColumns = pageColumnsMap[activePage] || 1;
-  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1 };
+  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 };
   const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
   const [subActive, setSubActive] = useState(false);
   const [trialCountdown, setTrialCountdown] = useState('');
@@ -412,7 +428,7 @@ export default function SitePage() {
 
       {/* Banner — acima do feed visual; avatar sobrepõe com z-index */}
       {site.banner_url && (
-        <div style={{width:'100%',height:220,maxHeight:'42vh',overflow:'hidden',position:'relative',flexShrink:0,zIndex:2,background:bannerPlaceholderColor}}>
+        <div style={{width:'100%',height:220,maxHeight:'42vh',overflow:'hidden',position:'relative',flexShrink:0,zIndex:1,background:bannerPlaceholderColor}}>
           <img src={site.banner_url} alt="" style={{
             width:'100%',
             height:'100%',
@@ -427,14 +443,14 @@ export default function SitePage() {
         </div>
       )}
       {!site.banner_url && bannerPlaceholderEnabled && (
-        <div style={{width:'100%',height:130,overflow:'hidden',position:'relative',flexShrink:0,zIndex:2,background:bannerPlaceholderColor}} />
+        <div style={{width:'100%',height:130,overflow:'hidden',position:'relative',flexShrink:0,zIndex:1,background:bannerPlaceholderColor}} />
       )}
 
       {/* Content */}
-      <div style={{maxWidth:pageMaxWidth,margin:'0 auto',padding: hasBannerArea ? '0 20px 80px' : '48px 20px 80px',position:'relative',zIndex:1}}>
+      <div style={{maxWidth:pageMaxWidth,margin:'0 auto',padding: hasBannerArea ? '0 20px 80px' : '48px 20px 80px',position:'relative',zIndex:3}}>
 
         {/* ── Profile ── */}
-        <div style={{textAlign:'center',marginBottom:32,marginTop: hasBannerArea ? -(avatarSize/2 + 6) : 0, position:'relative', zIndex:2}}>
+        <div style={{textAlign:'center',marginBottom:32,marginTop: hasBannerArea ? -(avatarSize/2 + 6) : 0, position:'relative', zIndex:6}}>
 
           {/* Avatar ring */}
           <div style={{display:'inline-block',padding:3,borderRadius: site.photo_shape==='round'?'50%': site.photo_shape==='square'?20:32,background:`linear-gradient(135deg,${accent},${accent}60,transparent)`,marginBottom:14}}>
@@ -453,7 +469,16 @@ export default function SitePage() {
 
           {isOwner && <div style={{marginBottom:14}}><EarningsWidget userId={site.user_id} accentColor={accent} compact/></div>}
 
-          <ShareWidget slug={slug} siteName={site.site_name} accentColor={accent}/>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
+            <SiteFollowButton
+              siteId={site.id}
+              siteSlug={slug}
+              accentColor={accent}
+              textColor={t.text}
+              borderColor={t.border}
+            />
+            <ShareWidget slug={slug} siteName={site.site_name} accentColor={accent}/>
+          </div>
         </div>
 
         {/* ── Multi-page menu ── */}
@@ -716,6 +741,28 @@ export default function SitePage() {
               )}
             </div>
           );
+          if (mod === 'ads') {
+            const ps = (site as any).directory_profile_slug as string | undefined;
+            const profileLabel = ps ? (PROFILE_LABELS[ps] || ps) : null;
+            return (
+              <MiniSiteAdsPanel
+                key="ads"
+                siteSlug={slug}
+                siteName={site.site_name || ''}
+                accentColor={accent}
+                askingPriceUsdc={(site as any).ad_asking_price_usdc}
+                showPricePublic={(site as any).ad_show_price_public !== false}
+                profileLabel={profileLabel}
+                followerCount={Number((site as any).follower_count) || 0}
+                benchmarkHint={null}
+                textColor={t.text}
+                textMuted={t.text2}
+                borderColor={t.border}
+                bgCard={t.btn}
+                radius={r}
+              />
+            );
+          }
           return null;
           };
 
