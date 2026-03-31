@@ -32,8 +32,8 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
   const toEmbedUrl = (raw: string) => {
     const value = raw.trim();
     if (!value) return '';
-    const yt = value.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
-    if (yt?.[1]) return `https://www.youtube.com/embed/${yt[1]}`;
+    const ytId = value.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{6,})/)?.[1];
+    if (ytId) return `https://www.youtube.com/embed/${ytId}`;
     if (value.includes('vimeo.com/')) {
       const id = value.split('vimeo.com/')[1]?.split('?')[0];
       return id ? `https://player.vimeo.com/video/${id}` : '';

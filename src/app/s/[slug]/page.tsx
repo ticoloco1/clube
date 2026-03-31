@@ -89,7 +89,10 @@ function hasMeaningfulHtml(html?: string): boolean {
 
 function normalizeEmbedHtml(html?: string): string {
   if (!html) return '';
-  return html.replace(/src="https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtube\.com\/live\/|youtu\.be\/)([A-Za-z0-9_-]{6,})[^"]*"/gi, 'src="https://www.youtube.com/embed/$1"');
+  return html.replace(
+    /src="https?:\/\/(?:(?:www|m|music)\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtube\.com\/live\/|youtube\.com\/embed\/|youtu\.be\/)([A-Za-z0-9_-]{6,})[^"]*"/gi,
+    'src="https://www.youtube.com/embed/$1"',
+  );
 }
 
 function Countdown({ expiresAt, accent }: { expiresAt: string; accent: string }) {
@@ -521,7 +524,7 @@ export default function SitePage() {
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
               <div style={{padding:20,borderRadius:r,border:`1.5px solid ${t.border}`,background:t.btn,marginTop:(site.cv_locked && !cvUnlocked) ? 10 : 0}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
                   <Unlock style={{width:16,height:16,color:'#22c55e'}}/>

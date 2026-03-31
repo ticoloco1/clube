@@ -42,9 +42,10 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
     if (!embedUrl) return;
     let url = embedUrl;
     // Auto-convert YouTube watch → embed
-    const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
-    if (yt?.[1]) {
-      url = `https://www.youtube.com/embed/${yt[1]}`;
+    const yt = url.match(/(?:(?:www|m|music)\.)?youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/([A-Za-z0-9_-]{6,})/);
+    const ytId = yt?.[1] || url.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{6,})/)?.[1];
+    if (ytId) {
+      url = `https://www.youtube.com/embed/${ytId}`;
     } else if (url.includes('vimeo.com/')) {
       const id = url.match(/vimeo\.com\/(\d+)/)?.[1];
       if (id) url = `https://player.vimeo.com/video/${id}`;
