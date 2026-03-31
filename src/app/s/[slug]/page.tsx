@@ -148,6 +148,10 @@ export default function SitePage() {
   const textColorOverride = rawTextColor && rawTextColor !== '' && rawTextColor !== 'auto' ? rawTextColor : null;
   const textMain  = textColorOverride || t.text;
   const textSub   = textColorOverride ? textColorOverride + 'bb' : t.text2;
+  const bannerZoom = Math.max(50, Math.min(150, Number((site as any)?.banner_zoom ?? 100)));
+  const bannerFit: 'cover'|'contain' = (site as any)?.banner_fit === 'contain' ? 'contain' : 'cover';
+  const bannerPlaceholderEnabled = (site as any)?.banner_placeholder_enabled !== false;
+  const bannerPlaceholderColor = (site as any)?.banner_placeholder_color || '#1f2937';
   const moduleOrder: string[] = (() => {
     try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed"]'); }
     catch { return ['links','videos','cv','feed']; }
@@ -376,6 +380,7 @@ export default function SitePage() {
 
   const pageMaxWidth = Math.max(580, Number((site as any)?.page_width || 580));
   const activePageTemplate = sitePages.find(p => p.id === activePage)?.template || 'default';
+  const hasBannerArea = !!site.banner_url || (!site.banner_url && bannerPlaceholderEnabled);
 
   return (
     <div style={{minHeight:'100vh',background:pageBg,fontFamily:t.font,position:'relative',overflowX:'hidden'}}>
@@ -407,16 +412,29 @@ export default function SitePage() {
 
       {/* Banner — acima do feed visual; avatar sobrepõe com z-index */}
       {site.banner_url && (
-        <div style={{width:'100%',height:220,maxHeight:'42vh',overflow:'hidden',position:'relative',flexShrink:0,zIndex:1,background:pageBg}}>
-          <img src={site.banner_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:`${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,display:'block',verticalAlign:'top'}}/>
+        <div style={{width:'100%',height:220,maxHeight:'42vh',overflow:'hidden',position:'relative',flexShrink:0,zIndex:2,background:bannerPlaceholderColor}}>
+          <img src={site.banner_url} alt="" style={{
+            width:'100%',
+            height:'100%',
+            objectFit: bannerFit,
+            objectPosition:`${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
+            transform:`scale(${bannerZoom / 100})`,
+            transformOrigin:`${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
+            display:'block',
+            verticalAlign:'top',
+            filter:'none',
+          }}/>
         </div>
+      )}
+      {!site.banner_url && bannerPlaceholderEnabled && (
+        <div style={{width:'100%',height:130,overflow:'hidden',position:'relative',flexShrink:0,zIndex:2,background:bannerPlaceholderColor}} />
       )}
 
       {/* Content */}
-      <div style={{maxWidth:pageMaxWidth,margin:'0 auto',padding: site.banner_url ? '0 20px 80px' : '48px 20px 80px',position:'relative',zIndex:1}}>
+      <div style={{maxWidth:pageMaxWidth,margin:'0 auto',padding: hasBannerArea ? '0 20px 80px' : '48px 20px 80px',position:'relative',zIndex:1}}>
 
         {/* ── Profile ── */}
-        <div style={{textAlign:'center',marginBottom:32,marginTop: site.banner_url ? -(avatarSize/2 + 6) : 0, position:'relative', zIndex:2}}>
+        <div style={{textAlign:'center',marginBottom:32,marginTop: hasBannerArea ? -(avatarSize/2 + 6) : 0, position:'relative', zIndex:2}}>
 
           {/* Avatar ring */}
           <div style={{display:'inline-block',padding:3,borderRadius: site.photo_shape==='round'?'50%': site.photo_shape==='square'?20:32,background:`linear-gradient(135deg,${accent},${accent}60,transparent)`,marginBottom:14}}>

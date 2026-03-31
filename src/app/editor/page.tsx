@@ -85,6 +85,10 @@ export default function EditorPage() {
   const [bannerUrl,    setBannerUrl]    = useState('');
   const [bannerFocusX, setBannerFocusX] = useState(50);
   const [bannerFocusY, setBannerFocusY] = useState(50);
+  const [bannerZoom, setBannerZoom] = useState(100);
+  const [bannerFit, setBannerFit] = useState<'cover'|'contain'>('cover');
+  const [bannerPlaceholderEnabled, setBannerPlaceholderEnabled] = useState(true);
+  const [bannerPlaceholderColor, setBannerPlaceholderColor] = useState('#1f2937');
   const [walletAddr,   setWalletAddr]   = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [published,    setPublished]    = useState(false);
@@ -164,6 +168,7 @@ export default function EditorPage() {
   const [graceDays, setGraceDays] = useState(7);
   const ADMIN_BYPASS_EMAIL = 'arytcf@gmail.com';
   const [isAdminBypass, setIsAdminBypass] = useState(false);
+  const [creatingSite, setCreatingSite] = useState(false);
 
   // ── Load site data ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -175,6 +180,10 @@ export default function EditorPage() {
     setBannerUrl((site as any).banner_url || '');
     setBannerFocusX((site as any).banner_focus_x ?? 50);
     setBannerFocusY((site as any).banner_focus_y ?? 50);
+    setBannerZoom(Math.max(50, Math.min(150, Number((site as any).banner_zoom ?? 100))));
+    setBannerFit(((site as any).banner_fit === 'contain' ? 'contain' : 'cover'));
+    setBannerPlaceholderEnabled((site as any).banner_placeholder_enabled !== false);
+    setBannerPlaceholderColor((site as any).banner_placeholder_color || '#1f2937');
     setWalletAddr((site as any).wallet_address || '');
     setContactEmail((site as any).contact_email || '');
     setPublished(site.published || false);
@@ -320,13 +329,9 @@ export default function EditorPage() {
       .then(({ data }: any) => setIsAdminBypass(!!data));
   }, [user?.id, user?.email]);
 
-  // ── Auto-create site ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!siteLoading && !site && user) {
-      const defaultSlug = (user.email?.split('@')[0] || 'user').replace(/[^a-z0-9]/gi, '').toLowerCase() + user.id.slice(0, 6);
-      save({ site_name: 'My Site', slug: defaultSlug, bio: '', published: false } as any).catch(() => {});
-    }
-  }, [siteLoading, site, user]);
+  // NOTE:
+  // We intentionally do NOT auto-create mini-sites anymore.
+  // Auto-creation could generate unintended slugs/profiles when loading fails temporarily.
 
   // ── Autosave ──────────────────────────────────────────────────────────────
   const markDirty = useCallback(() => { isDirty.current = true; }, []);
@@ -338,7 +343,7 @@ export default function EditorPage() {
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
       showCv, cvLocked, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
-      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY, tickerEnabled, tickerItems]);
+      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems]);
 
   // ── Upload helper ─────────────────────────────────────────────────────────
   const uploadToStorage = async (file: File, folder: string): Promise<string> => {
@@ -370,6 +375,10 @@ export default function EditorPage() {
         banner_url:    bannerUrl,
         banner_focus_x: bannerFocusX,
         banner_focus_y: bannerFocusY,
+        banner_zoom: bannerZoom,
+        banner_fit: bannerFit,
+        banner_placeholder_enabled: bannerPlaceholderEnabled,
+        banner_placeholder_color: bannerPlaceholderColor || null,
         theme,
         accent_color:  accentColor,
         photo_shape:   photoShape,
@@ -571,6 +580,51 @@ export default function EditorPage() {
     </div>
   );
   if (!user) { router.push('/auth'); return null; }
+  if (!site) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)]">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-14">
+          <div className="card p-6">
+            <h1 className="font-black text-xl text-[var(--text)] mb-2">No mini-site loaded</h1>
+            <p className="text-sm text-[var(--text2)] mb-4">
+              To prevent accidental profile/slug creation, mini-sites are now created only manually.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="btn-secondary"
+              >
+                Reload
+              </button>
+              <button
+                onClick={async () => {
+                  if (!user?.id) return;
+                  setCreatingSite(true);
+                  try {
+                    const defaultSlug = (user.email?.split('@')[0] || 'user')
+                      .replace(/[^a-z0-9]/gi, '')
+                      .toLowerCase() + user.id.slice(0, 6);
+                    await save({ site_name: 'My Site', slug: defaultSlug, bio: '', published: false } as any);
+                    toast.success('Mini-site created.');
+                    window.location.reload();
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Failed to create mini-site');
+                  } finally {
+                    setCreatingSite(false);
+                  }
+                }}
+                className="btn-primary"
+                disabled={creatingSite}
+              >
+                {creatingSite ? 'Creating...' : 'Create mini-site'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const currentTheme = THEMES.find(t => t.id === theme) || THEMES[0];
   const siteUrl = site?.slug ? `https://${site.slug}.trustbank.xyz` : null;
@@ -723,7 +777,22 @@ export default function EditorPage() {
                     </div>
                     {bannerUrl && (
                       <>
-                        <img src={bannerUrl} className="w-full h-20 object-cover rounded-xl mt-2 border border-[var(--border)]" style={{ objectPosition: `${bannerFocusX}% ${bannerFocusY}%` }} />
+                        <div
+                          className="w-full h-24 rounded-xl mt-2 border border-[var(--border)] overflow-hidden"
+                          style={{ background: bannerPlaceholderColor || '#1f2937' }}
+                        >
+                          <img
+                            src={bannerUrl}
+                            className="w-full h-full rounded-xl"
+                            style={{
+                              objectFit: bannerFit,
+                              objectPosition: `${bannerFocusX}% ${bannerFocusY}%`,
+                              transform: `scale(${bannerZoom / 100})`,
+                              transformOrigin: `${bannerFocusX}% ${bannerFocusY}%`,
+                              filter: 'none',
+                            }}
+                          />
+                        </div>
                         <div className="grid grid-cols-2 gap-3 mt-2">
                           <div>
                             <label className="label block mb-1 text-xs">Banner Focus X</label>
@@ -737,8 +806,45 @@ export default function EditorPage() {
                               onChange={e => { setBannerFocusY(Number(e.target.value)); markDirty(); }}
                               className="w-full" />
                           </div>
+                          <div>
+                            <label className="label block mb-1 text-xs">Banner Zoom</label>
+                            <input type="range" min={50} max={150} value={bannerZoom}
+                              onChange={e => { setBannerZoom(Number(e.target.value)); markDirty(); }}
+                              className="w-full" />
+                          </div>
+                          <div>
+                            <label className="label block mb-1 text-xs">Banner Fit</label>
+                            <select
+                              value={bannerFit}
+                              onChange={e => { setBannerFit(e.target.value as 'cover'|'contain'); markDirty(); }}
+                              className="input py-1.5 text-xs"
+                            >
+                              <option value="cover">Cover (fill)</option>
+                              <option value="contain">Contain (full image)</option>
+                            </select>
+                          </div>
                         </div>
                       </>
+                    )}
+                    {!bannerUrl && (
+                      <div className="mt-2 rounded-xl border border-[var(--border)] p-3 bg-[var(--bg2)]">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-[var(--text2)]">No banner placeholder</span>
+                          <button onClick={() => { setBannerPlaceholderEnabled(v => !v); markDirty(); }}
+                            className={`relative w-10 h-5 rounded-full transition-colors ${bannerPlaceholderEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}>
+                            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${bannerPlaceholderEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type="color" value={bannerPlaceholderColor}
+                            onChange={e => { setBannerPlaceholderColor(e.target.value); markDirty(); }}
+                            className="w-8 h-8 rounded border border-[var(--border)] p-0.5" />
+                          <input value={bannerPlaceholderColor}
+                            onChange={e => { setBannerPlaceholderColor(e.target.value); markDirty(); }}
+                            className="input py-1.5 text-xs font-mono"
+                            placeholder="#1f2937" />
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1388,8 +1494,20 @@ export default function EditorPage() {
               {/* Banner preview */}
               {bannerUrl && (
                 <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative', background: currentTheme.bg }}>
-                  <img src={bannerUrl} style={{ width:'100%', height:'100%', objectFit:'cover', objectPosition:`${bannerFocusX}% ${bannerFocusY}%`, display:'block' }} />
+                  <img src={bannerUrl} style={{
+                    width:'100%',
+                    height:'100%',
+                    objectFit: bannerFit,
+                    objectPosition:`${bannerFocusX}% ${bannerFocusY}%`,
+                    transform:`scale(${bannerZoom / 100})`,
+                    transformOrigin:`${bannerFocusX}% ${bannerFocusY}%`,
+                    display:'block',
+                    filter:'none',
+                  }} />
                 </div>
+              )}
+              {!bannerUrl && bannerPlaceholderEnabled && (
+                <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative', background: bannerPlaceholderColor || '#1f2937' }} />
               )}
               <div style={{ padding: bannerUrl ? '0 16px 16px' : '20px 16px 16px', textAlign:'center' }}>
                 {/* Avatar */}

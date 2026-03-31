@@ -43,6 +43,9 @@ export default function AdminPage() {
   const [siteUrl, setSiteUrl] = useState('https://trustbank.xyz');
   const [userWalletEmail, setUserWalletEmail] = useState('');
   const [userWalletAddress, setUserWalletAddress] = useState('');
+  const [deleteSiteSlug, setDeleteSiteSlug] = useState('');
+  const [deleteSiteEmail, setDeleteSiteEmail] = useState('');
+  const [deletingSite, setDeletingSite] = useState(false);
 
   // Slugs admin
   const [slugsBulk, setSlugsBulk]     = useState('');
@@ -284,6 +287,49 @@ export default function AdminPage() {
       return;
     }
     toast.success(`✅ Wallet atualizada para ${cleanEmail}`);
+  };
+
+  const deleteMiniSite = async () => {
+    const slug = deleteSiteSlug.trim().toLowerCase();
+    const email = deleteSiteEmail.trim().toLowerCase();
+    if (!slug && !email) {
+      toast.error('Informe slug ou email');
+      return;
+    }
+    setDeletingSite(true);
+    try {
+      let query: any = (supabase as any).from('mini_sites').select('id,user_id,slug,site_name,contact_email').limit(1);
+      if (slug) query = query.eq('slug', slug);
+      else query = query.eq('contact_email', email);
+      const { data: site, error: siteErr } = await query.maybeSingle();
+      if (siteErr) throw siteErr;
+      if (!site) {
+        toast.error('Mini-site não encontrado');
+        return;
+      }
+
+      const ok = window.confirm(`Tem certeza que deseja apagar o mini-site "${site.site_name || site.slug}" (${site.slug})?`);
+      if (!ok) return;
+
+      await Promise.all([
+        supabase.from('mini_site_links').delete().eq('site_id', site.id),
+        supabase.from('mini_site_videos').delete().eq('site_id', site.id),
+        (supabase as any).from('feed_posts').delete().eq('site_id', site.id),
+        (supabase as any).from('site_visits').delete().eq('site_id', site.id),
+        (supabase as any).from('site_link_clicks').delete().eq('site_id', site.id),
+      ]);
+      await (supabase as any).from('slug_registrations').delete().eq('user_id', site.user_id).eq('slug', site.slug);
+      const { error: delErr } = await supabase.from('mini_sites').delete().eq('id', site.id);
+      if (delErr) throw delErr;
+
+      toast.success(`✅ Mini-site ${site.slug} removido.`);
+      setDeleteSiteSlug('');
+      setDeleteSiteEmail('');
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao deletar mini-site');
+    } finally {
+      setDeletingSite(false);
+    }
   };
 
   const sendBroadcast = async () => {
@@ -625,6 +671,33 @@ export default function AdminPage() {
               </div>
               <button onClick={setWalletForUser} className="btn-primary mt-3">
                 Aplicar wallet no usuário
+              </button>
+            </div>
+            <div className="border-t border-red-500/30 pt-4">
+              <h4 className="font-black text-red-400 mb-2">Danger Zone · Delete mini-site</h4>
+              <p className="text-xs text-[var(--text2)] mb-3">
+                Apaga mini-site e dados relacionados (links, vídeos, feed, analytics) e remove o slug do registro do dono.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  value={deleteSiteSlug}
+                  onChange={e => setDeleteSiteSlug(e.target.value)}
+                  className="input"
+                  placeholder="slug (ex: artnoir)"
+                />
+                <input
+                  value={deleteSiteEmail}
+                  onChange={e => setDeleteSiteEmail(e.target.value)}
+                  className="input"
+                  placeholder="ou email de contato"
+                />
+              </div>
+              <button
+                onClick={deleteMiniSite}
+                disabled={deletingSite || (!deleteSiteSlug.trim() && !deleteSiteEmail.trim())}
+                className="mt-3 px-4 py-2 rounded-xl text-sm font-bold border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+              >
+                {deletingSite ? 'Deletando...' : 'Delete mini-site'}
               </button>
             </div>
           </div>

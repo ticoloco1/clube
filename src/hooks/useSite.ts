@@ -63,6 +63,10 @@ export interface MiniSite {
   trial_notice_sent_at?: string | null;
   ticker_enabled?: boolean;
   ticker_items?: any;
+  banner_zoom?: number;
+  banner_fit?: 'cover' | 'contain';
+  banner_placeholder_enabled?: boolean;
+  banner_placeholder_color?: string | null;
 }
 
 export function useMySite() {
