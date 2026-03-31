@@ -42,11 +42,9 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
     if (!embedUrl) return;
     let url = embedUrl;
     // Auto-convert YouTube watch → embed
-    if (url.includes('youtube.com/watch?v=')) {
-      url = url.replace('watch?v=', 'embed/');
-    } else if (url.includes('youtu.be/')) {
-      const id = url.split('youtu.be/')[1]?.split('?')[0];
-      if (id) url = `https://www.youtube.com/embed/${id}`;
+    const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+    if (yt?.[1]) {
+      url = `https://www.youtube.com/embed/${yt[1]}`;
     } else if (url.includes('vimeo.com/')) {
       const id = url.match(/vimeo\.com\/(\d+)/)?.[1];
       if (id) url = `https://player.vimeo.com/video/${id}`;
@@ -62,10 +60,10 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
 
   const insertPaperBlock = (kind: 'yellow' | 'white' | 'map' | 'dark') => {
     const map: Record<string, string> = {
-      yellow: '<div class="tb-paper tb-paper-yellow"><p><strong>Notebook block</strong></p><p>Write your content here...</p></div><p><br></p>',
-      white: '<div class="tb-paper tb-paper-white"><p><strong>White paper block</strong></p><p>Write your content here...</p></div><p><br></p>',
-      map: '<div class="tb-paper tb-paper-map"><p><strong>Map style block</strong></p><p>Write your content here...</p></div><p><br></p>',
-      dark: '<div class="tb-paper tb-paper-dark"><p><strong>Dark card block</strong></p><p>Write your content here...</p></div><p><br></p>',
+      yellow: '<div class="tb-paper tb-paper-yellow"><p><br></p></div><p><br></p>',
+      white: '<div class="tb-paper tb-paper-white"><p><br></p></div><p><br></p>',
+      map: '<div class="tb-paper tb-paper-map"><p><br></p></div><p><br></p>',
+      dark: '<div class="tb-paper tb-paper-dark"><p><br></p></div><p><br></p>',
     };
     document.execCommand('insertHTML', false, map[kind]);
     if (editorRef.current) onChange(editorRef.current.innerHTML);

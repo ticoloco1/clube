@@ -16,6 +16,7 @@ import {
 import { Header } from '@/components/layout/Header';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
+import { CVEditor, type CVData } from '@/components/editor/CVEditor';
 
 // ── 30 Themes ─────────────────────────────────────────────────────────────────
 const THEMES = [
@@ -58,8 +59,8 @@ const BRAND_COLORS: Record<string,string> = {
 };
 const SOCIAL_URL_TEMPLATES: Record<string, string> = {
   instagram: 'https://instagram.com/',
-  youtube: 'https://youtube.com/@',
-  tiktok: 'https://tiktok.com/@',
+  youtube: 'https://youtube.com/',
+  tiktok: 'https://tiktok.com/',
   twitter: 'https://x.com/',
   linkedin: 'https://linkedin.com/in/',
   spotify: 'https://open.spotify.com/',
@@ -128,11 +129,24 @@ export default function EditorPage() {
   const [feedCols,    setFeedCols]    = useState<1|2|3>(1);
   const [moduleOrder, setModuleOrder] = useState(['links','videos','cv','feed']);
   const [pageWidth, setPageWidth] = useState<number>(600);
-  const [sitePages,   setSitePages]   = useState<{id:string;label:string}[]>([{id:'home',label:'Home'}]);
+  const [sitePages,   setSitePages]   = useState<{id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[]>([{id:'home',label:'Home',template:'default'}]);
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
   const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed'] });
+  const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
+  const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({ home: { links: 1, videos: 1, cv: 1, feed: 1 } });
   const [dragOverMod, setDragOverMod] = useState<string|null>(null);
   const [feedPosts, setFeedPosts] = useState<any[]>([]);
+  const [cvExperience, setCvExperience] = useState<any[]>([]);
+  const [cvEducation, setCvEducation] = useState<any[]>([]);
+  const [cvProjects, setCvProjects] = useState<any[]>([]);
+  const [cvLanguages, setCvLanguages] = useState<any[]>([]);
+  const [cvCertificates, setCvCertificates] = useState<any[]>([]);
+  const [cvContactWhatsapp, setCvContactWhatsapp] = useState('');
+  const [cvHirePrice, setCvHirePrice] = useState(0);
+  const [cvHireCurrency, setCvHireCurrency] = useState('USD');
+  const [cvHireType, setCvHireType] = useState('hour');
+  const [cvFree, setCvFree] = useState(false);
+  const [sectionOrder, setSectionOrder] = useState<string[]>(['summary','experience','education','skills','projects','languages','certificates','contact']);
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [activeTab,       setActiveTab]       = useState('profile');
@@ -178,6 +192,17 @@ export default function EditorPage() {
     setCvLocation((site as any).cv_location || '');
     setCvSkills((site.cv_skills || []).join(', '));
     setCvContent(site.cv_content || '');
+    setCvExperience((site as any).cv_experience || []);
+    setCvEducation((site as any).cv_education || []);
+    setCvProjects((site as any).cv_projects || []);
+    setCvLanguages((site as any).cv_languages || []);
+    setCvCertificates((site as any).cv_certificates || []);
+    setCvContactWhatsapp((site as any).cv_contact_whatsapp || '');
+    setCvHirePrice(Number((site as any).cv_hire_price || 0));
+    setCvHireCurrency((site as any).cv_hire_currency || 'USD');
+    setCvHireType((site as any).cv_hire_type || 'hour');
+    setCvFree(Boolean((site as any).cv_free));
+    setSectionOrder((site as any).section_order || ['summary','experience','education','skills','projects','languages','certificates','contact']);
     setShowFeed((site as any).show_feed !== false);
     setFeedCols((site as any).feed_cols || 1);
     if ((site as any).module_order) {
@@ -191,7 +216,35 @@ export default function EditorPage() {
       try { setPageContents(JSON.parse((site as any).page_contents)); } catch {}
     }
     if ((site as any).page_modules) {
-      try { setPageModules(JSON.parse((site as any).page_modules)); } catch {}
+      try {
+        const parsed = JSON.parse((site as any).page_modules);
+        const pm: Record<string, string[]> = {};
+        const pc: Record<string, 1|2|3> = {};
+        const mc: Record<string, Record<string, 1|2|3>> = {};
+        if (parsed && typeof parsed === 'object') {
+          Object.entries(parsed).forEach(([pageId, raw]: any) => {
+            if (Array.isArray(raw)) {
+              pm[pageId] = raw;
+              pc[pageId] = 1;
+              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1 };
+              return;
+            }
+            const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
+            const cols = [1,2,3].includes(Number(raw?.columns)) ? Number(raw.columns) as 1|2|3 : 1;
+            pm[pageId] = modules;
+            pc[pageId] = cols;
+            mc[pageId] = {
+              links: [1,2,3].includes(Number(raw?.moduleColumns?.links)) ? Number(raw.moduleColumns.links) as 1|2|3 : 1,
+              videos: [1,2,3].includes(Number(raw?.moduleColumns?.videos)) ? Number(raw.moduleColumns.videos) as 1|2|3 : 1,
+              cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
+              feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
+            };
+          });
+        }
+        if (Object.keys(pm).length) setPageModules(pm);
+        if (Object.keys(pc).length) setPageColumns(pc);
+        if (Object.keys(mc).length) setModuleColumns(mc);
+      } catch {}
     }
   }, [site]);
 
@@ -290,6 +343,15 @@ export default function EditorPage() {
     if (!user || !site) return;
     setSaving(true);
     try {
+      const combinedPageModules: Record<string, any> = {};
+      sitePages.forEach((p) => {
+        combinedPageModules[p.id] = {
+          modules: pageModules[p.id] || (p.id === 'home' ? moduleOrder : []),
+          columns: pageColumns[p.id] || 1,
+          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1 },
+        };
+      });
+
       await save({
         site_name:     siteName,
         bio,
@@ -310,13 +372,24 @@ export default function EditorPage() {
         cv_content:    cvContent,
         cv_location:   cvLocation,
         cv_skills:     cvSkills.split(',').map(s => s.trim()).filter(Boolean),
+        cv_experience: cvExperience,
+        cv_education: cvEducation,
+        cv_projects: cvProjects,
+        cv_languages: cvLanguages,
+        cv_certificates: cvCertificates,
+        cv_contact_whatsapp: cvContactWhatsapp || null,
+        cv_hire_price: cvHirePrice || 0,
+        cv_hire_currency: cvHireCurrency || 'USD',
+        cv_hire_type: cvHireType || 'hour',
+        cv_free: cvFree,
+        section_order: sectionOrder,
         show_feed:     showFeed,
         feed_cols:     feedCols,
         module_order:  JSON.stringify(moduleOrder),
         site_pages:    JSON.stringify(sitePages),
         page_width: pageWidth,
         page_contents: JSON.stringify(pageContents),
-        page_modules: JSON.stringify(pageModules),
+        page_modules: JSON.stringify(combinedPageModules),
         wallet_address: walletAddr,
         contact_email: contactEmail,
         seo_title: seoTitle || null,
@@ -905,39 +978,52 @@ export default function EditorPage() {
 
           {/* CV */}
           {activeTab === 'cv' && (
-            <div className="card p-6 space-y-4">
-              <h2 className="font-black text-lg text-[var(--text)]">CV / Resume</h2>
-              <div className="flex items-center justify-between p-3 bg-[var(--bg2)] rounded-xl">
-                <div><p className="text-sm font-semibold text-[var(--text)]">Show CV on site</p></div>
-                <button onClick={() => { setShowCv(p=>!p); markDirty(); }}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${showCv ? 'bg-brand' : 'bg-[var(--border)]'}`}>
-                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${showCv ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
-              {showCv && (<>
-                <div className="flex items-center justify-between p-3 bg-[var(--bg2)] rounded-xl">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--text)]">Lock behind payment</p>
-                    <p className="text-xs text-[var(--text2)]">Companies pay to unlock — you get 50%</p>
-                  </div>
-                  <button onClick={() => { setCvLocked(p=>!p); markDirty(); }}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${cvLocked ? 'bg-amber-500' : 'bg-[var(--border)]'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cvLocked ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-                {cvLocked && <div>
-                  <label className="label block mb-1">Unlock price (USDC)</label>
-                  <input value={cvPrice} onChange={e => { setCvPrice(e.target.value); markDirty(); }} className="input" type="number" min="1" />
-                </div>}
-                <div><label className="label block mb-1">Headline</label>
-                  <input value={cvHeadline} onChange={e => { setCvHeadline(e.target.value); markDirty(); }} className="input" placeholder="Senior Engineer at Acme" /></div>
-                <div><label className="label block mb-1">Location</label>
-                  <input value={cvLocation} onChange={e => { setCvLocation(e.target.value); markDirty(); }} className="input" placeholder="São Paulo, BR · Remote" /></div>
-                <div><label className="label block mb-1">Skills (comma separated)</label>
-                  <input value={cvSkills} onChange={e => { setCvSkills(e.target.value); markDirty(); }} className="input" placeholder="React, TypeScript, Design..." /></div>
-                <div><label className="label block mb-1">Resume Content</label>
-                  <textarea value={cvContent} onChange={e => { setCvContent(e.target.value); markDirty(); }} className="input resize-none" rows={8} placeholder="Work experience, education, achievements..." /></div>
-              </>)}
+            <div className="card p-2 overflow-hidden">
+              <CVEditor
+                data={{
+                  show_cv: showCv,
+                  cv_free: cvFree,
+                  cv_price: parseFloat(cvPrice) || 20,
+                  cv_headline: cvHeadline,
+                  cv_location: cvLocation,
+                  cv_content: cvContent,
+                  cv_skills: cvSkills.split(',').map(s => s.trim()).filter(Boolean),
+                  cv_experience: cvExperience,
+                  cv_education: cvEducation,
+                  cv_projects: cvProjects,
+                  cv_languages: cvLanguages,
+                  cv_certificates: cvCertificates,
+                  contact_email: contactEmail,
+                  cv_contact_whatsapp: cvContactWhatsapp,
+                  cv_hire_price: cvHirePrice,
+                  cv_hire_currency: cvHireCurrency,
+                  cv_hire_type: cvHireType,
+                  section_order: sectionOrder as any,
+                } as CVData}
+                onChange={(d) => {
+                  if (typeof d.show_cv === 'boolean') setShowCv(d.show_cv);
+                  if (typeof d.cv_free === 'boolean') setCvFree(d.cv_free);
+                  if (typeof d.cv_price === 'number') setCvPrice(String(d.cv_price));
+                  if (typeof d.cv_headline === 'string') setCvHeadline(d.cv_headline);
+                  if (typeof d.cv_location === 'string') setCvLocation(d.cv_location);
+                  if (typeof d.cv_content === 'string') setCvContent(d.cv_content);
+                  if (Array.isArray(d.cv_skills)) setCvSkills(d.cv_skills.join(', '));
+                  if (Array.isArray(d.cv_experience)) setCvExperience(d.cv_experience);
+                  if (Array.isArray(d.cv_education)) setCvEducation(d.cv_education);
+                  if (Array.isArray(d.cv_projects)) setCvProjects(d.cv_projects);
+                  if (Array.isArray(d.cv_languages)) setCvLanguages(d.cv_languages);
+                  if (Array.isArray(d.cv_certificates)) setCvCertificates(d.cv_certificates);
+                  if (typeof d.contact_email === 'string') setContactEmail(d.contact_email);
+                  if (typeof d.cv_contact_whatsapp === 'string') setCvContactWhatsapp(d.cv_contact_whatsapp);
+                  if (typeof d.cv_hire_price === 'number') setCvHirePrice(d.cv_hire_price);
+                  if (typeof d.cv_hire_currency === 'string') setCvHireCurrency(d.cv_hire_currency);
+                  if (typeof d.cv_hire_type === 'string') setCvHireType(d.cv_hire_type);
+                  if (Array.isArray(d.section_order)) setSectionOrder(d.section_order);
+                  markDirty();
+                }}
+                onSave={async () => { await handleSave(); }}
+                saving={saving}
+              />
             </div>
           )}
 
@@ -1055,8 +1141,38 @@ export default function EditorPage() {
                           delete next[page.id];
                           return next;
                         });
+                        setPageColumns(prev => {
+                          const next = { ...prev };
+                          delete next[page.id];
+                          return next;
+                        });
+                        setModuleColumns(prev => {
+                          const next = { ...prev };
+                          delete next[page.id];
+                          return next;
+                        });
                         markDirty();
                       }} className="text-red-400 hover:opacity-70"><X className="w-4 h-4" /></button>}
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  {sitePages.map((page) => (
+                    <div key={`${page.id}_template`} className="grid grid-cols-2 gap-2">
+                      <span className="text-xs text-[var(--text2)] self-center">{page.label} template</span>
+                      <select
+                        className="input py-1.5 text-sm"
+                        value={page.template || 'default'}
+                        onChange={(e) => {
+                          const template = e.target.value as 'default'|'videos_3'|'videos_4';
+                          setSitePages(prev => prev.map(p => p.id === page.id ? { ...p, template } : p));
+                          markDirty();
+                        }}
+                      >
+                        <option value="default">Default</option>
+                        <option value="videos_3">Video wall (3 columns)</option>
+                        <option value="videos_4">Video wall (4 columns)</option>
+                      </select>
                     </div>
                   ))}
                 </div>
@@ -1065,6 +1181,8 @@ export default function EditorPage() {
                     const newId = `p_${Date.now()}`;
                     setSitePages(prev => [...prev, {id:newId, label:`Page ${prev.length+1}`}]);
                     setPageModules(prev => ({ ...prev, [newId]: [] }));
+                    setPageColumns(prev => ({ ...prev, [newId]: 1 }));
+                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1 } }));
                     markDirty();
                   }}
                     className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> Add Page</button>
@@ -1076,24 +1194,59 @@ export default function EditorPage() {
                   <h3 className="font-black text-sm text-[var(--text)] mb-3">✏️ Content: {page.label}</h3>
                   <div className="mb-3">
                     <p className="text-xs text-[var(--text2)] font-bold mb-2">Modules on this page</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs text-[var(--text2)]">Columns:</span>
+                      <select
+                        value={pageColumns[page.id] || 1}
+                        onChange={(e) => {
+                          const cols = Number(e.target.value) as 1|2|3;
+                          setPageColumns(prev => ({ ...prev, [page.id]: cols }));
+                          markDirty();
+                        }}
+                        className="input py-1 text-xs max-w-[140px]"
+                      >
+                        <option value={1}>1 column</option>
+                        <option value={2}>2 columns</option>
+                        <option value={3}>3 columns</option>
+                      </select>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       {(['links','videos','cv','feed'] as const).map(mod => {
                         const enabled = (pageModules[page.id] || (page.id === 'home' ? moduleOrder : [])).includes(mod);
                         return (
-                          <button
-                            key={mod}
-                            onClick={() => {
-                              setPageModules(prev => {
-                                const current = prev[page.id] || (page.id === 'home' ? moduleOrder : []);
-                                const next = enabled ? current.filter(m => m !== mod) : [...current, mod];
-                                return { ...prev, [page.id]: next };
-                              });
-                              markDirty();
-                            }}
-                            className={`py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'}`}
-                          >
-                            {mod.toUpperCase()}
-                          </button>
+                          <div key={mod} className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setPageModules(prev => {
+                                  const current = prev[page.id] || (page.id === 'home' ? moduleOrder : []);
+                                  const next = enabled ? current.filter(m => m !== mod) : [...current, mod];
+                                  return { ...prev, [page.id]: next };
+                                });
+                                markDirty();
+                              }}
+                              className={`flex-1 py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'}`}
+                            >
+                              {mod.toUpperCase()}
+                            </button>
+                            {(pageColumns[page.id] || 1) > 1 && (
+                              <select
+                                value={(moduleColumns[page.id]?.[mod] || 1)}
+                                onChange={(e) => {
+                                  const col = Number(e.target.value) as 1|2|3;
+                                  setModuleColumns(prev => ({
+                                    ...prev,
+                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1 }), [mod]: col },
+                                  }));
+                                  markDirty();
+                                }}
+                                className="input py-1 text-xs w-16"
+                              >
+                                <option value={1}>C1</option>
+                                <option value={2}>C2</option>
+                                <option value={3}>C3</option>
+                              </select>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

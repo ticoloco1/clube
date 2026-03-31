@@ -72,11 +72,13 @@ function AuthForm() {
             {T('auth_continue_google')}
           </button>
 
-          {/* Silent wallet info */}
+          {/* Wallet + payment info */}
           <div className="bg-[var(--bg2)] rounded-xl p-3 flex items-start gap-2.5">
             <Coins className="w-4 h-4 text-brand flex-shrink-0 mt-0.5" />
             <p className="text-xs text-[var(--text2)] leading-relaxed">
-              <span className="font-semibold text-[var(--text)]">Pagamentos automáticos em USDC.</span> Você não precisa lidar com carteiras. Para <span className="text-brand font-semibold">receber pagamentos</span> (vídeos, CV, slugs), adicione seu endereço Polygon no editor.
+              <span className="font-semibold text-[var(--text)]">USDC payments on Polygon.</span>{' '}
+              Login with Google can create a silent wallet flow; email/password login usually does not.
+              To fully participate in payments and paid unlocks, always add your own Polygon wallet in the editor.
             </p>
           </div>
 

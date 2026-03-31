@@ -12,6 +12,7 @@ import { SecureVideoPlayer } from '@/components/site/SecureVideoPlayer';
 import { ShareWidget } from '@/components/ui/ShareWidget';
 import { SlugTicker } from '@/components/ui/SlugTicker';
 import { FeedSection } from '@/components/site/FeedSection';
+import { CVView } from '@/components/editor/CVEditor';
 import { useT } from '@/lib/i18n';
 import { Lock, Unlock, Shield, Clock, CheckCircle, ExternalLink, Play } from 'lucide-react';
 import Link from 'next/link';
@@ -86,6 +87,11 @@ function hasMeaningfulHtml(html?: string): boolean {
   return text.length > 0;
 }
 
+function normalizeEmbedHtml(html?: string): string {
+  if (!html) return '';
+  return html.replace(/src="https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtube\.com\/live\/|youtu\.be\/)([A-Za-z0-9_-]{6,})[^"]*"/gi, 'src="https://www.youtube.com/embed/$1"');
+}
+
 function Countdown({ expiresAt, accent }: { expiresAt: string; accent: string }) {
   const [label, setLabel] = useState('');
   useEffect(() => {
@@ -134,17 +140,58 @@ export default function SitePage() {
   const pageModulesMap: Record<string, string[]> = (() => {
     try {
       const parsed = JSON.parse((site as any)?.page_modules || '{}');
-      if (parsed && typeof parsed === 'object') return parsed;
+      if (parsed && typeof parsed === 'object') {
+        const out: Record<string, string[]> = {};
+        Object.entries(parsed).forEach(([pageId, raw]: any) => {
+          if (Array.isArray(raw)) out[pageId] = raw;
+          else out[pageId] = Array.isArray(raw?.modules) ? raw.modules : [];
+        });
+        return out;
+      }
     } catch {}
     return { home: moduleOrder };
   })();
-  const sitePages: {id:string;label:string}[] = (() => {
-    try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home"}]'); }
-    catch { return [{id:'home',label:'Home'}]; }
+  const pageColumnsMap: Record<string, 1|2|3> = (() => {
+    try {
+      const parsed = JSON.parse((site as any)?.page_modules || '{}');
+      if (parsed && typeof parsed === 'object') {
+        const out: Record<string, 1|2|3> = {};
+        Object.entries(parsed).forEach(([pageId, raw]: any) => {
+          const c = Number(raw?.columns);
+          out[pageId] = [1,2,3].includes(c) ? (c as 1|2|3) : 1;
+        });
+        return out;
+      }
+    } catch {}
+    return { home: 1 };
+  })();
+  const pageModuleColumnsMap: Record<string, Record<string, 1|2|3>> = (() => {
+    try {
+      const parsed = JSON.parse((site as any)?.page_modules || '{}');
+      if (parsed && typeof parsed === 'object') {
+        const out: Record<string, Record<string, 1|2|3>> = {};
+        Object.entries(parsed).forEach(([pageId, raw]: any) => {
+          out[pageId] = {
+            links: [1,2,3].includes(Number(raw?.moduleColumns?.links)) ? Number(raw.moduleColumns.links) as 1|2|3 : 1,
+            videos: [1,2,3].includes(Number(raw?.moduleColumns?.videos)) ? Number(raw.moduleColumns.videos) as 1|2|3 : 1,
+            cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
+            feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
+          };
+        });
+        return out;
+      }
+    } catch {}
+    return { home: { links: 1, videos: 1, cv: 1, feed: 1 } };
+  })();
+  const sitePages: {id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[] = (() => {
+    try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home","template":"default"}]'); }
+    catch { return [{id:'home',label:'Home',template:'default'}]; }
   })();
   const [activePage, setActivePage] = useState('home');
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
   const activeModules = pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : []);
+  const activeColumns = pageColumnsMap[activePage] || 1;
+  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1 };
   const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
   const [subActive, setSubActive] = useState(false);
   const [trialCountdown, setTrialCountdown] = useState('');
@@ -312,6 +359,9 @@ export default function SitePage() {
   const pageBg = t.bg;
   const r = Number(t.radius) || 16;
 
+  const pageMaxWidth = Math.max(580, Number((site as any)?.page_width || 580));
+  const activePageTemplate = sitePages.find(p => p.id === activePage)?.template || 'default';
+
   return (
     <div style={{minHeight:'100vh',background:pageBg,fontFamily:t.font,position:'relative',overflowX:'hidden'}}>
       {/* Aurora glow */}
@@ -348,7 +398,7 @@ export default function SitePage() {
       )}
 
       {/* Content */}
-      <div style={{maxWidth:580,margin:'0 auto',padding: site.banner_url ? '0 20px 80px' : '48px 20px 80px',position:'relative',zIndex:1}}>
+      <div style={{maxWidth:pageMaxWidth,margin:'0 auto',padding: site.banner_url ? '0 20px 80px' : '48px 20px 80px',position:'relative',zIndex:1}}>
 
         {/* ── Profile ── */}
         <div style={{textAlign:'center',marginBottom:32,marginTop: site.banner_url ? -(avatarSize/2 + 6) : 0, position:'relative', zIndex:2}}>
@@ -392,7 +442,8 @@ export default function SitePage() {
         )}
 
         {/* ── DYNAMIC MODULE ORDER ── */}
-        {activeModules.map(mod => {
+        {(() => {
+          const renderModule = (mod: string) => {
           if (mod === 'links' && links.length > 0) return (
             <div key="links" style={{display:'flex',flexDirection:'column',gap:12,marginBottom:32}}>
               {links.map((link:any) => {
@@ -454,19 +505,40 @@ export default function SitePage() {
                       {site.cv_headline && <p style={{color:t.text2,fontSize:13,margin:0}}>{site.cv_headline}</p>}
                     </div>
                     <button onClick={handleCvUnlock} style={{padding:'11px 22px',borderRadius:999,background:`linear-gradient(135deg,${accent},${accent}cc)`,color:'#fff',fontWeight:800,fontSize:13,border:'none',cursor:'pointer',whiteSpace:'nowrap'}}>
-                      🔓 ${site.cv_price||20} USDC
+                      🔓 ${site.cv_price||20} USDC (unlock contacts)
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div style={{padding:20,borderRadius:r,border:`1.5px solid ${t.border}`,background:t.btn}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-                    <Unlock style={{width:16,height:16,color:'#22c55e'}}/>
-                    <span style={{fontWeight:800,color:t.text,fontSize:16}}>CV / Resume</span>
-                  </div>
-                  {site.cv_content && <p style={{color:t.text2,fontSize:14,lineHeight:1.8,whiteSpace:'pre-wrap',margin:0}}>{site.cv_content}</p>}
-                </div>
               )}
+              <div style={{padding:20,borderRadius:r,border:`1.5px solid ${t.border}`,background:t.btn,marginTop:(site.cv_locked && !cvUnlocked) ? 10 : 0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <Unlock style={{width:16,height:16,color:'#22c55e'}}/>
+                  <span style={{fontWeight:800,color:t.text,fontSize:16}}>CV / Resume</span>
+                </div>
+                <CVView
+                  data={{
+                    show_cv: !!site.show_cv,
+                    cv_free: !!(site as any).cv_free,
+                    cv_price: Number(site.cv_price || 20),
+                    cv_headline: site.cv_headline || '',
+                    cv_location: (site as any).cv_location || '',
+                    cv_content: site.cv_content || '',
+                    cv_skills: site.cv_skills || [],
+                    cv_experience: (site as any).cv_experience || [],
+                    cv_education: (site as any).cv_education || [],
+                    cv_projects: (site as any).cv_projects || [],
+                    cv_languages: (site as any).cv_languages || [],
+                    cv_certificates: (site as any).cv_certificates || [],
+                    contact_email: (site.cv_locked && !cvUnlocked) ? '' : ((site as any).contact_email || ''),
+                    cv_contact_whatsapp: (site.cv_locked && !cvUnlocked) ? '' : ((site as any).cv_contact_whatsapp || ''),
+                    cv_hire_price: Number((site as any).cv_hire_price || 0),
+                    cv_hire_currency: (site as any).cv_hire_currency || 'USD',
+                    cv_hire_type: (site as any).cv_hire_type || 'hour',
+                    section_order: (site as any).section_order || ['summary','experience','education','skills','projects','languages','certificates','contact'],
+                  }}
+                  accentColor={accent}
+                />
+              </div>
             </div>
           );
           if (mod === 'videos' && videos.length > 0) return (
@@ -612,13 +684,56 @@ export default function SitePage() {
             </div>
           );
           return null;
-        })}
+          };
+
+          if (activeColumns <= 1) {
+            return activeModules.map((mod) => renderModule(mod));
+          }
+
+          const columns: Record<number, string[]> = { 1: [], 2: [], 3: [] };
+          activeModules.forEach((mod) => {
+            const c = activeModuleCols[mod] || 1;
+            columns[c].push(mod);
+          });
+
+          return (
+            <div style={{ display:'grid', gridTemplateColumns:`repeat(${activeColumns}, minmax(0,1fr))`, gap:16, marginBottom:12 }}>
+              {Array.from({ length: activeColumns }).map((_, idx) => {
+                const col = idx + 1;
+                return (
+                  <div key={`col_${col}`} style={{ minWidth: 0 }}>
+                    {columns[col].map((mod) => renderModule(mod))}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {activePageTemplate !== 'default' && videos.length > 0 && (
+          <div style={{marginBottom:32}}>
+            <h2 style={{color:t.text,fontSize:16,fontWeight:800,margin:'0 0 12px'}}>Video Wall</h2>
+            <div style={{
+              display:'grid',
+              gridTemplateColumns: activePageTemplate === 'videos_4'
+                ? 'repeat(4,minmax(0,1fr))'
+                : 'repeat(3,minmax(0,1fr))',
+              gap:10,
+            }}>
+              {videos.map((v:any) => (
+                <div key={`wall_${v.id}`} style={{borderRadius:r,overflow:'hidden',border:`1.5px solid ${t.border}`}}>
+                  <SecureVideoPlayer videoId={v.id} title={v.title} paywallEnabled={v.paywall_enabled} paywallPrice={v.paywall_price} accentColor={accent} siteSlug={slug}/>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Current page rich content */}
         {hasMeaningfulHtml(pageContents[activePage]) && (
           <div style={{paddingBottom:24}}>
             <div
-              dangerouslySetInnerHTML={{ __html: pageContents[activePage] }}
+              dangerouslySetInnerHTML={{ __html: normalizeEmbedHtml(pageContents[activePage]) }}
               style={{ fontSize:15, lineHeight:1.8, color:textMain, padding:'4px 0', maxWidth:(site as any)?.page_width||600, margin:'0 auto', width:'100%' }}
               className="rich-content"
             />
