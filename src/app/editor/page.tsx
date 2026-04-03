@@ -1053,6 +1053,79 @@ function EditorPageInner() {
     setVerifying(false);
   };
 
+  const coachSnapshot = useMemo(() => {
+    if (!site?.id) return {};
+    return {
+      siteName: siteName.trim(),
+      slug: slug.trim(),
+      bio: bio.trim().slice(0, 1200),
+      theme,
+      accentColor,
+      photoShape,
+      paywall: {
+        anyVideoPaywall: videos.some((v: { paywall_enabled?: boolean }) => v.paywall_enabled),
+        defaultPriceHint: paywallPrice,
+      },
+      links: links.map((l) => ({
+        title: l.title,
+        url: String(l.url || '').slice(0, 220),
+        icon: l.icon,
+      })),
+      videos: videos.map((v: { title?: string; paywall_enabled?: boolean; paywall_price?: number }) => ({
+        title: v.title,
+        paywall: !!v.paywall_enabled,
+        price: v.paywall_price,
+      })),
+      cv: {
+        headline: cvHeadline.trim().slice(0, 220),
+        contentPreview: cvContent.trim().slice(0, 3500),
+        skills: cvSkills.trim().slice(0, 500),
+        location: cvLocation.trim().slice(0, 160),
+        showCv,
+      },
+      seo: {
+        title: seoTitle.trim().slice(0, 80),
+        description: seoDescription.trim().slice(0, 200),
+        tagsCount: seoSearchTags.length,
+      },
+      pages: sitePages.map((p) => ({
+        label: p.label,
+        contentChars: (pageContents[p.id] || '').length,
+        template: p.template,
+      })),
+      feed: {
+        count: feedPosts.length,
+        samples: feedPosts.slice(0, 10).map((p: { text?: string }) => String(p.text || '').slice(0, 220)),
+      },
+      moduleOrder,
+      showFeed,
+    };
+  }, [
+    site?.id,
+    siteName,
+    slug,
+    bio,
+    theme,
+    accentColor,
+    photoShape,
+    paywallPrice,
+    links,
+    videos,
+    cvHeadline,
+    cvContent,
+    cvSkills,
+    cvLocation,
+    showCv,
+    seoTitle,
+    seoDescription,
+    seoSearchTags.length,
+    sitePages,
+    pageContents,
+    feedPosts,
+    moduleOrder,
+    showFeed,
+  ]);
+
   // ── Guards ────────────────────────────────────────────────────────────────
   if (authLoading || siteLoading) return (
     <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
@@ -1171,79 +1244,6 @@ function EditorPageInner() {
   }
 
   const currentTheme = THEMES.find(t => t.id === theme) || THEMES[0];
-  const coachSnapshot = useMemo(() => {
-    if (!site?.id) return {};
-    return {
-      siteName: siteName.trim(),
-      slug: slug.trim(),
-      bio: bio.trim().slice(0, 1200),
-      theme,
-      accentColor,
-      photoShape,
-      paywall: {
-        anyVideoPaywall: videos.some((v: { paywall_enabled?: boolean }) => v.paywall_enabled),
-        defaultPriceHint: paywallPrice,
-      },
-      links: links.map((l) => ({
-        title: l.title,
-        url: String(l.url || '').slice(0, 220),
-        icon: l.icon,
-      })),
-      videos: videos.map((v: { title?: string; paywall_enabled?: boolean; paywall_price?: number }) => ({
-        title: v.title,
-        paywall: !!v.paywall_enabled,
-        price: v.paywall_price,
-      })),
-      cv: {
-        headline: cvHeadline.trim().slice(0, 220),
-        contentPreview: cvContent.trim().slice(0, 3500),
-        skills: cvSkills.trim().slice(0, 500),
-        location: cvLocation.trim().slice(0, 160),
-        showCv,
-      },
-      seo: {
-        title: seoTitle.trim().slice(0, 80),
-        description: seoDescription.trim().slice(0, 200),
-        tagsCount: seoSearchTags.length,
-      },
-      pages: sitePages.map((p) => ({
-        label: p.label,
-        contentChars: (pageContents[p.id] || '').length,
-        template: p.template,
-      })),
-      feed: {
-        count: feedPosts.length,
-        samples: feedPosts.slice(0, 10).map((p: { text?: string }) => String(p.text || '').slice(0, 220)),
-      },
-      moduleOrder,
-      showFeed,
-    };
-  }, [
-    site?.id,
-    siteName,
-    slug,
-    bio,
-    theme,
-    accentColor,
-    photoShape,
-    paywallPrice,
-    links,
-    videos,
-    cvHeadline,
-    cvContent,
-    cvSkills,
-    cvLocation,
-    showCv,
-    seoTitle,
-    seoDescription,
-    seoSearchTags.length,
-    sitePages,
-    pageContents,
-    feedPosts,
-    moduleOrder,
-    showFeed,
-  ]);
-
   const siteUrl = site?.slug ? `https://${site.slug}.trustbank.xyz` : null;
   const managePreviewUrl = site?.slug ? `/s/${site.slug}?manage=1` : null;
   const photoSizePx: Record<string,number> = { sm:72, md:96, lg:128, xl:160 };

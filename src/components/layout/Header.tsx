@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/store/cart';
 import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { ShoppingCart, User, TrendingUp, LogOut, Settings, LayoutDashboard } from 'lucide-react';
@@ -16,6 +17,32 @@ export function Header() {
   const [openMenu, setOpenMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const isOwnerEmail = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
+  const [showAdminNav, setShowAdminNav] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setShowAdminNav(false);
+      return;
+    }
+    const email = (user.email || '').toLowerCase();
+    if (email === 'arytcf@gmail.com') {
+      setShowAdminNav(true);
+      return;
+    }
+    let cancelled = false;
+    (supabase as any)
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle()
+      .then(({ data }: { data: unknown }) => {
+        if (!cancelled) setShowAdminNav(!!data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.email]);
 
   useEffect(() => {
     const onDocClick = (ev: MouseEvent) => {
@@ -57,6 +84,7 @@ export function Header() {
         <nav style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
           {[
             { href: '/slugs', label: T('nav_slug_market') },
+            { href: '/vault', label: T('nav_vault') },
             { href: '/sites', label: T('nav_sites') },
             { href: '/videos', label: T('nav_videos') },
             { href: '/cv', label: T('nav_cvs') },
@@ -125,7 +153,7 @@ export function Header() {
                   }}>
                     <Settings size={14} /> {T('header_editor')}
                   </Link>
-                  {isOwnerEmail && (
+                  {showAdminNav && (
                     <Link href="/admin" onClick={() => setOpenMenu(false)} style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
                       color: 'var(--text)', textDecoration: 'none', fontSize: 14, fontWeight: 700,

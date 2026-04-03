@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+/**
+ * Apex usado para reconhecer `slug.apex` no middleware.
+ * - Defina `NEXT_PUBLIC_ROOT_DOMAIN` na Vercel se o site principal for outro host.
+ * - Se `NEXT_PUBLIC_SITE_URL` for só `*.vercel.app` (preview), não use isso como apex —
+ *   senão `foo.trustbank.xyz` deixa de bater em `.vercel.app` e o rewrite não corre.
+ */
 function resolveRootDomain(): string {
   const raw = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim();
   if (raw) return raw.replace(/^www\./i, '');
   try {
-    return new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').hostname.replace(/^www\./i, '');
+    const host = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').hostname.replace(/^www\./i, '');
+    if (host.endsWith('.vercel.app')) return 'trustbank.xyz';
+    return host;
   } catch {
     return 'trustbank.xyz';
   }

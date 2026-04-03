@@ -3,7 +3,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
 import {
   Key, Wallet, BarChart3, Settings, Save, Users, Globe,
   ToggleLeft, ToggleRight, DollarSign, Loader2, Plus, Trash2,
@@ -45,10 +44,11 @@ function Toggle({ label, desc, value, onChange }: any) {
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
-  const router = useRouter();
   const T = useT();
   const [tab, setTab] = useState<'analytics'|'accounts'|'minisites'|'mystic'|'slugs'|'broadcast'|'features'|'pricing'|'wallet'|'apis'|'code'|'plans'>('analytics');
   const [saving, setSaving] = useState(false);
+  /** null = a verificar; evita hooks condicionais mais abaixo */
+  const [adminAllowed, setAdminAllowed] = useState<boolean | null>(null);
 
   // Stats
   const [stats, setStats] = useState<any>({});
@@ -266,10 +266,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (tab !== 'accounts') return;
-    if (!user || user.email !== OWNER_EMAIL) return;
+    if (!user || adminAllowed !== true) return;
     setAccountsPage(1);
     void loadAccounts(1);
-  }, [tab, user?.email, loadAccounts]);
+  }, [tab, user?.id, adminAllowed, loadAccounts]);
 
   const loadPlans = async () => {
     const { data, error } = await (supabase as any)
@@ -326,13 +326,32 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (!loading && user && user.email !== OWNER_EMAIL) {
-      router.push('/');
-    }
-  }, [user, loading]);
+    let cancelled = false;
+    (async () => {
+      if (!user?.id) {
+        setAdminAllowed(false);
+        return;
+      }
+      const email = (user.email || '').toLowerCase();
+      if (email === OWNER_EMAIL.toLowerCase()) {
+        if (!cancelled) setAdminAllowed(true);
+        return;
+      }
+      const { data } = await (supabase as any)
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      if (!cancelled) setAdminAllowed(!!data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.email]);
 
   useEffect(() => {
-    if (!user || user.email !== OWNER_EMAIL) return;
+    if (!user || adminAllowed !== true) return;
 
     // Load stats
     Promise.all([
@@ -400,13 +419,13 @@ export default function AdminPage() {
           r2: !!process.env.R2_WORKER_URL,
         });
       });
-  }, [user]);
+  }, [user, adminAllowed]);
 
   useEffect(() => {
-    if (user?.email !== OWNER_EMAIL) return;
+    if (adminAllowed !== true) return;
     if (tab !== 'minisites') return;
     void loadMyMiniSites(miniSitesPage);
-  }, [user?.email, tab, miniSitesPage, loadMyMiniSites]);
+  }, [adminAllowed, tab, miniSitesPage, loadMyMiniSites]);
 
   const loadAllSlugs = async (search = '') => {
     setAllSlugsLoading(true);
@@ -546,9 +565,6 @@ export default function AdminPage() {
     setSaving(false);
   };
 
-  if (loading || !user) return <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand" /></div>;
-  if (user.email !== OWNER_EMAIL) return null;
-
   const TABS = useMemo(
     () => [
       { id: 'analytics' as const, label: T('admin_tab_analytics'), icon: BarChart3 },
@@ -565,6 +581,31 @@ export default function AdminPage() {
     ],
     [T],
   );
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-brand" />
+      </div>
+    );
+  }
+  if (adminAllowed === null) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-brand" />
+      </div>
+    );
+  }
+  if (!adminAllowed) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] flex flex-col items-center justify-center gap-4 px-4">
+        <p className="text-[var(--text)] font-bold text-center">{T('admin_access_denied')}</p>
+        <Link href="/" className="btn-primary">
+          {T('admin_access_home')}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">

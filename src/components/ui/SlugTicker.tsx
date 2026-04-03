@@ -50,20 +50,22 @@ export function SlugTicker({ siteUserId, customItems = [], enabled = true }: Slu
         .eq('for_sale', true)
         .limit(10)
         .then((r) => {
-          const next: Row[] = (r.data || []).map((s: any) =>
-            s.status === 'auction'
-              ? {
-                  kind: 'owner_auc' as const,
-                  slug: s.slug,
-                  url: '/slugs?tab=auctions',
-                }
-              : {
-                  kind: 'owner_sale' as const,
-                  slug: s.slug,
-                  url: '/slugs?tab=market',
-                  price: Number(s.sale_price || 0),
-                }
-          );
+          const next: Row[] = (r.data || [])
+            .filter((s: any) => s?.slug && String(s.slug).length > 0)
+            .map((s: any) =>
+              s.status === 'auction'
+                ? {
+                    kind: 'owner_auc' as const,
+                    slug: String(s.slug),
+                    url: '/slugs?tab=auctions',
+                  }
+                : {
+                    kind: 'owner_sale' as const,
+                    slug: String(s.slug),
+                    url: '/slugs?tab=market',
+                    price: Number(s.sale_price || 0),
+                  },
+            );
           setRows(next);
         });
     } else {
@@ -84,20 +86,23 @@ export function SlugTicker({ siteUserId, customItems = [], enabled = true }: Slu
           .limit(12),
       ]).then(([saleRowsRaw, auctions]) => {
         const saleRows: Row[] = saleRowsRaw
+          .filter((s) => s?.slug && String(s.slug).length > 0)
           .filter((s) => (s.status ?? '') !== 'auction')
           .slice(0, 12)
           .map((s) => ({
             kind: 'pub_sale' as const,
-            slug: s.slug,
+            slug: String(s.slug),
             url: '/slugs?tab=market',
             price: Number(s.sale_price || 0),
           }));
-        const aucRows: Row[] = (auctions.data || []).map((a: any) => ({
-          kind: 'pub_auc' as const,
-          slug: a.slug,
-          url: '/slugs?tab=auctions',
-          price: Number(a.current_bid || a.min_bid || 0),
-        }));
+        const aucRows: Row[] = (auctions.data || [])
+          .filter((a: any) => a?.slug && String(a.slug).length > 0)
+          .map((a: any) => ({
+            kind: 'pub_auc' as const,
+            slug: String(a.slug),
+            url: '/slugs?tab=auctions',
+            price: Number(a.current_bid || a.min_bid || 0),
+          }));
         setRows([...saleRows, ...aucRows]);
       });
     }
@@ -106,9 +111,10 @@ export function SlugTicker({ siteUserId, customItems = [], enabled = true }: Slu
   const items = useMemo(() => {
     return rows.map((r) => {
       if (r.kind === 'custom') {
-        return { slug: r.slug, url: r.url, label: r.label, parts: null as null };
+        return { slug: r.slug || 'custom', url: r.url, label: r.label, parts: null as null };
       }
-      const slugHost = `${r.slug}.trustbank.xyz`;
+      const slugPart = r.slug && String(r.slug).length ? String(r.slug) : '—';
+      const slugHost = `${slugPart}.trustbank.xyz`;
       if (r.kind === 'owner_auc') {
         return {
           slug: r.slug,
@@ -159,7 +165,8 @@ export function SlugTicker({ siteUserId, customItems = [], enabled = true }: Slu
         style={{ animation: 'slugTicker 35s linear infinite', width: 'max-content' }}
       >
         {repeated.map((item, i) => {
-          const len = item.slug.length;
+          const slugSafe = item.slug && typeof item.slug === 'string' ? item.slug : 'x';
+          const len = slugSafe.length;
           const color = len <= 3 ? '#f59e0b' : len <= 5 ? '#818cf8' : '#34d399';
           return (
             <a

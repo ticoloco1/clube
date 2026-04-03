@@ -8,12 +8,11 @@ import {
   slugRegistrationDueUsd,
   slugLengthTierUsd,
   isSlugReservedAdminOnly,
-  SLUG_RENEWAL_ANNUAL_USD,
 } from '@/lib/slugPolicy';
 import {
   Search, Crown, ShoppingCart, CheckCircle, XCircle,
   Gavel, Clock, Tag, Globe, Loader2, RefreshCw,
-  ChevronRight, ChevronLeft, Flame, Star, ArrowUpRight, Lock, Trash2
+  ChevronRight, ChevronLeft, Flame, Star, ArrowUpRight, Lock, Trash2, Key,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
@@ -216,157 +215,6 @@ function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'pr
           style={{ background: isAuction ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
           {isAuction ? <><Gavel className="w-3.5 h-3.5" /> {T('slug_place_bid')}</> : <><ShoppingCart className="w-3.5 h-3.5" /> {T('slug_buy')}</>}
         </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── My Slugs panel ───────────────────────────────────────────────────────────
-function MySlugs({ userId, isAdmin = false, onChanged }: { userId: string; isAdmin?: boolean; onChanged?: () => void }) {
-  const T = useT();
-  const [slugs, setSlugs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { add, open } = useCart();
-
-  const loadMySlugs = useCallback(() => {
-    supabase.from('slug_registrations' as any)
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .then(async (r) => {
-        const merged = await attachMiniSitesToSlugRows(supabase, r.data || []);
-        setSlugs(merged);
-        setLoading(false);
-      });
-  }, [userId]);
-
-  useEffect(() => { loadMySlugs(); }, [loadMySlugs]);
-
-  const renewSlug = (slug: any) => {
-    add({ id: `slug_renewal_${slug.slug}`, label: T('slug_cart_renew_label').replace('{slug}', slug.slug), price: Number(slug.renewal_fee) > 0 ? Number(slug.renewal_fee) : SLUG_RENEWAL_ANNUAL_USD, type: 'slug' });
-    open();
-  };
-
-  const listForSale = async (slug: any) => {
-    const price = prompt(T('slug_prompt_sale_price').replace('{slug}', slug.slug), '50');
-    if (!price) return;
-    const p = parseFloat(price);
-    if (!Number.isFinite(p) || p <= 0) {
-      toast.error(T('slug_err_sale_price'));
-      return;
-    }
-    const { error } = await supabase.from('slug_registrations' as any).update({ for_sale: true, sale_price: p, status: 'active' }).eq('id', slug.id);
-    if (error) { toast.error(error.message); return; }
-    setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: true, sale_price: p, status: 'active' } : s));
-    toast.success(T('toast_slug_listed_usdc').replace('{slug}', slug.slug).replace('${price}', String(price)));
-    onChanged?.();
-  };
-
-  const removeListing = async (slug: any) => {
-    if (slug.status === 'auction') {
-      await supabase.from('slug_auctions' as any)
-        .update({ status: 'cancelled' })
-        .eq('slug_registration_id', slug.id)
-        .eq('status', 'active');
-    }
-    const { error } = await supabase.from('slug_registrations' as any)
-      .update({ for_sale: false, sale_price: null, status: 'active' })
-      .eq('id', slug.id);
-    if (error) {
-      console.error(error);
-      toast.error(T('id_err_generic'));
-      return;
-    }
-    setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: false, sale_price: null, status: 'active' } : s));
-    toast.success(T('toast_slug_sale_removed').replace('{slug}', slug.slug));
-    onChanged?.();
-  };
-
-  const deleteSlug = async (slug: any) => {
-    const ok = window.confirm(T('slug_confirm_delete_test').replace('{slug}', slug.slug));
-    if (!ok) return;
-    await supabase.from('slug_auctions' as any).delete().eq('slug_registration_id', slug.id);
-    const { error } = await supabase.from('slug_registrations' as any).delete().eq('id', slug.id);
-    if (error) {
-      console.error(error);
-      toast.error(T('id_err_generic'));
-      return;
-    }
-    setSlugs(prev => prev.filter(s => s.id !== slug.id));
-    toast.success(T('toast_slug_deleted').replace('{slug}', slug.slug));
-    onChanged?.();
-  };
-
-  if (loading) return <div className="card p-6 text-center text-[var(--text2)]"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>;
-  if (slugs.length === 0) return null;
-
-  return (
-    <div className="card p-5 mb-8">
-      <h2 className="font-black text-lg md:text-xl text-[var(--text)] mb-4 flex items-center gap-2">
-        <Crown className="w-5 h-5 text-amber-400 flex-shrink-0" /> {T('slug_my_slugs_title').replace('{n}', String(slugs.length))}
-      </h2>
-      <div className="space-y-3">
-        {slugs.map(slug => {
-          const expires = new Date(slug.expires_at);
-          const daysLeft = Math.ceil((expires.getTime() - Date.now()) / 86400000);
-          const expiringSoon = daysLeft < 30;
-          let markerBg = '#64748b';
-          let markerTitle: string = T('slug_marker_held');
-          if (slug.status === 'auction') {
-            markerBg = '#f59e0b';
-            markerTitle = T('slug_marker_auction');
-          } else if (slug.for_sale) {
-            markerBg = '#22c55e';
-            markerTitle = T('slug_marker_sale');
-          } else if (slug.mini_sites?.published) {
-            markerBg = '#818cf8';
-            markerTitle = T('slug_marker_live');
-          }
-          return (
-            <div key={slug.id} className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-[var(--bg2)] border border-[var(--border)]">
-              <span
-                className="w-3.5 h-3.5 rounded-sm flex-shrink-0 ring-1 ring-white/15 shadow-sm"
-                style={{ backgroundColor: markerBg }}
-                title={markerTitle}
-              />
-              <span className="font-mono font-black text-brand text-base flex-1 min-w-[12rem]">{slug.slug}.trustbank.xyz</span>
-              <div className="flex items-center gap-1 text-sm">
-                {expiringSoon
-                  ? <span className="text-amber-400 font-semibold">{T('dash_days_left_short').replace('{n}', String(daysLeft))}</span>
-                  : <span className="text-[var(--text2)]">{T('dash_expires_on').replace('{date}', expires.toLocaleDateString())}</span>}
-              </div>
-              {slug.for_sale && (
-                <span className="text-sm text-green-400 font-bold border border-green-400/30 px-2 py-0.5 rounded-full">
-                  {slug.status === 'auction' ? T('slug_sale_auction') : T('slug_sale_for_price').replace('{price}', `$${slug.sale_price}`)}
-                </span>
-              )}
-              <div className="flex flex-wrap gap-1.5 ml-auto">
-                <button type="button" onClick={() => listForSale(slug)}
-                  className="text-sm px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text2)] hover:border-brand/50 hover:text-brand transition-all">
-                  {slug.for_sale ? T('slug_change_price') : T('vault_sell')}
-                </button>
-                {slug.for_sale && (
-                  <button type="button" onClick={() => removeListing(slug)}
-                    className="text-sm px-2.5 py-1.5 rounded-lg border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-all">
-                    {T('slug_remove_from_sale')}
-                  </button>
-                )}
-                {(isAdmin || !slug.mini_sites?.published) && (
-                  <button type="button" onClick={() => deleteSlug(slug)}
-                    className="text-sm px-2.5 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-1">
-                    <Trash2 className="w-3.5 h-3.5" /> {T('slug_delete')}
-                  </button>
-                )}
-                {expiringSoon && (
-                  <button type="button" onClick={() => renewSlug(slug)}
-                    className="text-sm px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all">
-                    {T('slug_renew')}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
@@ -614,8 +462,8 @@ export default function SlugsPage() {
       <Header />
       <div className="max-w-5xl mx-auto px-4 py-10">
 
-        {/* Hero */}
-        <div className="text-center mb-10">
+        {/* Hero — mercado público */}
+        <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-sm font-bold mb-4 border border-amber-500/20">
             <Flame className="w-4 h-4" /> {T('slug_hero_badge')}
           </div>
@@ -627,6 +475,124 @@ export default function SlugsPage() {
             <span className="text-brand font-semibold">trustbank.xyz/yourname</span>
           </p>
         </div>
+        <p className="text-center text-sm md:text-base text-[var(--text2)] max-w-2xl mx-auto mb-8 leading-relaxed">
+          {T('slug_market_page_intro')}
+        </p>
+
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg2)]/80 p-4 sm:p-6 mb-10">
+          <h2 className="font-black text-lg text-[var(--text)] mb-1 flex items-center justify-center gap-2">
+            <Globe className="w-5 h-5 text-brand" /> {T('slug_market_section_title')}
+          </h2>
+          <p className="text-center text-xs text-[var(--text2)] mb-5">{T('slug_market_section_sub')}</p>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 border-b border-[var(--border)]">
+          {[
+            { id: 'premium', label: T('slug_tab_premium'), icon: <Star className="w-3.5 h-3.5" />, count: premiumTotal },
+            { id: 'auctions', label: T('slug_tab_auctions'), icon: <Gavel className="w-3.5 h-3.5" />, count: auctionsTotal },
+            { id: 'market', label: T('slug_tab_market'), icon: <Globe className="w-3.5 h-3.5" />, count: marketTotal },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id as any)}
+              className={`flex items-center gap-1.5 px-4 py-3 text-base font-semibold border-b-2 transition-all -mb-px ${
+                tab === t.id ? 'border-brand text-brand' : 'border-transparent text-[var(--text2)] hover:text-[var(--text)]'
+              }`}>
+              {t.icon} {t.label}
+              {t.count > 0 && <span className="text-sm bg-[var(--bg)] px-1.5 py-0.5 rounded-full">{t.count}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Premium */}
+        {tab === 'premium' && (
+          <div>
+            {premiumLoading && premiumSlugs.length === 0 ? (
+              <div className="flex justify-center py-12 text-[var(--text2)]"><Loader2 className="w-8 h-8 animate-spin" /></div>
+            ) : premiumTotal === 0 ? (
+              <div className="text-center py-16 text-[var(--text2)]">
+                <Crown className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>{T('slug_premium_empty')}</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1.5 max-w-3xl mx-auto">
+                  {premiumSlugs.map((slug) => (
+                    <SlugRowPremium key={slug.id} slug={slug} onBuy={handleBuyPremium} />
+                  ))}
+                </div>
+                <SlugPagination
+                  page={premiumPage}
+                  total={premiumTotal}
+                  loading={premiumLoading}
+                  onPrev={() => setPremiumPage((p) => Math.max(0, p - 1))}
+                  onNext={() => setPremiumPage((p) => p + 1)}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Auctions */}
+        {tab === 'auctions' && (
+          auctions.length > 0 ? (
+            <>
+              <p className="text-xs text-[var(--text2)] mb-4 max-w-2xl">{T('slug_auction_pay_hint')}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {auctions.map(slug => (
+                  <SlugCard key={slug.id} slug={slug} type="auction" onBuy={handleBidAuction} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-16 text-[var(--text2)]">
+              <Gavel className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>{T('slug_auctions_empty')}</p>
+              {user && <p className="text-xs mt-2">{T('slug_auctions_empty_hint')}</p>}
+            </div>
+          )
+        )}
+
+        {/* Market */}
+        {tab === 'market' && (
+          <div>
+            {marketLoading && forSale.length === 0 ? (
+              <div className="flex justify-center py-12 text-[var(--text2)]"><Loader2 className="w-8 h-8 animate-spin" /></div>
+            ) : marketTotal === 0 ? (
+              <div className="text-center py-16 text-[var(--text2)]">
+                <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>{T('slug_market_empty')}</p>
+                <p className="text-xs mt-3 max-w-md mx-auto text-[var(--text2)]/90">{T('slug_market_empty_hint')}</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1.5 max-w-3xl mx-auto">
+                  {forSale.map((slug) => (
+                    <SlugRowMarket
+                      key={slug.id}
+                      slug={slug}
+                      onBuy={handleBuyMarket}
+                      showOwnerActions
+                      isAdmin={isAdmin}
+                      userId={user?.id}
+                      onRefresh={refreshMarketplace}
+                    />
+                  ))}
+                </div>
+                <SlugPagination
+                  page={marketPage}
+                  total={marketTotal}
+                  loading={marketLoading}
+                  onPrev={() => setMarketPage((p) => Math.max(0, p - 1))}
+                  onNext={() => setMarketPage((p) => p + 1)}
+                />
+              </>
+            )}
+          </div>
+        )}
+        </div>
+
+        <h2 className="font-black text-xl text-[var(--text)] mb-3 text-center md:text-left">
+          {T('slug_section_claim_title')}
+        </h2>
 
         {/* Search & claim */}
         <div className="card p-6 mb-8">
@@ -687,8 +653,27 @@ export default function SlugsPage() {
           )}
         </div>
 
-        {/* My slugs */}
-        {user && <MySlugs userId={user.id} isAdmin={isAdmin} onChanged={refreshMarketplace} />}
+        {user && (
+          <div className="card p-5 mb-8 border border-brand/30 bg-brand/5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Key className="w-8 h-8 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-black text-[var(--text)]">{T('slug_vault_banner_title')}</p>
+                  <p className="text-sm text-[var(--text2)] mt-1">{T('slug_vault_banner_sub')}</p>
+                </div>
+              </div>
+              <Link
+                href="/vault"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white shrink-0"
+                style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}
+              >
+                {T('slug_vault_banner_btn')}
+                <span className="opacity-90 font-mono">({mySlugCount})</span>
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Price table */}
         <div className="card p-5 mb-8">
@@ -711,110 +696,6 @@ export default function SlugsPage() {
             ))}
           </div>
         </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-[var(--border)]">
-          {[
-            { id: 'premium', label: T('slug_tab_premium'), icon: <Star className="w-3.5 h-3.5" />, count: premiumTotal },
-            { id: 'auctions', label: T('slug_tab_auctions'), icon: <Gavel className="w-3.5 h-3.5" />, count: auctionsTotal },
-            { id: 'market', label: T('slug_tab_market'), icon: <Globe className="w-3.5 h-3.5" />, count: marketTotal },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id as any)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-base font-semibold border-b-2 transition-all -mb-px ${
-                tab === t.id ? 'border-brand text-brand' : 'border-transparent text-[var(--text2)] hover:text-[var(--text)]'
-              }`}>
-              {t.icon} {t.label}
-              {t.count > 0 && <span className="text-sm bg-[var(--bg2)] px-1.5 py-0.5 rounded-full">{t.count}</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* Premium — lista compacta, 500 por página */}
-        {tab === 'premium' && (
-          <div>
-            {premiumLoading && premiumSlugs.length === 0 ? (
-              <div className="flex justify-center py-12 text-[var(--text2)]"><Loader2 className="w-8 h-8 animate-spin" /></div>
-            ) : premiumTotal === 0 ? (
-              <div className="text-center py-16 text-[var(--text2)]">
-                <Crown className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>{T('slug_premium_empty')}</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-1.5 max-w-3xl mx-auto">
-                  {premiumSlugs.map((slug) => (
-                    <SlugRowPremium key={slug.id} slug={slug} onBuy={handleBuyPremium} />
-                  ))}
-                </div>
-                <SlugPagination
-                  page={premiumPage}
-                  total={premiumTotal}
-                  loading={premiumLoading}
-                  onPrev={() => setPremiumPage((p) => Math.max(0, p - 1))}
-                  onNext={() => setPremiumPage((p) => p + 1)}
-                />
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Auctions */}
-        {tab === 'auctions' && (
-          auctions.length > 0 ? (
-            <>
-              <p className="text-xs text-[var(--text2)] mb-4 max-w-2xl">{T('slug_auction_pay_hint')}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {auctions.map(slug => (
-                  <SlugCard key={slug.id} slug={slug} type="auction" onBuy={handleBidAuction} />
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-16 text-[var(--text2)]">
-              <Gavel className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>{T('slug_auctions_empty')}</p>
-              {user && <p className="text-xs mt-2">{T('slug_auctions_empty_hint')}</p>}
-            </div>
-          )
-        )}
-
-        {/* Market — utilizadores, lista compacta, 500 por página */}
-        {tab === 'market' && (
-          <div>
-            {marketLoading && forSale.length === 0 ? (
-              <div className="flex justify-center py-12 text-[var(--text2)]"><Loader2 className="w-8 h-8 animate-spin" /></div>
-            ) : marketTotal === 0 ? (
-              <div className="text-center py-16 text-[var(--text2)]">
-                <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>{T('slug_market_empty')}</p>
-                <p className="text-xs mt-3 max-w-md mx-auto text-[var(--text2)]/90">{T('slug_market_empty_hint')}</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-1.5 max-w-3xl mx-auto">
-                  {forSale.map((slug) => (
-                    <SlugRowMarket
-                      key={slug.id}
-                      slug={slug}
-                      onBuy={handleBuyMarket}
-                      showOwnerActions
-                      isAdmin={isAdmin}
-                      userId={user?.id}
-                      onRefresh={refreshMarketplace}
-                    />
-                  ))}
-                </div>
-                <SlugPagination
-                  page={marketPage}
-                  total={marketTotal}
-                  loading={marketLoading}
-                  onPrev={() => setMarketPage((p) => Math.max(0, p - 1))}
-                  onNext={() => setMarketPage((p) => p + 1)}
-                />
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
