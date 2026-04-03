@@ -7,7 +7,7 @@ import { useCart } from '@/store/cart';
 import { toast } from 'sonner';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
 import { SecureVideoPlayer } from '@/components/site/SecureVideoPlayer';
-import { ShareWidget } from '@/components/ui/ShareWidget';
+import { TrustBankShareModal } from '@/components/ui/TrustBankShareModal';
 import { SlugTicker } from '@/components/ui/SlugTicker';
 import { FeedSection } from '@/components/site/FeedSection';
 import { MiniSiteAdsPanel } from '@/components/site/MiniSiteAdsPanel';
@@ -390,7 +390,6 @@ export default function SitePageClient({
 
   const pageMaxWidth = Math.min(1010, Math.max(580, Number((site as any)?.page_width || 580)));
   const activePageTemplate = sitePages.find(p => p.id === activePage)?.template || 'default';
-  const hasBannerArea = !!site.banner_url || (!site.banner_url && bannerPlaceholderEnabled);
 
   const livelyOpenBeta = process.env.NEXT_PUBLIC_LIVELY_AVATAR_OPEN_BETA === 'true';
   const livelyNftOk = !!(site as any)?.lively_avatar_nft_verified_at;
@@ -429,6 +428,15 @@ export default function SitePageClient({
         ? `${Math.round(avatarSize * 0.16)}px`
         : `${Math.round(avatarSize * 0.28)}px`;
 
+  /** Fundo do hero full-bleed: banner > retrato Lively > avatar. */
+  const heroBgUrl =
+    (site.banner_url as string | null) ||
+    livelyProfileImageUrl ||
+    (site.avatar_url as string | null) ||
+    null;
+  const shareAvatarUrl =
+    livelyProfileImageUrl || (site.avatar_url as string | null) || (site.banner_url as string | null) || null;
+
   return (
     <div style={{minHeight:'100vh',background:pageBg,fontFamily:t.font,position:'relative',overflowX:'hidden'}}>
       {/* Aurora glow */}
@@ -457,79 +465,185 @@ export default function SitePageClient({
         </div>
       )}
 
-      {/* Banner — acima do feed visual; avatar sobrepõe com z-index */}
-      {site.banner_url && (
-        <div style={{width:'100%',height:220,maxHeight:'42vh',overflow:'hidden',position:'relative',flexShrink:0,zIndex:1,background:bannerPlaceholderColor}}>
-          <img src={site.banner_url} alt="" style={{
-            width:'100%',
-            height:'100%',
-            objectFit: bannerFit,
-            objectPosition:`${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
-            transform:`scale(${bannerZoom / 100})`,
-            transformOrigin:`${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
-            display:'block',
-            verticalAlign:'top',
-            filter:'none',
-          }}/>
-        </div>
-      )}
-      {!site.banner_url && bannerPlaceholderEnabled && (
-        <div style={{width:'100%',height:130,overflow:'hidden',position:'relative',flexShrink:0,zIndex:1,background:bannerPlaceholderColor}} />
-      )}
-
-      {/* Content */}
-      <div style={{maxWidth:pageMaxWidth,margin:'0 auto',padding: hasBannerArea ? '0 20px 80px' : '48px 20px 80px',position:'relative',zIndex:3}}>
-
-        {/* ── Profile ── */}
-        <div style={{textAlign:'center',marginBottom:32,marginTop: hasBannerArea ? -(avatarSize/2 + 6) : 0, position:'relative', zIndex:6}}>
-
-          {/* Avatar ring — moldura mágica opcional (CSS) */}
+      {/* Hero quadrado full-bleed — foto de fundo com opacidade (estilo Linktree) */}
+      <div
+        style={{
+          width: '100%',
+          position: 'relative',
+          zIndex: 1,
+          aspectRatio: '1 / 1',
+          maxHeight: 'min(100vw, 480px)',
+          overflow: 'hidden',
+          background: bannerPlaceholderColor,
+        }}
+      >
+        {site.banner_url ? (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${site.banner_url})`,
+              backgroundSize: bannerFit === 'contain' ? 'contain' : 'cover',
+              backgroundPosition: `${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
+              transform: `scale(${bannerZoom / 100})`,
+              transformOrigin: `${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
+              opacity: 0.42,
+            }}
+          />
+        ) : heroBgUrl ? (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${heroBgUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              opacity: 0.42,
+            }}
+          />
+        ) : !bannerPlaceholderEnabled ? (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `linear-gradient(145deg, ${accent}44, #0f1419)`,
+            }}
+          />
+        ) : null}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.72) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 2,
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'clamp(16px, 4vw, 28px)',
+            textAlign: 'center',
+          }}
+        >
           <CentralProfileMagicAvatar
             enabled={showLivelyAvatar && (site as any)?.lively_central_magic === true}
             accent={accent}
           >
             <AvatarTiltShell enabled={showLivelyAvatar}>
-            <div style={{display:'inline-block',padding:3,borderRadius: site.photo_shape==='round'?'50%': site.photo_shape==='square'?20:32,background:`linear-gradient(135deg,${accent},${accent}60,transparent)`,marginBottom:14}}>
-              {showProfileSpeakingAvatar ? (
-                <CentralProfileSpeakingAvatar
-                  slug={slug}
-                  siteName={site.site_name}
-                  welcome={typeof (site as any).lively_avatar_welcome === 'string' ? (site as any).lively_avatar_welcome : ''}
-                  speakOnEntry={livelyProfileSpeakOnEntry}
-                  speechTap={livelySpeechTap}
-                  modelId={(site as any).lively_avatar_model}
-                  accent={accent}
-                  voiceAgent={typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : ''}
-                  size={avatarSize}
-                  borderRadius={profilePhotoRadiusCss}
-                  border={`3px solid ${pageBg}`}
-                  pageBg={pageBg}
-                />
-              ) : livelyProfileImageUrl ? (
-                <CentralProfileLivelyPhoto
-                  src={livelyProfileImageUrl}
-                  alt={site.site_name}
-                  width={avatarSize}
-                  height={avatarSize}
-                  borderRadius={profilePhotoRadiusCss}
-                  border={`3px solid ${pageBg}`}
-                  pupilOverlay={livelyProfilePupils}
-                />
-              ) : site.avatar_url ? (
-                <img src={site.avatar_url} alt={site.site_name} style={{width:avatarSize,height:avatarSize,borderRadius: site.photo_shape==='round'?'50%': site.photo_shape==='square'?Math.round(avatarSize*0.16):Math.round(avatarSize*0.28),objectFit:'cover',display:'block',border:`3px solid ${pageBg}`}}/>
-              ) : (
-                <div style={{width:avatarSize,height:avatarSize,borderRadius:'50%',background:`linear-gradient(135deg,${accent},${accent}80)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(avatarSize*0.42),fontWeight:900,color:'#fff',border:`3px solid ${pageBg}`}}>{site.site_name?.[0]?.toUpperCase()}</div>
-              )}
-            </div>
+              <div
+                style={{
+                  display: 'inline-block',
+                  padding: 3,
+                  borderRadius: site.photo_shape === 'round' ? '50%' : site.photo_shape === 'square' ? 20 : 32,
+                  background: `linear-gradient(135deg,${accent},${accent}60,rgba(255,255,255,0.15))`,
+                  marginBottom: 12,
+                  boxShadow: `0 12px 40px rgba(0,0,0,0.35)`,
+                }}
+              >
+                {showProfileSpeakingAvatar ? (
+                  <CentralProfileSpeakingAvatar
+                    slug={slug}
+                    siteName={site.site_name}
+                    welcome={typeof (site as any).lively_avatar_welcome === 'string' ? (site as any).lively_avatar_welcome : ''}
+                    speakOnEntry={livelyProfileSpeakOnEntry}
+                    speechTap={livelySpeechTap}
+                    modelId={(site as any).lively_avatar_model}
+                    accent={accent}
+                    voiceAgent={typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : ''}
+                    size={avatarSize}
+                    borderRadius={profilePhotoRadiusCss}
+                    border="3px solid rgba(255,255,255,0.95)"
+                    pageBg="rgba(15,20,28,0.4)"
+                  />
+                ) : livelyProfileImageUrl ? (
+                  <CentralProfileLivelyPhoto
+                    src={livelyProfileImageUrl}
+                    alt={site.site_name}
+                    width={avatarSize}
+                    height={avatarSize}
+                    borderRadius={profilePhotoRadiusCss}
+                    border="3px solid rgba(255,255,255,0.95)"
+                    pupilOverlay={livelyProfilePupils}
+                  />
+                ) : site.avatar_url ? (
+                  <img
+                    src={site.avatar_url}
+                    alt={site.site_name}
+                    style={{
+                      width: avatarSize,
+                      height: avatarSize,
+                      borderRadius:
+                        site.photo_shape === 'round'
+                          ? '50%'
+                          : site.photo_shape === 'square'
+                            ? Math.round(avatarSize * 0.16)
+                            : Math.round(avatarSize * 0.28),
+                      objectFit: 'cover',
+                      display: 'block',
+                      border: '3px solid rgba(255,255,255,0.95)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: avatarSize,
+                      height: avatarSize,
+                      borderRadius: '50%',
+                      background: `linear-gradient(135deg,${accent},${accent}80)`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: Math.round(avatarSize * 0.42),
+                      fontWeight: 900,
+                      color: '#fff',
+                      border: '3px solid rgba(255,255,255,0.95)',
+                    }}
+                  >
+                    {site.site_name?.[0]?.toUpperCase()}
+                  </div>
+                )}
+              </div>
             </AvatarTiltShell>
           </CentralProfileMagicAvatar>
 
-          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,marginBottom:4}}>
-            <h1 style={{margin:0,fontSize:26,fontWeight:900,color:t.text,letterSpacing:'-0.02em',lineHeight:1.1}}>{site.site_name}</h1>
-            {site.is_verified && <CheckCircle style={{width:20,height:20,color:'#60a5fa',flexShrink:0}}/>}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6 }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 'clamp(1.35rem, 4.2vw, 1.75rem)',
+                fontWeight: 900,
+                color: '#fff',
+                letterSpacing: '-0.02em',
+                lineHeight: 1.15,
+                textShadow: '0 2px 24px rgba(0,0,0,0.45)',
+              }}
+            >
+              {site.site_name}
+            </h1>
+            {site.is_verified && <CheckCircle style={{ width: 22, height: 22, color: '#93c5fd', flexShrink: 0 }} />}
           </div>
+          {site.cv_headline && (
+            <p style={{ margin: '0 0 8px', fontSize: 15, color: 'rgba(255,255,255,0.88)', fontWeight: 700, maxWidth: 420 }}>
+              {site.cv_headline}
+            </p>
+          )}
+        </div>
+      </div>
 
-          {site.cv_headline && <p style={{margin:'0 0 6px',fontSize:15,color:accent,fontWeight:700}}>{site.cv_headline}</p>}
+      {/* Content */}
+      <div style={{ maxWidth: pageMaxWidth, margin: '0 auto', padding: '28px 20px 80px', position: 'relative', zIndex: 3 }}>
+
+        {/* ── Profile (bio + ações) ── */}
+        <div style={{ textAlign: 'center', marginBottom: 32, position: 'relative', zIndex: 6 }}>
+
           {site.bio && <p style={{margin:'0 0 16px',fontSize:15,color:textSub,lineHeight:1.7,maxWidth:440,marginLeft:'auto',marginRight:'auto'}}>{site.bio}</p>}
 
           {isOwner && <div style={{marginBottom:14}}><EarningsWidget userId={site.user_id} accentColor={accent} compact/></div>}
@@ -542,7 +656,13 @@ export default function SitePageClient({
               textColor={t.text}
               borderColor={t.border}
             />
-            <ShareWidget slug={slug} siteName={site.site_name} accentColor={accent}/>
+            <TrustBankShareModal
+              slug={slug}
+              siteName={site.site_name}
+              accentColor={accent}
+              avatarUrl={shareAvatarUrl}
+              isDarkSurface={isDark}
+            />
           </div>
           <div style={{marginTop:8, display:'flex', justifyContent:'center', alignItems:'center', gap:6, color:t.text2, fontSize:12, fontWeight:700}}>
             <Users style={{width:14, height:14}} />

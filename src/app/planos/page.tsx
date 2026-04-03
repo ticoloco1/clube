@@ -10,22 +10,66 @@ import { useI18n, useT } from '@/lib/i18n';
 const PRO_MONTHLY_USD = 29.99;
 const PRO_YEARLY_USD = 288;
 
+const PRO_FEATURES_FALLBACK = [
+  'Unlimited links',
+  '3 site pages',
+  'Video paywall',
+  'CV unlock',
+  '30 themes',
+  'Analytics',
+  '1 free slug included',
+];
+
+/** Sempre exatamente um cartão Pro — nunca Business/outros, mesmo com dados antigos na BD. */
+const PRO_FALLBACK_PLAN = {
+  id: 'static-pro',
+  slug: 'pro',
+  name: 'Pro',
+  emoji: '⚡',
+  color: '#818cf8',
+  price_monthly: PRO_MONTHLY_USD,
+  price_yearly: PRO_YEARLY_USD,
+  features: PRO_FEATURES_FALLBACK,
+  active: true,
+};
+
 export default function PlanosPage() {
   const T = useT();
   const { lang } = useI18n();
   const [annual, setAnnual] = useState(false);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([PRO_FALLBACK_PLAN]);
   const [loading, setLoading] = useState(true);
   const { add, open } = useCart();
 
   useEffect(() => {
-    (supabase as any).from('platform_plans')
-      .select('*').eq('active', true).order('sort_order')
+    let cancelled = false;
+    (supabase as any)
+      .from('platform_plans')
+      .select('*')
+      .eq('active', true)
+      .order('sort_order')
       .then(({ data }: any) => {
-        const rows = (data || []).filter((p: { slug?: string }) => String(p?.slug || '').toLowerCase() === 'pro');
-        setPlans(rows);
-        setLoading(false);
+        if (cancelled) return;
+        const raw = data || [];
+        const pro = raw.find((p: { slug?: string }) => String(p?.slug || '').toLowerCase() === 'pro');
+        const merged = pro
+          ? {
+              ...pro,
+              features:
+                Array.isArray(pro.features) && pro.features.length > 0 ? pro.features : PRO_FEATURES_FALLBACK,
+            }
+          : PRO_FALLBACK_PLAN;
+        setPlans([merged]);
+      })
+      .catch(() => {
+        if (!cancelled) setPlans([PRO_FALLBACK_PLAN]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const resolvePrices = (plan: any) => {
@@ -124,11 +168,6 @@ export default function PlanosPage() {
               );
             })}
 
-            {plans.length === 0 && (
-              <div className="col-span-3 text-center py-20 text-[var(--text2)]">
-                {T('plans_no_plans')}
-              </div>
-            )}
           </div>
         )}
 

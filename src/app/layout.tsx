@@ -87,6 +87,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           } catch(e) {}
         `}} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: rootJsonLd }} />
+        {process.env.VERCEL_GIT_COMMIT_SHA ? (
+          <meta name="trustbank-build" content={process.env.VERCEL_GIT_COMMIT_SHA} />
+        ) : null}
       </head>
       <body>
         <Providers>

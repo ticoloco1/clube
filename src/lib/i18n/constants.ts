@@ -5,7 +5,7 @@ export const STORAGE_KEY = 'i18n-lang';
 export const DEFAULT_LANG: Lang = 'en';
 
 /** Versão do cache MT: incrementar quando alterar MESSAGES de forma relevante. */
-export const MT_CACHE_VERSION = 3;
+export const MT_CACHE_VERSION = 4;
 export const MT_CACHE_KEY_PREFIX = 'i18n-mt-v1-';
 
 /** Idiomas na UI. Inglês primeiro; `mt: true` = tradutor + cache a partir do EN. */
