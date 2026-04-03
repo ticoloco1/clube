@@ -158,4 +158,96 @@ export const EDITOR_UI_MESSAGES: Record<string, MessageRow> = {
   ed_theme_sand: { en: 'Sand', pt: 'Areia' },
   ed_theme_nordic: { en: 'Nordic', pt: 'Nórdico' },
   ed_theme_sakura: { en: 'Sakura', pt: 'Sakura' },
+
+  ed_guide_kicker: { en: 'Step by step', pt: 'Passo a passo' },
+  ed_guide_title: { en: 'Mini-site guide', pt: 'Guia do mini-site' },
+  ed_guide_subtitle: {
+    en: 'Use the tabs at the top. You can keep this panel open or hide it anytime.',
+    pt: 'Usa os separadores no topo. Podes manter este painel aberto ou escondê-lo quando quiseres.',
+  },
+  ed_guide_minimize: { en: 'Minimize guide', pt: 'Minimizar guia' },
+  ed_guide_show_again: { en: 'Show guide again', pt: 'Mostrar guia outra vez' },
+  ed_guide_tab_label: { en: 'Guide', pt: 'Guia' },
+  ed_guide_open_tab: { en: 'Open this tab', pt: 'Ir a este separador' },
+  ed_guide_open_slugs: { en: 'Open slug marketplace', pt: 'Abrir mercado de slugs' },
+  ed_guide_dont_auto: {
+    en: 'Stop opening this guide on each visit',
+    pt: 'Não abrir este guia automaticamente nas próximas visitas',
+  },
+  ed_guide_footer_hint: {
+    en: 'Minimize keeps a tab on the right; you can reopen whenever you like.',
+    pt: 'Minimizar deixa um separador à direita; podes voltar a abrir quando precisares.',
+  },
+  ed_guide_close_mobile: { en: 'Close', pt: 'Fechar' },
+
+  ed_guide_step_start_title: { en: '1 · Save, preview & publish', pt: '1 · Guardar, pré-visualizar e publicar' },
+  ed_guide_step_start_body: {
+    en: 'Click Save to store changes. Preview opens your live mini-site. Publish makes it public (plan or trial may apply). Your address is slug.trustbank.xyz.',
+    pt: 'Clica em Guardar para gravar. Pré-visualizar abre o mini-site em tempo real. Publicar coloca-o no ar (plano ou teste pode ser necessário). O endereço é slug.trustbank.xyz.',
+  },
+  ed_guide_step_profile_title: { en: '2 · Profile', pt: '2 · Perfil' },
+  ed_guide_step_profile_body: {
+    en: 'Photo, banner, name, bio, slug (your link), contact email, wallet optional, Stripe Connect if you sell. Ticker lines scroll at the top of your page.',
+    pt: 'Foto, banner, nome, bio, slug (o teu link), e-mail, carteira opcional, Stripe Connect se venderes. Linhas do ticker rolam no topo da página.',
+  },
+  ed_guide_step_theme_title: { en: '3 · Theme & layout', pt: '3 · Tema e layout' },
+  ed_guide_step_theme_body: {
+    en: 'Pick a preset theme, accent color, photo shape (round / square / rounded), photo size (S to XL), and font style. Text color override is optional.',
+    pt: 'Escolhe um tema, cor de destaque, forma da foto (redonda / quadrada / arredondada), tamanho da foto (P a XL) e estilo de letra. Cor do texto é opcional.',
+  },
+  ed_guide_step_links_title: { en: '4 · Links', pt: '4 · Links' },
+  ed_guide_step_links_body: {
+    en: 'Add buttons to Instagram, YouTube, site, etc. Set title, URL, icon and optional color. Drag to reorder.',
+    pt: 'Adiciona botões para Instagram, YouTube, site, etc. Define título, URL, ícone e cor opcional. Arrasta para reordenar.',
+  },
+  ed_guide_step_videos_title: { en: '5 · Videos', pt: '5 · Vídeos' },
+  ed_guide_step_videos_body: {
+    en: 'Paste YouTube links. You can enable a paywall per video (Stripe). Verify your channel in the Verify tab first.',
+    pt: 'Cola links do YouTube. Podes ativar paywall por vídeo (Stripe). Verifica o canal no separador Verificar.',
+  },
+  ed_guide_step_cv_title: { en: '6 · CV / resume', pt: '6 · CV / currículo' },
+  ed_guide_step_cv_body: {
+    en: 'Turn the CV on, edit sections (summary, experience, skills…), optional paid unlock, hire-me block. Saves with the rest of the site.',
+    pt: 'Ativa o CV, edita secções (resumo, experiência, competências…), desbloqueio pago opcional, bloco “contrata-me”. Grava com o resto do site.',
+  },
+  ed_guide_step_feed_title: { en: '7 · Feed', pt: '7 · Feed' },
+  ed_guide_step_feed_body: {
+    en: 'Posts with text, images or video embeds appear on your mini-site. Pin important posts or set expiry.',
+    pt: 'Publicações com texto, imagens ou vídeo aparecem no mini-site. Fixa posts importantes ou define expiração.',
+  },
+  ed_guide_step_pages_title: { en: '8 · Pages & modules', pt: '8 · Páginas e módulos' },
+  ed_guide_step_pages_body: {
+    en: 'Up to three pages with a top menu. Drag modules (Links, Feed, Videos, CV, Ads, Mystic) per page and set columns. Wider layout slider adjusts page width.',
+    pt: 'Até três páginas com menu superior. Arrasta módulos (Links, Feed, Vídeos, CV, Anúncios, Místico) por página e colunas. O slider ajusta a largura.',
+  },
+  ed_guide_step_mystic_title: { en: '9 · Mystic (tarot & lottery)', pt: '9 · Místico (tarô e loteria)' },
+  ed_guide_step_mystic_body: {
+    en: 'In Profile: enable “Mystic” sales, set USD prices, complete Stripe Connect. In Pages: add the “Mystic & lottery” module so visitors see tarot / lottery on your site.',
+    pt: 'No Perfil: ativa vendas «Místico», define preços em USD e completa o Stripe Connect. Em Páginas: adiciona o módulo «Místico & loteria» para visitantes verem tarô / loteria.',
+  },
+  ed_guide_step_seo_title: { en: '10 · SEO', pt: '10 · SEO' },
+  ed_guide_step_seo_body: {
+    en: 'Title, description, image for shares, search tags, JSON-LD. AI helpers can suggest text (uses site IA balance).',
+    pt: 'Título, descrição, imagem para partilhas, etiquetas, JSON-LD. Ferramentas de IA podem sugerir texto (usa saldo IA do site).',
+  },
+  ed_guide_step_copilot_title: { en: '11 · Copilot', pt: '11 · Copilot' },
+  ed_guide_step_copilot_body: {
+    en: 'Trust Genesis / coach suggestions from your current content — use to improve copy and structure.',
+    pt: 'Sugestões Trust Genesis / coach a partir do conteúdo atual — para melhorar textos e estrutura.',
+  },
+  ed_guide_step_ia_title: { en: '12 · AI tools', pt: '12 · Ferramentas IA' },
+  ed_guide_step_ia_body: {
+    en: 'Identity lab, avatars, portraits and other AI panels. Balance is per mini-site; top up from Credits if needed.',
+    pt: 'Laboratório de identidade, avatares, retratos e outras áreas IA. O saldo é por mini-site; recarrega em Créditos se precisares.',
+  },
+  ed_guide_step_verify_title: { en: '13 · Verify YouTube', pt: '13 · Verificar YouTube' },
+  ed_guide_step_verify_body: {
+    en: 'Link your mini-site in the channel description, then verify here to unlock adding monetized videos.',
+    pt: 'Coloca o link do mini-site na descrição do canal e verifica aqui para poder adicionar vídeos monetizados.',
+  },
+  ed_guide_step_slugs_title: { en: '14 · Slugs & marketplace', pt: '14 · Slugs e mercado' },
+  ed_guide_step_slugs_body: {
+    en: 'Buy, renew or auction slugs at trustbank.xyz/slugs. Your editor slug must match an active registration you own.',
+    pt: 'Compra, renova ou leiloa slugs em trustbank.xyz/slugs. O slug no editor tem de corresponder a um registo ativo teu.',
+  },
 };

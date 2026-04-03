@@ -35,6 +35,7 @@ import { readSiteAiBudget } from '@/lib/aiUsdBudget';
 import { SiteCopilotPanel } from '@/components/editor/SiteCopilotPanel';
 import { TrustGenesisHub } from '@/components/editor/TrustGenesisHub';
 import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
+import { EditorGuidePanel } from '@/components/editor/EditorGuidePanel';
 import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
 
 // ── 30 Themes (rótulos: T(`ed_theme_${id}`)) ───────────────────────────────────
@@ -1266,6 +1267,7 @@ function EditorPageInner() {
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <Header />
+      <EditorGuidePanel T={T} activeTab={activeTab} onGoToTab={setActiveTab} />
 
       {/* Top bar */}
       <div className="sticky top-16 z-40 bg-[var(--bg)]/95 backdrop-blur border-b border-[var(--border)]">
