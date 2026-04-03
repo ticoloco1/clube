@@ -58,6 +58,8 @@ export interface MiniSite {
   seo_title?: string | null;
   seo_description?: string | null;
   seo_og_image?: string | null;
+  seo_search_tags?: string[] | null;
+  seo_json_ld?: string | null;
   trial_publish_until?: string | null;
   trial_grace_until?: string | null;
   trial_notice_sent_at?: string | null;
@@ -73,6 +75,37 @@ export interface MiniSite {
   ad_asking_price_usdc?: number | null;
   ad_show_price_public?: boolean;
   ad_notes?: string | null;
+  stripe_connect_account_id?: string | null;
+  stripe_connect_charges_enabled?: boolean | null;
+  stripe_connect_payouts_enabled?: boolean | null;
+  lively_avatar_enabled?: boolean | null;
+  lively_avatar_model?: string | null;
+  lively_avatar_welcome?: string | null;
+  lively_avatar_nft_verified_at?: string | null;
+  lively_central_magic?: boolean | null;
+  lively_floating_preset?: string | null;
+  lively_floating_expressive?: boolean | null;
+  lively_dual_agent?: boolean | null;
+  lively_agent_instructions?: string | null;
+  lively_elevenlabs_voice_owner?: string | null;
+  lively_elevenlabs_voice_agent?: string | null;
+  lively_trial_started_at?: string | null;
+  lively_profile_as_avatar?: boolean | null;
+  lively_profile_speak_on_entry?: boolean | null;
+  lively_profile_speech_tap?: string | null;
+  lively_profile_speech_before_reply?: string | null;
+  ia_credits_balance?: number | string | null;
+  ai_free_usd_remaining?: number | string | null;
+  ai_paid_usd_balance?: number | string | null;
+  lively_premium_nft_verified_at?: string | null;
+  identity_style_preset?: string | null;
+  identity_portrait_url?: string | null;
+  identity_clone_voice_id?: string | null;
+  identity_voice_effect?: string | null;
+  magic_portrait_enabled?: boolean | null;
+  mystic_public_enabled?: boolean | null;
+  mystic_tarot_price_usd?: number | string | null;
+  mystic_lottery_premium_price_usd?: number | string | null;
 }
 
 export function useMySite() {
@@ -134,12 +167,39 @@ export function useMySite() {
             .toLowerCase()
             .slice(0, 30) || 'site';
         }
-        const { error } = await supabase
+
+        /** Já existe mini-site na BD mas o estado React perdeu `site` → atualiza em vez de INSERT (evita 2+ linhas por user). */
+        const { data: existingRow } = await supabase
           .from('mini_sites')
-          .insert({ ...cleanValues, user_id: user.id, slug });
-        if (error) {
-          console.error('Insert error:', error);
-          throw new Error(`Failed to create: ${error.message}`);
+          .select('id')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const now = new Date().toISOString();
+        const payload = { ...cleanValues, slug, updated_at: now };
+
+        if (existingRow?.id) {
+          const { error } = await supabase
+            .from('mini_sites')
+            .update(payload)
+            .eq('id', existingRow.id)
+            .eq('user_id', user.id);
+          if (error) {
+            console.error('Save error (existing mini_site):', error);
+            throw new Error(`Failed to save: ${error.message}`);
+          }
+        } else {
+          const { error } = await supabase
+            .from('mini_sites')
+            .insert({ ...cleanValues, user_id: user.id, slug, updated_at: now })
+            .select('*')
+            .single();
+          if (error) {
+            console.error('Insert error:', error);
+            throw new Error(`Failed to create: ${error.message}`);
+          }
         }
       }
       await load();
@@ -152,9 +212,15 @@ export function useMySite() {
   return { site, loading, save, reload: load };
 }
 
-export function usePublicSite(slug: string) {
-  const [site, setSite] = useState<MiniSite | null>(null);
-  const [loading, setLoading] = useState(true);
+export function usePublicSite(
+  slug: string,
+  opts?: { ssrSite?: MiniSite | null },
+) {
+  const ssr = opts?.ssrSite;
+  const [site, setSite] = useState<MiniSite | null>(() =>
+    ssr !== undefined && ssr !== null ? ssr : null,
+  );
+  const [loading, setLoading] = useState(() => !(ssr !== undefined && ssr !== null));
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -173,11 +239,6 @@ export function usePublicSite(slug: string) {
         } else {
           setSite(data as MiniSite);
         }
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to load public site:', err);
-        setNotFound(true);
         setLoading(false);
       });
   }, [slug]);

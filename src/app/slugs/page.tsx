@@ -4,26 +4,154 @@ import { Header } from '@/components/layout/Header';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/store/cart';
 import { useAuth } from '@/hooks/useAuth';
-import { slugPrice } from '@/lib/utils';
+import {
+  slugRegistrationDueUsd,
+  slugLengthTierUsd,
+  isSlugReservedAdminOnly,
+  SLUG_RENEWAL_ANNUAL_USD,
+} from '@/lib/slugPolicy';
 import {
   Search, Crown, ShoppingCart, CheckCircle, XCircle,
   Gavel, Clock, Tag, Globe, Loader2, RefreshCw,
-  ChevronRight, Flame, Star, ArrowUpRight, Lock, Trash2
+  ChevronRight, ChevronLeft, Flame, Star, ArrowUpRight, Lock, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { attachMiniSitesToSlugRows } from '@/lib/slugRegistrationMiniSite';
+import { fetchSlugMarketRows, fetchSlugMarketCount, isRelationshipOrSchemaError } from '@/lib/slugMarketQuery';
+import type { MessageKey } from '@/lib/i18n/messages';
 import Link from 'next/link';
 
 // ─── Price table ──────────────────────────────────────────────────────────────
-const PRICE_TIERS = [
-  { len: '1 char',  price: 5000,  label: 'Ultra Rare',  color: '#f59e0b' },
-  { len: '2 chars', price: 3500,  label: 'Legendary',   color: '#f59e0b' },
-  { len: '3 chars', price: 3000,  label: 'Premium',     color: '#818cf8' },
-  { len: '4 chars', price: 1500,  label: 'Premium',     color: '#818cf8' },
-  { len: '5 chars', price: 500,   label: 'Popular',     color: '#34d399' },
-  { len: '6 chars', price: 150,   label: 'Standard',    color: '#60a5fa' },
-  { len: '7+ chars',price: 12,    label: 'Free tier',   color: '#94a3b8' },
+
+const PRICE_TIERS: { len: string; price: number; labelKey: MessageKey; color: string }[] = [
+  { len: '1 char',  price: 5000,  labelKey: 'slug_tier_ultra_rare', color: '#f59e0b' },
+  { len: '2 chars', price: 4500,  labelKey: 'slug_tier_legendary', color: '#f59e0b' },
+  { len: '3 chars', price: 4000,  labelKey: 'slug_tier_premium', color: '#818cf8' },
+  { len: '4 chars', price: 3500,  labelKey: 'slug_tier_premium', color: '#818cf8' },
+  { len: '5 chars', price: 3000,  labelKey: 'slug_tier_popular', color: '#34d399' },
+  { len: '6 chars', price: 2500,  labelKey: 'slug_tier_standard', color: '#60a5fa' },
+  { len: '7 chars', price: 2000,  labelKey: 'slug_tier_standard', color: '#60a5fa' },
+  { len: '8+ chars', price: 0,     labelKey: 'slug_tier_free', color: '#94a3b8' },
 ];
+
+function tierForSlugInput(search: string) {
+  const l = search.replace(/[^a-z0-9]/g, '').length;
+  if (l <= 0) return null;
+  if (l >= 8) return PRICE_TIERS[7];
+  return PRICE_TIERS[l - 1];
+}
+
+const PAGE_SIZE = 500;
+
+function SlugPagination({
+  page, total, onPrev, onNext, loading,
+}: { page: number; total: number; onPrev: () => void; onNext: () => void; loading?: boolean }) {
+  const T = useT();
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const label = T('slug_pagination_status')
+    .replace('{page}', String(page + 1))
+    .replace('{pages}', String(pages))
+    .replace('{total}', String(total));
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-[var(--border)]">
+      <p className="text-xs text-[var(--text2)]">{label}</p>
+      <div className="flex items-center gap-2">
+        <button type="button" disabled={loading || page <= 0} onClick={onPrev}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border border-[var(--border)] disabled:opacity-40 text-[var(--text)]">
+          <ChevronLeft className="w-4 h-4" /> {T('slug_pagination_prev')}
+        </button>
+        <button type="button" disabled={loading || page >= pages - 1} onClick={onNext}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border border-[var(--border)] disabled:opacity-40 text-[var(--text)]">
+          {T('slug_pagination_next')} <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SlugRowPremium({ slug, onBuy }: { slug: any; onBuy: (s: any) => void }) {
+  const T = useT();
+  const name = String(slug.slug || slug.keyword || '');
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg border border-[var(--border)] bg-[var(--bg2)] hover:border-brand/35 transition-colors">
+      <span className="font-mono text-sm font-bold text-brand truncate min-w-0">{name}.trustbank.xyz</span>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-xs font-black text-[var(--text)] tabular-nums">${Number(slug.price || 0).toLocaleString()} USD</span>
+        <button type="button" onClick={() => onBuy(slug)}
+          className="text-xs px-3 py-1.5 rounded-lg font-bold text-white shrink-0"
+          style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
+          {T('slug_buy')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SlugRowMarket({
+  slug, onBuy, showOwnerActions, isAdmin, userId, onRefresh,
+}: {
+  slug: any;
+  onBuy: (s: any) => void;
+  showOwnerActions: boolean;
+  isAdmin: boolean;
+  userId?: string;
+  onRefresh: () => void;
+}) {
+  const T = useT();
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg border border-[var(--border)] bg-[var(--bg2)] hover:border-brand/35 transition-colors">
+      <div className="min-w-0 flex-1">
+        <span className="font-mono text-sm font-bold text-brand">{slug.slug}.trustbank.xyz</span>
+        {slug.mini_sites?.site_name && (
+          <span className="text-[10px] text-[var(--text2)] ml-2">{T('slug_listing_by').replace('{name}', slug.mini_sites.site_name)}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <span className="text-xs font-black text-[var(--text)] tabular-nums">${Number(slug.sale_price).toLocaleString()} USD</span>
+        <button type="button" onClick={() => onBuy(slug)}
+          className="text-xs px-3 py-1.5 rounded-lg font-bold text-white"
+          style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
+          {T('slug_buy')}
+        </button>
+        {showOwnerActions && (isAdmin || (userId && slug.user_id === userId)) && (
+          <>
+            <button type="button"
+              onClick={async () => {
+                const { error } = await supabase.from('slug_registrations' as any)
+                  .update({ for_sale: false, sale_price: null, status: 'active' })
+                  .eq('id', slug.id);
+                if (error) {
+                  console.error(error);
+                  return toast.error(T('id_err_generic'));
+                }
+                toast.success(T('toast_slug_removed_showcase').replace('{slug}', slug.slug));
+                onRefresh();
+              }}
+              className="text-xs px-2 py-1.5 rounded-lg border border-amber-500/40 text-amber-400">
+              {T('slug_remove_listing_short')}
+            </button>
+            <button type="button"
+              onClick={async () => {
+                if (!window.confirm(T('slug_confirm_delete_db').replace('{slug}', slug.slug))) return;
+                await supabase.from('slug_auctions' as any).delete().eq('slug_registration_id', slug.id);
+                const { error } = await supabase.from('slug_registrations' as any).delete().eq('id', slug.id);
+                if (error) {
+                  console.error(error);
+                  return toast.error(T('id_err_generic'));
+                }
+                toast.success(T('toast_slug_deleted').replace('{slug}', slug.slug));
+                onRefresh();
+              }}
+              className="text-xs p-1.5 rounded-lg border border-red-500/40 text-red-400">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Slug card ────────────────────────────────────────────────────────────────
 function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'premium' | 'auction'; onBuy: (s: any) => void; isAdmin?: boolean }) {
@@ -35,7 +163,7 @@ function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'pr
     if (!isAuction || !slug.ends_at) return;
     const update = () => {
       const diff = new Date(slug.ends_at).getTime() - Date.now();
-      if (diff <= 0) { setTimeLeft('Encerrado'); return; }
+      if (diff <= 0) { setTimeLeft(T('slug_auction_ended')); return; }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
@@ -44,17 +172,20 @@ function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'pr
     update();
     const t = setInterval(update, 1000);
     return () => clearInterval(t);
-  }, [slug.ends_at, isAuction]);
+  }, [slug.ends_at, isAuction, T]);
 
-  const len = (slug.slug || slug.keyword || '').length;
-  const tier = PRICE_TIERS.find(t => t.len === `${len} char${len !== 1 ? 's' : ''}`) || PRICE_TIERS[PRICE_TIERS.length - 1];
+  const raw = String(slug.slug || slug.keyword || '');
+  const coreLen = raw.replace(/[^a-z0-9]/gi, '').length;
+  const tier =
+    coreLen <= 0 ? PRICE_TIERS[7] : coreLen >= 8 ? PRICE_TIERS[7] : PRICE_TIERS[coreLen - 1];
+  const len = coreLen || raw.length;
 
   return (
     <div className="card p-5 hover:border-brand/40 transition-all group hover:-translate-y-0.5 duration-200">
       <div className="flex items-start justify-between mb-3">
         <div>
           <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: tier.color + '20', color: tier.color }}>
-            {isAuction ? '🔨 Leilão' : tier.label}
+            {isAuction ? T('slug_sale_auction') : T(tier.labelKey)}
           </span>
         </div>
         {isAuction && timeLeft && (
@@ -68,22 +199,22 @@ function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'pr
         <span className="font-mono font-black text-2xl text-brand">
           {(slug.slug || slug.keyword)}.trustbank.xyz
         </span>
-        <div className="text-xs text-[var(--text2)] mt-1">{len} {len === 1 ? 'caractere' : 'chars'}</div>
+        <div className="text-xs text-[var(--text2)] mt-1">{len} {len === 1 ? T('slug_char_one') : T('slug_chars_many')}</div>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <div className="font-black text-lg text-[var(--text)]">
-            ${(isAuction ? (slug.current_bid || slug.min_bid) : slug.price)?.toLocaleString()} USDC
+            ${(isAuction ? (slug.current_bid || slug.min_bid) : slug.price)?.toLocaleString()} USD
           </div>
           {isAuction && slug.bid_count > 0 && (
-            <div className="text-xs text-[var(--text2)]">{slug.bid_count} lance{slug.bid_count !== 1 ? 's' : ''}</div>
+            <div className="text-xs text-[var(--text2)]">{slug.bid_count === 1 ? T('slug_bids_one') : T('slug_bids_other').replace('{n}', String(slug.bid_count))}</div>
           )}
         </div>
         <button onClick={() => onBuy(slug)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90"
           style={{ background: isAuction ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-          {isAuction ? <><Gavel className="w-3.5 h-3.5" /> Dar lance</> : <><ShoppingCart className="w-3.5 h-3.5" /> {T('slug_buy')}</>}
+          {isAuction ? <><Gavel className="w-3.5 h-3.5" /> {T('slug_place_bid')}</> : <><ShoppingCart className="w-3.5 h-3.5" /> {T('slug_buy')}</>}
         </button>
       </div>
     </div>
@@ -92,32 +223,42 @@ function SlugCard({ slug, type, onBuy, isAdmin = false }: { slug: any; type: 'pr
 
 // ─── My Slugs panel ───────────────────────────────────────────────────────────
 function MySlugs({ userId, isAdmin = false, onChanged }: { userId: string; isAdmin?: boolean; onChanged?: () => void }) {
+  const T = useT();
   const [slugs, setSlugs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { add, open } = useCart();
 
   const loadMySlugs = useCallback(() => {
     supabase.from('slug_registrations' as any)
-      .select('*, mini_sites(site_name, published)')
+      .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .then(r => { setSlugs(r.data || []); setLoading(false); });
+      .then(async (r) => {
+        const merged = await attachMiniSitesToSlugRows(supabase, r.data || []);
+        setSlugs(merged);
+        setLoading(false);
+      });
   }, [userId]);
 
   useEffect(() => { loadMySlugs(); }, [loadMySlugs]);
 
   const renewSlug = (slug: any) => {
-    add({ id: `slug_renewal_${slug.slug}`, label: `Renovar ${slug.slug}.trustbank.xyz (1 ano)`, price: slug.renewal_fee || 12, type: 'slug' });
+    add({ id: `slug_renewal_${slug.slug}`, label: T('slug_cart_renew_label').replace('{slug}', slug.slug), price: Number(slug.renewal_fee) > 0 ? Number(slug.renewal_fee) : SLUG_RENEWAL_ANNUAL_USD, type: 'slug' });
     open();
   };
 
   const listForSale = async (slug: any) => {
-    const price = prompt(`Preço de venda para /${slug.slug} em USDC:`, '50');
+    const price = prompt(T('slug_prompt_sale_price').replace('{slug}', slug.slug), '50');
     if (!price) return;
-    const { error } = await supabase.from('slug_registrations' as any).update({ for_sale: true, sale_price: parseFloat(price), status: 'active' }).eq('id', slug.id);
+    const p = parseFloat(price);
+    if (!Number.isFinite(p) || p <= 0) {
+      toast.error(T('slug_err_sale_price'));
+      return;
+    }
+    const { error } = await supabase.from('slug_registrations' as any).update({ for_sale: true, sale_price: p, status: 'active' }).eq('id', slug.id);
     if (error) { toast.error(error.message); return; }
-    setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: true, sale_price: parseFloat(price), status: 'active' } : s));
-    toast.success(`${slug.slug} listado por $${price} USDC`);
+    setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: true, sale_price: p, status: 'active' } : s));
+    toast.success(T('toast_slug_listed_usdc').replace('{slug}', slug.slug).replace('${price}', String(price)));
     onChanged?.();
   };
 
@@ -131,20 +272,28 @@ function MySlugs({ userId, isAdmin = false, onChanged }: { userId: string; isAdm
     const { error } = await supabase.from('slug_registrations' as any)
       .update({ for_sale: false, sale_price: null, status: 'active' })
       .eq('id', slug.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      console.error(error);
+      toast.error(T('id_err_generic'));
+      return;
+    }
     setSlugs(prev => prev.map(s => s.id === slug.id ? { ...s, for_sale: false, sale_price: null, status: 'active' } : s));
-    toast.success(`Venda removida: ${slug.slug}`);
+    toast.success(T('toast_slug_sale_removed').replace('{slug}', slug.slug));
     onChanged?.();
   };
 
   const deleteSlug = async (slug: any) => {
-    const ok = window.confirm(`Apagar o slug ${slug.slug}.trustbank.xyz?\n\nEsta ação remove o registro de teste.`);
+    const ok = window.confirm(T('slug_confirm_delete_test').replace('{slug}', slug.slug));
     if (!ok) return;
     await supabase.from('slug_auctions' as any).delete().eq('slug_registration_id', slug.id);
     const { error } = await supabase.from('slug_registrations' as any).delete().eq('id', slug.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      console.error(error);
+      toast.error(T('id_err_generic'));
+      return;
+    }
     setSlugs(prev => prev.filter(s => s.id !== slug.id));
-    toast.success(`Slug apagado: ${slug.slug}`);
+    toast.success(T('toast_slug_deleted').replace('{slug}', slug.slug));
     onChanged?.();
   };
 
@@ -154,7 +303,7 @@ function MySlugs({ userId, isAdmin = false, onChanged }: { userId: string; isAdm
   return (
     <div className="card p-5 mb-8">
       <h2 className="font-black text-[var(--text)] mb-4 flex items-center gap-2">
-        <Crown className="w-5 h-5 text-amber-400" /> Meus Slugs ({slugs.length})
+        <Crown className="w-5 h-5 text-amber-400" /> {T('slug_my_slugs_title').replace('{n}', String(slugs.length))}
       </h2>
       <div className="space-y-3">
         {slugs.map(slug => {
@@ -166,35 +315,35 @@ function MySlugs({ userId, isAdmin = false, onChanged }: { userId: string; isAdm
               <span className="font-mono font-black text-brand text-sm flex-1">{slug.slug}.trustbank.xyz</span>
               <div className="flex items-center gap-1 text-xs">
                 {expiringSoon
-                  ? <span className="text-amber-400 font-semibold">{daysLeft}d restantes</span>
-                  : <span className="text-[var(--text2)]">expira {expires.toLocaleDateString('pt-BR')}</span>}
+                  ? <span className="text-amber-400 font-semibold">{T('dash_days_left_short').replace('{n}', String(daysLeft))}</span>
+                  : <span className="text-[var(--text2)]">{T('dash_expires_on').replace('{date}', expires.toLocaleDateString())}</span>}
               </div>
               {slug.for_sale && (
                 <span className="text-xs text-green-400 font-bold border border-green-400/30 px-2 py-0.5 rounded-full">
-                  {slug.status === 'auction' ? 'Leilão' : `À venda $${slug.sale_price}`}
+                  {slug.status === 'auction' ? T('slug_sale_auction') : T('slug_sale_for_price').replace('{price}', `$${slug.sale_price}`)}
                 </span>
               )}
               <div className="flex gap-1.5">
                 <button onClick={() => listForSale(slug)}
                   className="text-xs px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--text2)] hover:border-brand/50 hover:text-brand transition-all">
-                  {slug.for_sale ? 'Alterar preço' : 'Vender'}
+                  {slug.for_sale ? T('slug_change_price') : T('vault_sell')}
                 </button>
                 {slug.for_sale && (
                   <button onClick={() => removeListing(slug)}
                     className="text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-all">
-                    Tirar da venda
+                    {T('slug_remove_from_sale')}
                   </button>
                 )}
                 {(isAdmin || !slug.mini_sites?.published) && (
                   <button onClick={() => deleteSlug(slug)}
                     className="text-xs px-2.5 py-1 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-1">
-                    <Trash2 className="w-3 h-3" /> Apagar
+                    <Trash2 className="w-3 h-3" /> {T('slug_delete')}
                   </button>
                 )}
                 {expiringSoon && (
                   <button onClick={() => renewSlug(slug)}
                     className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all">
-                    Renovar
+                    {T('slug_renew')}
                   </button>
                 )}
               </div>
@@ -223,35 +372,99 @@ export default function SlugsPage() {
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [premiumSlugs, setPremiumSlugs] = useState<any[]>([]);
+  const [premiumPage, setPremiumPage] = useState(0);
+  const [premiumTotal, setPremiumTotal] = useState(0);
+  const [premiumLoading, setPremiumLoading] = useState(false);
+
   const [auctions, setAuctions] = useState<any[]>([]);
+  const [auctionsTotal, setAuctionsTotal] = useState(0);
+
   const [forSale, setForSale] = useState<any[]>([]);
+  const [marketPage, setMarketPage] = useState(0);
+  const [marketTotal, setMarketTotal] = useState(0);
+  const [marketLoading, setMarketLoading] = useState(false);
+
   const [mySlugCount, setMySlugCount] = useState(0);
   const [tab, setTab] = useState<'premium' | 'auctions' | 'market'>('market');
 
-  const loadMarketData = useCallback(async () => {
-    const [{ data: premium, error: premiumErr }, { data: activeAuctions, error: auctionsErr }, { data: saleRows, error: saleErr }] = await Promise.all([
-      supabase.from('premium_slugs' as any)
-        .select('*').eq('active', true).is('sold_to', null)
-        .order('price', { ascending: false })
-        .limit(24),
+  /** Contagens para os separadores + após listar/remover */
+  const refreshCounts = useCallback(async () => {
+    const [p, marketCount, a] = await Promise.all([
+      supabase.from('premium_slugs' as any).select('id', { count: 'exact', head: true }).eq('active', true).is('sold_to', null),
+      fetchSlugMarketCount(supabase as any),
       supabase.from('slug_auctions' as any)
-        .select('*').eq('status', 'active').gt('ends_at', new Date().toISOString())
-        .order('ends_at', { ascending: true })
-        .limit(24),
-      supabase.from('slug_registrations' as any)
-        .select('*, mini_sites(site_name, avatar_url)')
-        .eq('for_sale', true)
-        .neq('status', 'auction')
-        .order('sale_price', { ascending: true })
-        .limit(96),
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .gt('ends_at', new Date().toISOString()),
     ]);
-    if (premiumErr) toast.error(`Premium slugs: ${premiumErr.message}`);
-    if (auctionsErr) toast.error(`Leilões: ${auctionsErr.message}`);
-    if (saleErr) toast.error(`Vendas: ${saleErr.message}`);
-    setPremiumSlugs(premium || []);
-    setAuctions(activeAuctions || []);
-    setForSale(saleRows || []);
+    setPremiumTotal(typeof p.count === 'number' ? p.count : 0);
+    setMarketTotal(typeof marketCount === 'number' ? marketCount : 0);
+    setAuctionsTotal(typeof a.count === 'number' ? a.count : 0);
   }, []);
+
+  const loadAuctions = useCallback(async () => {
+    const { data, error } = await supabase.from('slug_auctions' as any)
+      .select('*')
+      .eq('status', 'active')
+      .gt('ends_at', new Date().toISOString())
+      .order('ends_at', { ascending: true })
+      .limit(48);
+    if (error) {
+      console.error('loadAuctions', error);
+      toast.error(T('slug_err_auctions_generic'));
+    }
+    setAuctions(data || []);
+  }, [T]);
+
+  const loadPremiumPage = useCallback(async (page: number) => {
+    setPremiumLoading(true);
+    try {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error } = await supabase.from('premium_slugs' as any)
+        .select('*')
+        .eq('active', true)
+        .is('sold_to', null)
+        .order('price', { ascending: false })
+        .range(from, to);
+      if (error) {
+        console.error('loadPremiumPage', error);
+        toast.error(T('slug_err_premium_generic'));
+        setPremiumSlugs([]);
+        return;
+      }
+      setPremiumSlugs(data || []);
+    } finally {
+      setPremiumLoading(false);
+    }
+  }, [T]);
+
+  const loadMarketPage = useCallback(async (page: number) => {
+    setMarketLoading(true);
+    try {
+      const offset = page * PAGE_SIZE;
+      const { rows, error } = await fetchSlugMarketRows(supabase as any, offset, PAGE_SIZE);
+      if (error) {
+        const msg = String(error.message || '');
+        console.error('loadMarketPage', msg);
+        toast.error(
+          isRelationshipOrSchemaError(msg) ? T('slug_err_sales_cache') : T('slug_err_sales_generic'),
+        );
+        setForSale([]);
+        return;
+      }
+      const merged = await attachMiniSitesToSlugRows(supabase, rows);
+      setForSale(merged);
+    } finally {
+      setMarketLoading(false);
+    }
+  }, [T]);
+
+  const refreshMarketplace = useCallback(async () => {
+    await refreshCounts();
+    await loadAuctions();
+    await Promise.all([loadMarketPage(marketPage), loadPremiumPage(premiumPage)]);
+  }, [refreshCounts, loadAuctions, loadMarketPage, loadPremiumPage, marketPage, premiumPage]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -259,7 +472,20 @@ export default function SlugsPage() {
     if (t === 'market' || t === 'auctions' || t === 'premium') setTab(t);
   }, []);
 
-  useEffect(() => { loadMarketData(); }, [loadMarketData]);
+  useEffect(() => {
+    void refreshCounts();
+    void loadAuctions();
+  }, [refreshCounts, loadAuctions]);
+
+  useEffect(() => {
+    if (tab !== 'premium') return;
+    void loadPremiumPage(premiumPage);
+  }, [tab, premiumPage, loadPremiumPage]);
+
+  useEffect(() => {
+    if (tab !== 'market') return;
+    void loadMarketPage(marketPage);
+  }, [tab, marketPage, loadMarketPage]);
 
   useEffect(() => {
     if (!user?.id) { setMySlugCount(0); return; }
@@ -286,12 +512,16 @@ export default function SlugsPage() {
 
   const handleClaim = async () => {
     if (!search) return;
-    if (!user) { toast.error('Faça login para registrar um slug'); return; }
-    
+    if (!user) { toast.error(T('toast_login_register_slug')); return; }
+    if (!isAdmin && isSlugReservedAdminOnly(search)) {
+      toast.error(T('err_slug_reserved'));
+      return;
+    }
+
     // Admin registers for free directly
     if (isAdmin) {
       const { data: existing } = await (supabase as any).from('slug_registrations').select('id').eq('slug', search).maybeSingle();
-      if (existing) { toast.error(`${search} já registrado`); return; }
+      if (existing) { toast.error(T('err_slug_taken_toast').replace('{slug}', search)); return; }
       await (supabase as any).from('slug_registrations').insert({
         user_id: user.id,
         slug: search,
@@ -299,13 +529,12 @@ export default function SlugsPage() {
         expires_at: new Date(Date.now() + 365*86400000).toISOString(),
         for_sale: false,
       });
-      toast.success(`✅ ${search}.trustbank.xyz registrado grátis!`);
+      toast.success(T('toast_slug_free_registered').replace('{slug}', search));
       setAvailable(false);
       return;
     }
     
-    const basePrice = slugPrice(search);
-    const price = basePrice > 0 ? basePrice : (mySlugCount > 0 ? 12 : 0);
+    const price = slugRegistrationDueUsd(search, mySlugCount);
     if (price === 0) {
       await (supabase as any).from('slug_registrations').insert({
         user_id: user.id,
@@ -314,46 +543,54 @@ export default function SlugsPage() {
         for_sale: false,
         expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
       });
-      toast.success(`✅ ${search}.trustbank.xyz registrado grátis (1º slug)!`);
-      setMySlugCount(1);
+      toast.success(T('toast_slug_free_first').replace('{slug}', search));
+      setMySlugCount((c) => c + 1);
       setAvailable(false);
-      loadMarketData();
+      void refreshMarketplace();
       return;
     }
     add({ id: `slug_${search}`, label: `${search}.trustbank.xyz`, price, type: 'slug' });
-    toast.success(`${search} adicionado ao carrinho!`);
+    toast.success(T('toast_slug_search_cart').replace('{slug}', search));
     openCart();
   };
 
   const handleBuyPremium = (slug: any) => {
-    if (!user) { toast.error('Faça login primeiro'); return; }
+    if (!user) { toast.error(T('toast_login_first')); return; }
     add({ id: `slug_prem_${slug.slug || slug.keyword}`, label: `${slug.slug || slug.keyword} (premium)`, price: slug.price, type: 'slug' });
     openCart();
   };
 
-  const handleBidAuction = (slug: any) => {
-    if (!user) { toast.error('Faça login primeiro'); return; }
+  const handleBidAuction = async (slug: any) => {
+    if (!user) { toast.error(T('toast_login_first')); return; }
     const minBid = (slug.current_bid || slug.min_bid || 0) + (slug.min_increment || 5);
-    const bid = prompt(`Lance mínimo: $${minBid} USDC\nSeu lance:`, String(minBid));
+    const bid = prompt(`${T('slug_prompt_min_bid').replace('${min}', String(minBid))}\n${T('slug_prompt_your_bid')}`, String(minBid));
     if (!bid || isNaN(parseFloat(bid)) || parseFloat(bid) < minBid) {
-      toast.error(`Lance mínimo é $${minBid}`); return;
+      toast.error(T('err_min_bid').replace('${min}', String(minBid))); return;
     }
-    add({ id: `slug_bid_${slug.id}`, label: `Lance ${slug.slug}.trustbank.xyz: $${bid}`, price: parseFloat(bid), type: 'slug' });
-    openCart();
+    try {
+      const res = await fetch('/api/slug-auction/bid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auctionId: slug.id, bid: parseFloat(bid) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Bid failed');
+      toast.success(T('slug_bid_placed_toast').replace('{amount}', String(parseFloat(bid))));
+      void refreshMarketplace();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : T('slug_bid_error'));
+    }
   };
 
   const handleBuyMarket = (slug: any) => {
-    if (!user) { toast.error('Faça login primeiro'); return; }
-    add({ id: `slug_market_${slug.slug}`, label: `${slug.slug} (mercado)`, price: slug.sale_price, type: 'slug' });
+    if (!user) { toast.error(T('toast_login_first')); return; }
+    add({ id: `slug_market_${slug.slug}`, label: T('slug_cart_market_label').replace('{slug}', slug.slug), price: slug.sale_price, type: 'slug' });
     openCart();
   };
 
-  const claimPrice = search ? slugPrice(search) : 0;
-  const tier = search ? (PRICE_TIERS.find(t => {
-    const len = search.length;
-    if (t.len === '7+ chars') return len >= 7;
-    return t.len === `${len} char${len !== 1 ? 's' : ''}`;
-  }) || PRICE_TIERS[PRICE_TIERS.length - 1]) : null;
+  const reservedBlock = Boolean(search && !isAdmin && isSlugReservedAdminOnly(search));
+  const claimDue = search ? slugRegistrationDueUsd(search, mySlugCount) : 0;
+  const tier = search ? tierForSlugInput(search) : null;
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
@@ -363,23 +600,24 @@ export default function SlugsPage() {
         {/* Hero */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-bold mb-4 border border-amber-500/20">
-            <Flame className="w-3.5 h-3.5" /> Slugs são ativos digitais únicos
+            <Flame className="w-3.5 h-3.5" /> {T('slug_hero_badge')}
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-[var(--text)] mb-3">
             {T('slug_title')}
           </h1>
           <p className="text-[var(--text2)] text-lg max-w-xl mx-auto">
-            Register your identity. Sell. Auction. <span className="text-brand font-semibold">trustbank.xyz/seunome</span>
+            {T('slug_subtitle_lead')}{' '}
+            <span className="text-brand font-semibold">trustbank.xyz/yourname</span>
           </p>
         </div>
 
         {/* Search & claim */}
         <div className="card p-6 mb-8">
           <label className="text-xs font-bold text-[var(--text2)] uppercase tracking-wider mb-2 block">
-            Verificar disponibilidade
+            {T('slug_verify_avail')}
           </label>
           <p className="text-xs text-[var(--text2)] mb-3">
-            Regra: 1 slug comum (7+ chars) grátis por usuário. A partir do 2º slug comum: $12/ano. Slugs premium (1-6 chars) seguem tabela fixa.
+            {T('slug_rules_blurb')}
           </p>
           <div className="flex gap-3">
             <div className="relative flex-1">
@@ -389,44 +627,69 @@ export default function SlugsPage() {
                 className="input pl-7 font-mono text-lg"
                 placeholder="myslug" maxLength={30} />
               {checking && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[var(--text2)]" />}
-              {!checking && available === true && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
+              {!checking && available === true && !reservedBlock && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
+              {!checking && available === true && reservedBlock && <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />}
               {!checking && available === false && <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />}
             </div>
-            <button onClick={handleClaim} disabled={!search || available === false}
+            <button onClick={handleClaim} disabled={!search || available === false || reservedBlock}
               className="px-6 py-2 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-              {available === false ? T('slug_taken') : T('slug_register')}
+              {available === false ? T('slug_taken') : reservedBlock ? T('slug_reserved_label') : T('slug_register')}
             </button>
           </div>
+          {search && (
+            <div className="mt-2 text-xs text-[var(--text2)]">
+              Estimated price now: <span className="font-bold text-[var(--text)]">${claimDue} USD</span>
+            </div>
+          )}
 
           {search && available !== null && (
-            <div className={`mt-3 flex items-center justify-between p-3 rounded-xl ${available ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
-              <div className="flex items-center gap-2">
-                {available
-                  ? <><CheckCircle className="w-4 h-4 text-green-500" /><span className="text-sm font-semibold text-green-400">/{search} {T('slug_available')}</span></>
-                  : <><XCircle className="w-4 h-4 text-red-500" /><span className="text-sm font-semibold text-red-400">/{search} {T('slug_taken')}</span></>}
+            <div className={`mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-xl border ${
+              reservedBlock ? 'bg-amber-500/10 border-amber-500/25'
+              : available ? 'bg-green-500/10 border-green-500/20'
+              : 'bg-red-500/10 border-red-500/20'
+            }`}>
+              <div className="flex items-center gap-2 min-w-0">
+                {reservedBlock ? (
+                  <><span className="text-lg flex-shrink-0">🔒</span><span className="text-sm font-semibold text-amber-400">{T('slug_reserved_label')}: <span className="font-mono">{search}.trustbank.xyz</span></span></>
+                ) : available ? (
+                  <><CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" /><span className="text-sm font-semibold text-green-400"><span className="font-mono">{search}.trustbank.xyz</span> · {T('slug_available')}</span></>
+                ) : (
+                  <><XCircle className="w-4 h-4 text-red-500 flex-shrink-0" /><span className="text-sm font-semibold text-red-400"><span className="font-mono">{search}.trustbank.xyz</span> · {T('slug_taken')}</span></>
+                )}
               </div>
-              {available && tier && (
-                <span className="font-black text-[var(--text)]">${claimPrice > 0 ? claimPrice : (mySlugCount > 0 ? 12 : 0)} USDC</span>
+              {!reservedBlock && available && tier && (
+                <div className="text-right flex-shrink-0">
+                  <div className="font-black text-[var(--text)]">${claimDue} USD</div>
+                  {slugLengthTierUsd(search) === 0 && claimDue === 0 && (
+                    <div className="text-[10px] text-[var(--text2)]">{T('slug_tier_included_first')}</div>
+                  )}
+                </div>
               )}
             </div>
           )}
         </div>
 
         {/* My slugs */}
-        {user && <MySlugs userId={user.id} isAdmin={isAdmin} onChanged={loadMarketData} />}
+        {user && <MySlugs userId={user.id} isAdmin={isAdmin} onChanged={refreshMarketplace} />}
 
         {/* Price table */}
         <div className="card p-5 mb-8">
           <h3 className="font-bold text-[var(--text)] mb-4 text-sm flex items-center gap-2">
-            <Tag className="w-4 h-4 text-brand" /> Price Table
+            <Tag className="w-4 h-4 text-brand" /> {T('slug_price_table_title')}
           </h3>
+          <p className="text-xs text-[var(--text2)] mb-3">{T('slug_names_table_note')}</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
-            {PRICE_TIERS.map(t => (
+            {PRICE_TIERS.map((t) => (
               <div key={t.len} className="text-center p-3 rounded-xl bg-[var(--bg2)] border border-[var(--border)]">
                 <div className="font-mono font-black text-sm" style={{ color: t.color }}>{t.len}</div>
-                <div className="font-black text-[var(--text)] text-sm mt-1">${t.price === 12 ? '12/yr' : t.price.toLocaleString()}</div>
-                <div className="text-[10px] text-[var(--text2)] mt-0.5">{t.label}</div>
+                <div className="font-black text-[var(--text)] text-sm mt-1">
+                  {t.len === '8+ chars' ? T('slug_table_cell_8') : `$${t.price.toLocaleString()}`}
+                </div>
+                {t.len === '8+ chars' && (
+                  <div className="text-[9px] text-[var(--text2)] mt-0.5 leading-tight">{T('slug_tier_included_first')}</div>
+                )}
+                <div className="text-[10px] text-[var(--text2)] mt-0.5">{T(t.labelKey)}</div>
               </div>
             ))}
           </div>
@@ -435,9 +698,9 @@ export default function SlugsPage() {
         {/* Tabs */}
         <div className="flex gap-2 mb-6 border-b border-[var(--border)]">
           {[
-            { id: 'premium', label: 'Premium', icon: <Star className="w-3.5 h-3.5" />, count: premiumSlugs.length },
-            { id: 'auctions', label: 'Auctions', icon: <Gavel className="w-3.5 h-3.5" />, count: auctions.length },
-            { id: 'market', label: 'Market', icon: <Globe className="w-3.5 h-3.5" />, count: forSale.length + auctions.length },
+            { id: 'premium', label: T('slug_tab_premium'), icon: <Star className="w-3.5 h-3.5" />, count: premiumTotal },
+            { id: 'auctions', label: T('slug_tab_auctions'), icon: <Gavel className="w-3.5 h-3.5" />, count: auctionsTotal },
+            { id: 'market', label: T('slug_tab_market'), icon: <Globe className="w-3.5 h-3.5" />, count: marketTotal },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all -mb-px ${
@@ -449,100 +712,91 @@ export default function SlugsPage() {
           ))}
         </div>
 
-        {/* Premium */}
+        {/* Premium — lista compacta, 500 por página */}
         {tab === 'premium' && (
-          premiumSlugs.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {premiumSlugs.map(slug => (
-                <SlugCard key={slug.id} slug={slug} type="premium" onBuy={handleBuyPremium} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 text-[var(--text2)]">
-              <Crown className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>Nenhum slug premium disponível no momento</p>
-            </div>
-          )
+          <div>
+            {premiumLoading && premiumSlugs.length === 0 ? (
+              <div className="flex justify-center py-12 text-[var(--text2)]"><Loader2 className="w-8 h-8 animate-spin" /></div>
+            ) : premiumTotal === 0 ? (
+              <div className="text-center py-16 text-[var(--text2)]">
+                <Crown className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>{T('slug_premium_empty')}</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1.5 max-w-3xl mx-auto">
+                  {premiumSlugs.map((slug) => (
+                    <SlugRowPremium key={slug.id} slug={slug} onBuy={handleBuyPremium} />
+                  ))}
+                </div>
+                <SlugPagination
+                  page={premiumPage}
+                  total={premiumTotal}
+                  loading={premiumLoading}
+                  onPrev={() => setPremiumPage((p) => Math.max(0, p - 1))}
+                  onNext={() => setPremiumPage((p) => p + 1)}
+                />
+              </>
+            )}
+          </div>
         )}
 
         {/* Auctions */}
         {tab === 'auctions' && (
           auctions.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {auctions.map(slug => (
-                <SlugCard key={slug.id} slug={slug} type="auction" onBuy={handleBidAuction} />
-              ))}
-            </div>
+            <>
+              <p className="text-xs text-[var(--text2)] mb-4 max-w-2xl">{T('slug_auction_pay_hint')}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {auctions.map(slug => (
+                  <SlugCard key={slug.id} slug={slug} type="auction" onBuy={handleBidAuction} />
+                ))}
+              </div>
+            </>
           ) : (
             <div className="text-center py-16 text-[var(--text2)]">
               <Gavel className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>Nenhum leilão ativo no momento</p>
-              {user && <p className="text-xs mt-2">Coloque seu slug em leilão pelo Dashboard</p>}
+              <p>{T('slug_auctions_empty')}</p>
+              {user && <p className="text-xs mt-2">{T('slug_auctions_empty_hint')}</p>}
             </div>
           )
         )}
 
-        {/* Market — user listed */}
+        {/* Market — utilizadores, lista compacta, 500 por página */}
         {tab === 'market' && (
-          forSale.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {forSale.map(slug => (
-                <div key={slug.id} className="card p-4 hover:border-brand/40 transition-all">
-                  <div className="text-center my-3">
-                    <span className="font-mono font-black text-xl text-brand">{slug.slug}.trustbank.xyz</span>
-                    {slug.mini_sites?.site_name && (
-                      <div className="text-xs text-[var(--text2)] mt-1">por {slug.mini_sites.site_name}</div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-[var(--text)]">${slug.sale_price} USDC</span>
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => handleBuyMarket(slug)}
-                        className="text-xs px-3 py-1.5 rounded-xl font-bold text-white"
-                        style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-                        Comprar
-                      </button>
-                      {(isAdmin || (user && slug.user_id === user.id)) && (
-                        <>
-                          <button
-                            onClick={async () => {
-                              const { error } = await supabase.from('slug_registrations' as any)
-                                .update({ for_sale: false, sale_price: null, status: 'active' })
-                                .eq('id', slug.id);
-                              if (error) return toast.error(error.message);
-                              toast.success(`Slug removido da vitrine: ${slug.slug}`);
-                              loadMarketData();
-                            }}
-                            className="text-xs px-2.5 py-1.5 rounded-xl border border-amber-500/40 text-amber-400"
-                          >
-                            Tirar
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (!window.confirm(`Apagar ${slug.slug}.trustbank.xyz da base?`)) return;
-                              await supabase.from('slug_auctions' as any).delete().eq('slug_registration_id', slug.id);
-                              const { error } = await supabase.from('slug_registrations' as any).delete().eq('id', slug.id);
-                              if (error) return toast.error(error.message);
-                              toast.success(`Slug apagado: ${slug.slug}`);
-                              loadMarketData();
-                            }}
-                            className="text-xs px-2.5 py-1.5 rounded-xl border border-red-500/40 text-red-400"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+          <div>
+            {marketLoading && forSale.length === 0 ? (
+              <div className="flex justify-center py-12 text-[var(--text2)]"><Loader2 className="w-8 h-8 animate-spin" /></div>
+            ) : marketTotal === 0 ? (
+              <div className="text-center py-16 text-[var(--text2)]">
+                <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>{T('slug_market_empty')}</p>
+                <p className="text-xs mt-3 max-w-md mx-auto text-[var(--text2)]/90">{T('slug_market_empty_hint')}</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1.5 max-w-3xl mx-auto">
+                  {forSale.map((slug) => (
+                    <SlugRowMarket
+                      key={slug.id}
+                      slug={slug}
+                      onBuy={handleBuyMarket}
+                      showOwnerActions
+                      isAdmin={isAdmin}
+                      userId={user?.id}
+                      onRefresh={refreshMarketplace}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 text-[var(--text2)]">
-              <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>Nenhum slug à venda por usuários ainda</p>
-            </div>
-          )
+                <SlugPagination
+                  page={marketPage}
+                  total={marketTotal}
+                  loading={marketLoading}
+                  onPrev={() => setMarketPage((p) => Math.max(0, p - 1))}
+                  onNext={() => setMarketPage((p) => p + 1)}
+                />
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

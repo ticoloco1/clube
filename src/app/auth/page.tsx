@@ -33,7 +33,7 @@ function AuthForm() {
         ? await signInWithEmail(email, password)
         : await signUpWithEmail(email, password);
       if (error) throw error;
-      toast.success(mode === 'signin' ? 'Bem-vindo!' : 'Conta criada! Verifique seu email.');
+      toast.success(mode === 'signin' ? T('toast_auth_welcome') : T('toast_auth_created'));
       router.push(redirect);
     } catch (e: any) {
       toast.error(e.message);
@@ -76,9 +76,7 @@ function AuthForm() {
           <div className="bg-[var(--bg2)] rounded-xl p-3 flex items-start gap-2.5">
             <Coins className="w-4 h-4 text-brand flex-shrink-0 mt-0.5" />
             <p className="text-xs text-[var(--text2)] leading-relaxed">
-              <span className="font-semibold text-[var(--text)]">USDC payments on Polygon.</span>{' '}
-              Login with Google can create a silent wallet flow; email/password login usually does not.
-              To fully participate in payments and paid unlocks, always add your own Polygon wallet in the editor.
+              {T('auth_wallet_notice')}
             </p>
           </div>
 
@@ -90,11 +88,11 @@ function AuthForm() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="label block mb-1">Email</label>
+              <label className="label block mb-1">{T('auth_email_label')}</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  className="input pl-9" placeholder="voce@exemplo.com" required />
+                  className="input pl-9" placeholder={T('auth_email_placeholder')} required />
               </div>
             </div>
             <div>
@@ -103,7 +101,7 @@ function AuthForm() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
                 <input type={showPw ? 'text' : 'password'} value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="input pl-9 pr-9" placeholder="••••••••" required minLength={6} />
+                  className="input pl-9 pr-9" placeholder={T('auth_password_placeholder')} required minLength={6} />
                 <button type="button" onClick={() => setShowPw(!showPw)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text2)]">
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -127,10 +125,10 @@ function AuthForm() {
         </div>
 
         {/* Security note */}
-        <div className="flex items-center justify-center gap-4 mt-4 text-xs text-[var(--text2)]">
-          <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Sem senhas de carteira</span>
-          <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> USDC · Polygon</span>
-          <span className="flex items-center gap-1"><Coins className="w-3 h-3" /> Split automático</span>
+        <div className="flex items-center justify-center gap-4 mt-4 text-xs text-[var(--text2)] flex-wrap">
+          <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> {T('auth_note_no_wallet_pw')}</span>
+          <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> {T('auth_note_usdc_polygon')}</span>
+          <span className="flex items-center gap-1"><Coins className="w-3 h-3" /> {T('auth_note_auto_split')}</span>
         </div>
       </div>
     </div>

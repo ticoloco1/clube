@@ -4,16 +4,74 @@ import type { Metadata } from 'next';
 function getDb() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 }
 
+const SITE_BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').replace(/\/+$/, '');
+
+function miniSiteUrl(slug: string): string {
+  try {
+    const host = new URL(SITE_BASE).hostname.replace(/^www\./i, '');
+    return `https://${slug}.${host}`;
+  } catch {
+    return `https://${slug}.trustbank.xyz`;
+  }
+}
+
+function buildJsonLd(
+  site: {
+    site_name: string;
+    bio: string | null;
+    avatar_url: string | null;
+    cv_skills: string[] | null;
+    slug: string;
+    seo_json_ld?: string | null;
+  },
+  description: string,
+  url: string,
+): string {
+  const personNode: Record<string, unknown> = {
+    '@type': 'Person',
+    name: site.site_name,
+    description,
+    url,
+    image: site.avatar_url || undefined,
+    sameAs: [miniSiteUrl(site.slug)],
+    knowsAbout: (site.cv_skills || []).slice(0, 5),
+  };
+
+  const raw = site.seo_json_ld?.trim();
+  if (!raw) {
+    return JSON.stringify({ '@context': 'https://schema.org', ...personNode });
+  }
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      const graph: unknown[] = [personNode];
+      if (Array.isArray(parsed)) {
+        graph.push(...parsed);
+      } else if (parsed && typeof parsed === 'object' && parsed !== null) {
+        const g = (parsed as Record<string, unknown>)['@graph'];
+        if (Array.isArray(g)) {
+          graph.push(...g);
+        } else {
+          graph.push(parsed);
+        }
+      }
+      return JSON.stringify({ '@context': 'https://schema.org', '@graph': graph });
+  } catch {
+    return JSON.stringify({ '@context': 'https://schema.org', ...personNode });
+  }
+}
+
 export async function generateMetadata(
-  { params }: { params: { slug: string } }
+  { params }: { params: { slug: string } },
 ): Promise<Metadata> {
   const { data: site } = await getDb()
     .from('mini_sites')
-    .select('site_name, bio, avatar_url, cv_headline, cv_skills, slug, seo_title, seo_description, seo_og_image')
+    .select(
+      'site_name, bio, avatar_url, cv_headline, cv_skills, slug, seo_title, seo_description, seo_og_image, seo_search_tags, seo_json_ld, magic_portrait_enabled',
+    )
     .eq('slug', params.slug)
     .eq('published', true)
     .maybeSingle();
@@ -25,47 +83,58 @@ export async function generateMetadata(
     };
   }
 
-  const title = site.seo_title?.trim() || `${site.site_name} | TrustBank`;
-  const description = site.seo_description?.trim() || (site.cv_headline
-    ? `${site.cv_headline} — ${site.bio || ''}`
-    : site.bio || `${site.site_name}'s professional mini site on TrustBank`);
+  const magicAgent =
+    (site as { magic_portrait_enabled?: boolean }).magic_portrait_enabled === true
+      ? `Agente IA de ${site.site_name} — Parcerias`
+      : null;
+  const title =
+    site.seo_title?.trim() ||
+    (magicAgent ? `${magicAgent} | TrustBank` : `${site.site_name} | TrustBank`);
+  const description = (
+    site.seo_description?.trim() ||
+    (site.cv_headline ? `${site.cv_headline} — ${site.bio || ''}` : site.bio || `${site.site_name}'s professional mini site on TrustBank`)
+  ).slice(0, 160);
 
-  const url = `https://${params.slug}.trustbank.xyz`;
+  const url = miniSiteUrl(params.slug);
+  const autoOg = `${SITE_BASE}/api/og/site?slug=${encodeURIComponent(params.slug)}`;
+
+  const customOg = site.seo_og_image?.trim();
+  let ogImageUrl: string;
+  if (customOg) {
+    ogImageUrl = customOg;
+  } else if (site.avatar_url) {
+    ogImageUrl = site.avatar_url;
+  } else {
+    ogImageUrl = autoOg;
+  }
+
+  const kw = Array.isArray(site.seo_search_tags)
+    ? site.seo_search_tags.map((k) => String(k).trim()).filter(Boolean)
+    : [];
 
   return {
     title,
-    description: description.slice(0, 160),
+    description,
+    keywords: kw.length ? kw : undefined,
     alternates: {
       canonical: url,
     },
     openGraph: {
       title,
-      description: description.slice(0, 160),
+      description,
       url,
       siteName: 'TrustBank',
       type: 'profile',
-      images: site.avatar_url
-        ? [{ url: site.seo_og_image || site.avatar_url, width: 1200, height: 630, alt: site.site_name }]
-        : [{ url: 'https://trustbank.xyz/og-default.png', width: 1200, height: 630 }],
+      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: site.site_name }],
     },
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title,
-      description: description.slice(0, 160),
-      images: site.seo_og_image ? [site.seo_og_image] : (site.avatar_url ? [site.avatar_url] : []),
+      description,
+      images: [ogImageUrl],
     },
     other: {
-      // Schema.org Person markup
-      'application/ld+json': JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'Person',
-        name: site.site_name,
-        description: description,
-        url,
-        image: site.avatar_url,
-        sameAs: [`https://${site.slug}.trustbank.xyz`],
-        knowsAbout: (site.cv_skills || []).slice(0, 5),
-      }),
+      'application/ld+json': buildJsonLd(site as typeof site & { seo_json_ld?: string | null }, description, url),
     },
   };
 }

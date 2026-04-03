@@ -9,6 +9,7 @@ import { useMySite } from '@/hooks/useSite';
 import { useCart } from '@/store/cart';
 import { Home, Upload, X, Plus, MapPin, DollarSign, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 import Link from 'next/link';
 
 const REGIONS = ['Americas','Europe','Asia','Africa','Oceania','Middle East'];
@@ -16,6 +17,7 @@ const TIPOS   = ['Apartamento','Casa','Comercial','Terreno','Studio','Fazenda','
 const CURRENCIES = ['BRL','USD','EUR','GBP','ARS','MXN','COP','CLP','AED'];
 
 export default function NovoImoveisPage() {
+  const T = useT();
   const { user } = useAuth();
   const { site } = useMySite();
   const { add, open: openCart } = useCart();
@@ -47,28 +49,27 @@ export default function NovoImoveisPage() {
   );
 
   const uploadPhoto = async (file: File) => {
-    if (images.length >= 10) { toast.error('Max 10 photos'); return; }
+    if (images.length >= 10) { toast.error(T('err_max_10_photos')); return; }
     setUploading(true);
-    try { const url = await uploadFile(file, 'imoveis', user.id); setImages(prev => [...prev, url]); } catch (e: any) { toast.error(e.message || 'Upload failed'); }
+    try { const url = await uploadFile(file, 'imoveis', user.id); setImages(prev => [...prev, url]); } catch (e: any) { toast.error(e.message || T('toast_upload_failed')); }
     setUploading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !price) { toast.error('Title and price required'); return; }
-    if (!site?.id) { toast.error('Create your mini site first'); return; }
+    if (!title || !price) { toast.error(T('err_title_price_required')); return; }
+    if (!site?.id) { toast.error(T('err_mini_site_required')); return; }
     setSaving(true);
-    const { error } = await (supabase as any).from('classified_listings').insert({
+    const { data: listingRow, error } = await (supabase as any).from('classified_listings').insert({
       site_id: site.id, user_id: user.id, type: 'imovel',
       title, price: parseFloat(price), currency,
       region, country, state_city: stateCity,
       images, status: 'pending', // pending until payment
       extra: { tipo, quartos: quartos ? parseInt(quartos) : null, banheiros: banheiros ? parseInt(banheiros) : null, m2: m2 ? parseInt(m2) : null, garagem: garagem ? parseInt(garagem) : null, descricao: desc },
-    });
+    }).select('id').single();
     if (error) { toast.error(error.message); setSaving(false); return; }
-    // Add $1/month to cart
-    add({ id: `listing_imovel_${Date.now()}`, label: `Property listing: ${title} — $1.00 USDC/month`, price: 1, type: 'plan' });
-    toast.success('Property created! Pay $1/month to go live.');
+    add({ id: `classified_${listingRow.id}`, label: `Property listing: ${title} — $1.00 USD/month`, price: 1, type: 'classified' });
+    toast.success(T('toast_property_created_pay'));
     openCart();
     router.push('/imoveis');
   };

@@ -2,19 +2,70 @@
 import { useRef, useState, useEffect } from 'react';
 import { Bold, Italic, List, Heading1, Heading2, Video, Link2, Quote, Code, Image as ImgIcon, X, Loader2, Highlighter, Palette, StickyNote } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
+import { youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
 
-export function RichTextEditor({ value, onChange, placeholder }: any) {
+const MAX_PAGE_IMAGES = 10;
+
+function countImagesInHtml(html: string): number {
+  if (!html) return 0;
+  return (html.match(/<img\b/gi) || []).length;
+}
+
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|svg)$/i;
+
+function isLikelyImageFile(f: File): boolean {
+  if (f.type.startsWith('image/')) return true;
+  if (!f.type && IMAGE_EXT.test(f.name)) return true;
+  return false;
+}
+
+/** Normaliza URL pública do Storage (evita // duplo ou protocolo em falta). */
+function normalizeHttpsUrl(raw: string): string {
+  let t = raw.trim();
+  if (t.startsWith('//')) t = `https:${t}`;
+  return t;
+}
+
+/** src seguro para iframe: só https; aceita URLs absolutas e //… */
+function safeIframeSrc(raw: string): string | null {
+  const t = normalizeHttpsUrl(raw);
+  if (!t) return null;
+  try {
+    const u = t.includes('://') ? new URL(t) : new URL(`https://${t}`);
+    if (u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function RichTextEditor({ value, onChange, placeholder, editorKey }: any) {
+  const T = useT();
   const editorRef  = useRef<HTMLDivElement>(null);
   const [showEmbed, setShowEmbed] = useState(false);
   const [embedUrl, setEmbedUrl]   = useState('');
   const [uploading, setUploading] = useState(false);
+  const lastEditorKeyRef = useRef<string | undefined>(editorKey);
+  /** Evita uma corrida: pai ainda com `value` antigo após insertHTML + onChange. */
+  const suppressPropSyncUntilRef = useRef(0);
 
-  // Sync only on mount — avoids focus loss on every keystroke
+  /**
+   * Sincronizar `value` → DOM só quando o utilizador não está a escrever neste editor.
+   * Caso contrário o browser e o React podem serializar HTML de forma diferente e o efeito
+   * apaga imagens/iframes ou repõe HTML antigo (especialmente após blur ao escolher ficheiro).
+   */
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value || '';
-    }
-  }, []); // eslint-disable-line
+    const el = editorRef.current;
+    if (!el) return;
+    if (Date.now() < suppressPropSyncUntilRef.current) return;
+    const keyBumped = editorKey !== undefined && editorKey !== lastEditorKeyRef.current;
+    if (keyBumped) lastEditorKeyRef.current = editorKey;
+    if (!keyBumped && document.activeElement === el) return;
+    const next = value || '';
+    if (el.innerHTML !== next) el.innerHTML = next;
+  }, [value, editorKey]);
 
   const exec = (cmd: string, val?: string) => {
     document.execCommand(cmd, false, val);
@@ -39,22 +90,28 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
   };
 
   const insertVideo = () => {
-    if (!embedUrl) return;
-    let url = embedUrl;
-    // Auto-convert YouTube watch → embed
-    const yt = url.match(/(?:(?:www|m|music)\.)?youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/([A-Za-z0-9_-]{6,})/);
-    const ytId = yt?.[1] || url.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{6,})/)?.[1];
-    if (ytId) {
-      url = `https://www.youtube.com/embed/${ytId}`;
-    } else if (url.includes('vimeo.com/')) {
-      const id = url.match(/vimeo\.com\/(\d+)/)?.[1];
+    if (!embedUrl.trim()) return;
+    let url = embedUrl.trim().replace(/^\/\//, 'https://');
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    if (/youtu\.?be|youtube\.com/i.test(url)) {
+      url = youtubeWatchUrlToEmbedUrl(url);
+    } else if (/vimeo\.com/i.test(url)) {
+      const id = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
       if (id) url = `https://player.vimeo.com/video/${id}`;
     }
+    const safe = safeIframeSrc(url);
+    if (!safe) {
+      toast.error(T('rte_embed_invalid'));
+      return;
+    }
+    const esc = safe.replace(/"/g, '&quot;');
     const html = `<div class="trust-video-wrapper" style="position:relative;padding-bottom:56.25%;height:0;margin:20px 0;border-radius:16px;overflow:hidden;">
-      <iframe src="${url}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;" frameborder="0" allowfullscreen></iframe>
+      <iframe src="${esc}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe>
     </div><p><br></p>`;
+    suppressPropSyncUntilRef.current = Date.now() + 400;
     document.execCommand('insertHTML', false, html);
     if (editorRef.current) onChange(editorRef.current.innerHTML);
+    requestAnimationFrame(() => editorRef.current?.focus());
     setShowEmbed(false);
     setEmbedUrl('');
   };
@@ -70,17 +127,76 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
     if (editorRef.current) onChange(editorRef.current.innerHTML);
   };
 
-  const uploadImage = async (file: File) => {
+  const uploadImageFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files).filter(isLikelyImageFile);
+    if (!list.length) return;
+    const currentHtml = editorRef.current?.innerHTML || value || '';
+    const existing = countImagesInHtml(currentHtml);
+    const room = MAX_PAGE_IMAGES - existing;
+    if (room <= 0) {
+      toast.error(T('rte_max_images').replace('{n}', String(MAX_PAGE_IMAGES)));
+      return;
+    }
+    const take = list.slice(0, room);
+    if (take.length < list.length) {
+      toast.message(T('rte_max_images_partial').replace('{n}', String(MAX_PAGE_IMAGES)));
+    }
     setUploading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const path = `${session?.user?.id}/pages/${Date.now()}.${file.name.split('.').pop()}`;
-      await supabase.storage.from('platform-assets').upload(path, file, { upsert: true });
-      const url = supabase.storage.from('platform-assets').getPublicUrl(path).data.publicUrl;
-      document.execCommand('insertHTML', false, `<img src="${url}" style="max-width:100%;border-radius:10px;margin:8px 0;display:block;" />`);
-      if (editorRef.current) onChange(editorRef.current.innerHTML);
-    } catch {}
+      if (!session?.user?.id) {
+        toast.error(T('rte_image_login'));
+        setUploading(false);
+        return;
+      }
+      for (const file of take) {
+        const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
+        const path = `${session.user.id}/pages/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('platform-assets').upload(path, file, {
+          upsert: true,
+          cacheControl: '3600',
+          contentType: file.type || 'image/jpeg',
+        });
+        if (upErr) {
+          toast.error(upErr.message || T('rte_image_upload_fail'));
+          break;
+        }
+        const { data: pub } = supabase.storage.from('platform-assets').getPublicUrl(path);
+        const url = normalizeHttpsUrl(pub.publicUrl || '');
+        if (!/^https:\/\//i.test(url)) {
+          toast.error(T('rte_image_upload_fail'));
+          break;
+        }
+        const esc = url.replace(/"/g, '&quot;');
+        suppressPropSyncUntilRef.current = Date.now() + 400;
+        document.execCommand(
+          'insertHTML',
+          false,
+          `<img src="${esc}" alt="" style="max-width:100%;border-radius:10px;margin:8px 0;display:block;height:auto;" loading="lazy" />`,
+        );
+        if (editorRef.current) onChange(editorRef.current.innerHTML);
+        requestAnimationFrame(() => editorRef.current?.focus());
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : T('rte_image_upload_fail'));
+    }
     setUploading(false);
+  };
+
+  const clearPaperBlocks = () => {
+    if (!editorRef.current) return;
+    let html = editorRef.current.innerHTML || '';
+    html = html.replace(/<div class="tb-paper[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, '$1');
+    editorRef.current.innerHTML = html;
+    onChange(editorRef.current.innerHTML);
+  };
+
+  const clearHighlights = () => {
+    if (!editorRef.current) return;
+    let html = editorRef.current.innerHTML || '';
+    html = html.replace(/<mark[^>]*>([\s\S]*?)<\/mark>/gi, '$1');
+    editorRef.current.innerHTML = html;
+    onChange(editorRef.current.innerHTML);
   };
 
   return (
@@ -94,18 +210,30 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
         <button onClick={() => exec('insertUnorderedList')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><List size={16}/></button>
         <button onClick={() => exec('formatBlock','blockquote')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Quote size={16}/></button>
         <button onClick={() => exec('formatBlock','pre')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Code size={16}/></button>
-        <button title="Highlight yellow" onClick={() => applyHighlight('#fde047')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-yellow-400"><Highlighter size={16}/></button>
-        <button title="Highlight pink" onClick={() => applyHighlight('#f9a8d4')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-pink-400"><Highlighter size={16}/></button>
-        <button title="Dark text" onClick={() => exec('foreColor','#111827')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
-        <button title="Light text" onClick={() => exec('foreColor','#f8fafc')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
-        <button title="Notebook paper" onClick={() => insertPaperBlock('yellow')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-amber-400"><StickyNote size={16}/></button>
-        <button title="White paper" onClick={() => insertPaperBlock('white')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-slate-300"><StickyNote size={16}/></button>
-        <button title="Map paper" onClick={() => insertPaperBlock('map')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-emerald-400"><StickyNote size={16}/></button>
-        <button title="Dark paper" onClick={() => insertPaperBlock('dark')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-violet-400"><StickyNote size={16}/></button>
+        <button title={T('rte_title_hi_yellow')} onClick={() => applyHighlight('#fde047')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-yellow-400"><Highlighter size={16}/></button>
+        <button title={T('rte_title_hi_pink')} onClick={() => applyHighlight('#f9a8d4')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-pink-400"><Highlighter size={16}/></button>
+        <button title={T('rte_dark_text')} onClick={() => exec('foreColor','#111827')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
+        <button title={T('rte_light_text')} onClick={() => exec('foreColor','#f8fafc')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text)]"><Palette size={16}/></button>
+        <button title={T('rte_paper_notebook')} onClick={() => insertPaperBlock('yellow')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-amber-400"><StickyNote size={16}/></button>
+        <button title={T('rte_paper_white')} onClick={() => insertPaperBlock('white')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-slate-300"><StickyNote size={16}/></button>
+        <button title={T('rte_paper_map')} onClick={() => insertPaperBlock('map')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-emerald-400"><StickyNote size={16}/></button>
+        <button title={T('rte_paper_dark')} onClick={() => insertPaperBlock('dark')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-violet-400"><StickyNote size={16}/></button>
+        <button title={T('rte_no_paper')} onClick={clearPaperBlocks} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)]">{T('rte_no_paper')}</button>
+        <button title={T('rte_no_mark')} onClick={clearHighlights} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)]">{T('rte_no_mark')}</button>
         <button onClick={() => setShowEmbed(true)} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-blue-400"><Video size={16}/></button>
-        <label className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)] cursor-pointer">
+        <label title={T('rte_image_title')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)] cursor-pointer">
           {uploading ? <Loader2 size={16} className="animate-spin"/> : <ImgIcon size={16}/>}
-          <input type="file" accept="image/*" className="hidden" onChange={e => { const f=e.target.files?.[0]; if(f) uploadImage(f); }}/>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const fl = e.target.files;
+              e.target.value = '';
+              if (fl?.length) void uploadImageFiles(fl);
+            }}
+          />
         </label>
       </div>
 
@@ -126,23 +254,23 @@ export function RichTextEditor({ value, onChange, placeholder }: any) {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
           <div className="bg-[#1d2128] p-8 rounded-3xl w-full max-w-md border border-white/10 shadow-2xl">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-white font-black text-xl">Embed Video</h3>
+              <h3 className="text-white font-black text-xl">{T('rte_embed_title')}</h3>
               <button onClick={() => setShowEmbed(false)} className="text-white/40 hover:text-white"><X size={20}/></button>
             </div>
-            <p className="text-gray-400 text-sm mb-5">YouTube or Vimeo — URL auto-converted</p>
+            <p className="text-gray-400 text-sm mb-5">{T('rte_embed_hint')}</p>
             <input
               value={embedUrl}
               onChange={e => setEmbedUrl(e.target.value)}
               onKeyDown={e => { if(e.key==='Enter') insertVideo(); }}
               className="w-full p-4 bg-black/50 border border-[#30363d] rounded-2xl text-white mb-5 focus:border-blue-500 outline-none text-sm"
-              placeholder="https://youtube.com/watch?v=..."
+              placeholder={T('rte_embed_ph')}
               autoFocus
             />
             <div className="flex gap-3">
               <button onClick={insertVideo} className="flex-1 bg-white text-black py-4 rounded-2xl font-black hover:bg-gray-200 transition-colors">
-                EMBED VIDEO
+                {T('rte_embed_btn')}
               </button>
-              <button onClick={() => setShowEmbed(false)} className="px-6 py-4 text-gray-400 font-bold">Cancel</button>
+              <button onClick={() => setShowEmbed(false)} className="px-6 py-4 text-gray-400 font-bold">{T('rte_cancel')}</button>
             </div>
           </div>
         </div>

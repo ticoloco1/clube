@@ -1,0 +1,2 @@
+-- Conteúdo fundido em supabase-minisite-mystic-tarot-loteria.sql
+-- Ver também supabase-mystic-sales.sql (checklist).

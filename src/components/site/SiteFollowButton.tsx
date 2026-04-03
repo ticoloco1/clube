@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { UserPlus, UserCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 interface SiteFollowButtonProps {
   siteId: string;
@@ -23,6 +24,7 @@ export function SiteFollowButton({
   borderColor,
   compact,
 }: SiteFollowButtonProps) {
+  const T = useT();
   const { user } = useAuth();
   const [following, setFollowing] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,7 @@ export function SiteFollowButton({
           .eq('follower_id', user.id);
         if (error) throw error;
         setFollowing(false);
-        toast.success('Deixaste de seguir');
+        toast.success(T('toast_unfollowed'));
       } else {
         const { error } = await supabase.from('site_follows' as never).insert({
           site_id: siteId,
@@ -76,10 +78,10 @@ export function SiteFollowButton({
         });
         if (error) throw error;
         setFollowing(true);
-        toast.success('A seguir este mini-site');
+        toast.success(T('toast_following_site'));
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro';
+      const msg = e instanceof Error ? e.message : T('err_generic');
       toast.error(msg);
     } finally {
       setBusy(false);
@@ -120,7 +122,7 @@ export function SiteFollowButton({
       ) : (
         <UserPlus className="w-4 h-4" />
       )}
-      {isFollowing ? 'A seguir' : 'Seguir'}
+      {isFollowing ? T('follow_action_following') : T('follow_action_follow')}
     </button>
   );
 }

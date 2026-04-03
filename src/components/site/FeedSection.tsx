@@ -5,6 +5,7 @@ import { uploadFile } from '@/lib/r2';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
 import { Image as ImageIcon, X, Pin, Loader2, Send } from 'lucide-react';
 
 interface FeedSectionProps {
@@ -32,8 +33,7 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
   const toEmbedUrl = (raw: string) => {
     const value = raw.trim();
     if (!value) return '';
-    const ytId = value.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{6,})/)?.[1];
-    if (ytId) return `https://www.youtube.com/embed/${ytId}`;
+    if (/youtu/i.test(value)) return youtubeWatchUrlToEmbedUrl(value);
     if (value.includes('vimeo.com/')) {
       const id = value.split('vimeo.com/')[1]?.split('?')[0];
       return id ? `https://player.vimeo.com/video/${id}` : '';
@@ -45,7 +45,7 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
     const picked = Array.from(e.target.files || []).slice(0, 3 - imageFiles.length);
     if (!picked.length) return;
     const oversized = picked.some(file => file.size > 5 * 1024 * 1024);
-    if (oversized) { toast.error('Each image must be up to 5MB'); return; }
+    if (oversized) { toast.error(T('err_image_max_5mb')); return; }
     setImageFiles(prev => [...prev, ...picked].slice(0, 3));
     picked.forEach((file) => {
       const reader = new FileReader();
@@ -91,9 +91,9 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
       // Charge $10 for pin
       if (pinIt) {
         // Add to cart for payment
-        toast.success('Post pinned for 365 days! $10 USDC payment will be processed.');
+        toast.success(T('toast_post_pinned_trial'));
       } else {
-        toast.success('Post published! Expires in 7 days.');
+        toast.success(T('toast_post_published_week'));
       }
 
       setText('');
@@ -103,7 +103,7 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
       if (fileRef.current) fileRef.current.value = '';
       onPost?.();
     } catch (err: any) {
-      toast.error(err.message || 'Error publishing post');
+      toast.error(err.message || T('toast_post_publish_error'));
     } finally {
       setPosting(false);
       setPinning(false);
@@ -174,7 +174,7 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
 
         <div style={{ flex: 1 }} />
 
-        {/* Pin button - $10 USDC */}
+        {/* Pin button - $10 USD (Stripe) */}
         <button onClick={() => post(true)} disabled={posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())}
           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())) ? 0.4 : 1 }}>
           {pinning ? <Loader2 style={{ width: 13, height: 13, animation: 'spin .8s linear infinite' }} /> : <Pin style={{ width: 13, height: 13 }} />}
@@ -190,7 +190,7 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
       </div>
 
       <p style={{ margin: '8px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.25)', textAlign: 'right' }}>
-        Posts expire in 7 days · Pinned posts stay for 365 days for $10 USDC
+        Posts expire in 7 days · Pinned posts stay for 365 days for $10 USD (Stripe)
       </p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>

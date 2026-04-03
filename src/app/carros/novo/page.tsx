@@ -9,6 +9,7 @@ import { useMySite } from '@/hooks/useSite';
 import { useCart } from '@/store/cart';
 import { Car, Upload, X, ArrowLeft, Loader2, CheckCircle, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 import Link from 'next/link';
 
 const REGIONS    = ['Americas','Europe','Asia','Africa','Oceania','Middle East'];
@@ -18,6 +19,7 @@ const COMBUSTIVEL = ['Flex','Gasolina','Diesel','Elétrico','Híbrido','GNV'];
 const CAMBIO     = ['Manual','Automático','CVT','Semi-automático'];
 
 export default function NovoCarroPage() {
+  const T = useT();
   const { user } = useAuth();
   const { site } = useMySite();
   const { add, open: openCart } = useCart();
@@ -49,28 +51,28 @@ export default function NovoCarroPage() {
   );
 
   const uploadPhoto = async (file: File) => {
-    if (images.length >= 10) { toast.error('Max 10 photos'); return; }
+    if (images.length >= 10) { toast.error(T('err_max_10_photos')); return; }
     setUploading(true);
-    try { const url = await uploadFile(file, 'carros', user.id); setImages(prev => [...prev, url]); } catch (e: any) { toast.error(e.message || 'Upload failed'); }
+    try { const url = await uploadFile(file, 'carros', user.id); setImages(prev => [...prev, url]); } catch (e: any) { toast.error(e.message || T('toast_upload_failed')); }
     setUploading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !price) { toast.error('Title and price required'); return; }
-    if (!site?.id) { toast.error('Create your mini site first'); return; }
+    if (!title || !price) { toast.error(T('err_title_price_required')); return; }
+    if (!site?.id) { toast.error(T('err_mini_site_required')); return; }
     setSaving(true);
     const autoTitle = title || `${marca} ${modelo} ${ano}`.trim();
-    const { error } = await (supabase as any).from('classified_listings').insert({
+    const { data: listingRow, error } = await (supabase as any).from('classified_listings').insert({
       site_id: site.id, user_id: user.id, type: 'carro',
       title: autoTitle, price: parseFloat(price), currency,
       region, country, state_city: stateCity,
       images, status: 'pending',
       extra: { marca, modelo, ano: ano ? parseInt(ano) : null, km: km ? parseInt(km) : null, cor, combustivel, cambio, portas: parseInt(portas), descricao: desc },
-    });
+    }).select('id').single();
     if (error) { toast.error(error.message); setSaving(false); return; }
-    add({ id: `listing_carro_${Date.now()}`, label: `Car listing: ${autoTitle} — $1.00 USDC/month`, price: 1, type: 'plan' });
-    toast.success('Car listing created! Pay $1/month to go live.');
+    add({ id: `classified_${listingRow.id}`, label: `Car listing: ${autoTitle} — $1.00 USD/month`, price: 1, type: 'classified' });
+    toast.success(T('toast_car_listing_created_pay'));
     openCart();
     router.push('/carros');
   };

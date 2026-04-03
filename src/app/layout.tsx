@@ -2,30 +2,33 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from '@/components/layout/Providers';
 import { Toaster } from 'sonner';
+import { getSiteBaseUrl } from '@/lib/siteBaseUrl';
+
+const SITE_URL = getSiteBaseUrl();
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://trustbank.xyz'),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'TrustBank — Your Professional Mini Site',
     template: '%s | TrustBank',
   },
-  description: 'Create your professional mini site with paywall videos, CV unlock, social links and more. Earn in USDC on Polygon. Claim your premium slug.',
-  keywords: ['mini site', 'link in bio', 'USDC paywall', 'slug marketplace', 'professional CV', 'crypto payments', 'Polygon', 'creator monetization'],
-  authors: [{ name: 'TrustBank', url: 'https://trustbank.xyz' }],
+  description: 'Create your professional mini site with paywall videos, CV unlock, social links and more. Get paid in USD via Stripe. Claim your premium slug.',
+  keywords: ['mini site', 'link in bio', 'Stripe paywall', 'slug marketplace', 'professional CV', 'USD payments', 'creator monetization'],
+  authors: [{ name: 'TrustBank', url: SITE_URL }],
   creator: 'TrustBank',
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://trustbank.xyz',
+    url: SITE_URL,
     siteName: 'TrustBank',
-    title: 'TrustBank — Mini Sites & USDC Paywall',
-    description: 'Create your professional mini site. Earn in USDC on Polygon.',
+    title: 'TrustBank — Mini Sites & Stripe Paywall',
+    description: 'Create your professional mini site. Monetize with Stripe (USD).',
     images: [{ url: '/og-default.png', width: 1200, height: 630, alt: 'TrustBank' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'TrustBank — Mini Sites & USDC Paywall',
-    description: 'Create your professional mini site. Earn in USDC on Polygon.',
+    title: 'TrustBank — Mini Sites & Stripe Paywall',
+    description: 'Create your professional mini site. Monetize with Stripe (USD).',
     images: ['/og-default.png'],
   },
   robots: {
@@ -34,9 +37,28 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
   },
   alternates: {
-    canonical: 'https://trustbank.xyz',
+    canonical: SITE_URL,
   },
 };
+
+const rootJsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: 'TrustBank',
+      url: SITE_URL,
+      logo: `${SITE_URL}/og-default.png`,
+    },
+    {
+      '@type': 'WebSite',
+      name: 'TrustBank',
+      url: SITE_URL,
+      inLanguage: 'en',
+      publisher: { '@type': 'Organization', name: 'TrustBank', url: SITE_URL },
+    },
+  ],
+});
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -55,7 +77,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           } catch(e) {
             document.documentElement.classList.add('dark');
           }
+          try {
+            var lng = localStorage.getItem('i18n-lang');
+            var htmlMap = { pt:'pt-BR',en:'en',es:'es',fr:'fr',de:'de',it:'it',zh:'zh-Hans',ja:'ja',ko:'ko',ar:'ar' };
+            if (lng && htmlMap[lng]) {
+              document.documentElement.lang = htmlMap[lng];
+              document.documentElement.dir = lng === 'ar' ? 'rtl' : 'ltr';
+            }
+          } catch(e) {}
         `}} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: rootJsonLd }} />
       </head>
       <body>
         <Providers>

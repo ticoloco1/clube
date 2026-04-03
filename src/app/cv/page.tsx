@@ -10,6 +10,7 @@ import {
   ExternalLink, Shield, ChevronDown, Loader2, Users, Star
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -35,11 +36,21 @@ interface CVProfile {
   cv_languages?: { lang: string; level: string }[];
 }
 
-const SKILL_AREAS = ['Todos', 'Tech', 'Design', 'Marketing', 'Finance', 'Legal', 'Health', 'Education', 'Sales', 'Engineering'];
-const REGIONS = ['Todos', 'Brasil', 'USA', 'Europe', 'Asia', 'Remote'];
+const CV_FILTER_ALL = '__all__';
+const SKILL_OPTIONS = ['__all__', 'Tech', 'Design', 'Marketing', 'Finance', 'Legal', 'Health', 'Education', 'Sales', 'Engineering'] as const;
+/** `value` must match typical `cv_location` text for filtering */
+const REGION_FILTERS: { value: string; labelKey: string }[] = [
+  { value: CV_FILTER_ALL, labelKey: 'cv_filter_all' },
+  { value: 'Brasil', labelKey: 'cv_region_br' },
+  { value: 'USA', labelKey: 'cv_region_usa' },
+  { value: 'Europe', labelKey: 'cv_region_europe' },
+  { value: 'Asia', labelKey: 'cv_region_asia' },
+  { value: 'Remote', labelKey: 'cv_region_remote' },
+];
 
 // ─── CV Card ──────────────────────────────────────────────────────────────────
 function CVCard({ profile, onUnlock }: { profile: CVProfile; onUnlock: (p: CVProfile) => void }) {
+  const T = useT();
   const accent = profile.accent_color || '#818cf8';
   const isLocked = !profile.cv_free;
   const topExp = profile.cv_experience?.[0];
@@ -57,8 +68,8 @@ function CVCard({ profile, onUnlock }: { profile: CVProfile; onUnlock: (p: CVPro
             <h3 className="font-black text-[var(--text)] text-base">{profile.site_name}</h3>
             {profile.is_verified && <Shield className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
             {isLocked
-              ? <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5"><Lock className="w-2.5 h-2.5" /> Premium</span>
-              : <span className="text-[10px] bg-green-500/10 text-green-500 border border-green-500/20 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5"><Unlock className="w-2.5 h-2.5" /> Aberto</span>
+              ? <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5"><Lock className="w-2.5 h-2.5" /> {T('cv_badge_premium')}</span>
+              : <span className="text-[10px] bg-green-500/10 text-green-500 border border-green-500/20 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5"><Unlock className="w-2.5 h-2.5" /> {T('cv_badge_open')}</span>
             }
           </div>
           {profile.cv_headline && <p className="text-sm text-[var(--text2)] truncate">{profile.cv_headline}</p>}
@@ -70,7 +81,7 @@ function CVCard({ profile, onUnlock }: { profile: CVProfile; onUnlock: (p: CVPro
       {profile.cv_hire_price && profile.cv_hire_price > 0 && (
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3" style={{ background: accent + '15', color: accent, border: `1px solid ${accent}30` }}>
           <DollarSign className="w-3 h-3" />
-          {profile.cv_hire_currency} {profile.cv_hire_price} / {profile.cv_hire_type}
+          {profile.cv_hire_currency} $ {profile.cv_hire_price} / {profile.cv_hire_type}
         </div>
       )}
 
@@ -79,7 +90,7 @@ function CVCard({ profile, onUnlock }: { profile: CVProfile; onUnlock: (p: CVPro
         <div className="flex items-center gap-2 text-xs text-[var(--text2)] mb-3 bg-[var(--bg2)] rounded-lg px-3 py-2">
           <Briefcase className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="truncate"><span className="font-semibold text-[var(--text)]">{topExp.role}</span> · {topExp.company}</span>
-          {topExp.current && <span className="ml-auto text-green-500 font-semibold flex-shrink-0">Atual</span>}
+          {topExp.current && <span className="ml-auto text-green-500 font-semibold flex-shrink-0">{T('cv_current')}</span>}
         </div>
       )}
 
@@ -105,20 +116,20 @@ function CVCard({ profile, onUnlock }: { profile: CVProfile; onUnlock: (p: CVPro
       <div className="flex gap-2">
         <a href={`https://${profile.slug}.trustbank.xyz`} target="_blank" rel="noopener"
           className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold border border-[var(--border)] text-[var(--text2)] hover:border-brand/50 hover:text-brand transition-all">
-          <ExternalLink className="w-3.5 h-3.5" /> Ver perfil
+          <ExternalLink className="w-3.5 h-3.5" /> {T('cv_view_profile')}
         </a>
         {isLocked ? (
           <button onClick={() => onUnlock(profile)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
             style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)` }}>
             <Lock className="w-3.5 h-3.5" />
-            {profile.cv_price ? `$${profile.cv_price} USDC` : 'Desbloquear'}
+            {profile.cv_price ? `$ ${profile.cv_price} USD` : T('cv_unlock')}
           </button>
         ) : (
           <a href={`https://${profile.slug}.trustbank.xyz`} target="_blank" rel="noopener"
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
             style={{ background: 'linear-gradient(135deg,#10b981,#059669)' }}>
-            <Unlock className="w-3.5 h-3.5" /> Ver CV
+            <Unlock className="w-3.5 h-3.5" /> {T('cv_view_cv')}
           </a>
         )}
       </div>
@@ -128,6 +139,7 @@ function CVCard({ profile, onUnlock }: { profile: CVProfile; onUnlock: (p: CVPro
 
 // ─── Company Plan Modal ───────────────────────────────────────────────────────
 function CompanyModal({ onClose }: { onClose: () => void }) {
+  const T = useT();
   const { user } = useAuth();
   const { add, open: openCart } = useCart();
   const [plan, setPlan] = useState<'monthly' | 'annual'>('monthly');
@@ -135,14 +147,14 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
   const prices = { monthly: 199, annual: 1590 }; // annual = ~$133/mo (save 33%)
 
   const handleSubscribe = () => {
-    if (!user) { toast.error('Faça login primeiro'); return; }
+    if (!user) { toast.error(T('toast_login_first')); return; }
     add({
-      id: `cv_directory_${plan}_${Date.now()}`,
-      label: `Diretório de CVs — ${plan === 'monthly' ? '$199/mês' : '$1,590/ano'} (20 CVs inclusos)`,
+      id: plan === 'monthly' ? 'directory_company_monthly' : 'directory_company_yearly',
+      label: plan === 'monthly' ? T('cv_company_cart_m') : T('cv_company_cart_y'),
       price: prices[plan],
-      type: 'plan',
+      type: 'directory_company',
     });
-    toast.success('Plano adicionado ao carrinho!');
+    toast.success(T('toast_plan_cart'));
     openCart();
     onClose();
   };
@@ -154,8 +166,8 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
           <div className="w-14 h-14 rounded-2xl bg-brand/10 flex items-center justify-center mx-auto mb-3">
             <Building2 className="w-7 h-7 text-brand" />
           </div>
-          <h3 className="font-black text-xl text-[var(--text)]">Acesso Empresarial</h3>
-          <p className="text-[var(--text2)] text-sm mt-1">Recrute talentos verificados globalmente</p>
+          <h3 className="font-black text-xl text-[var(--text)]">{T('cv_company_title')}</h3>
+          <p className="text-[var(--text2)] text-sm mt-1">{T('cv_company_sub')}</p>
         </div>
 
         {/* Plan toggle */}
@@ -163,8 +175,8 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
           {(['monthly', 'annual'] as const).map(p => (
             <button key={p} onClick={() => setPlan(p)}
               className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border ${plan === p ? 'bg-brand text-white border-brand' : 'border-[var(--border)] text-[var(--text2)] hover:border-brand/50'}`}>
-              {p === 'monthly' ? 'Mensal' : 'Anual'}
-              {p === 'annual' && <span className="block text-xs font-normal mt-0.5 opacity-80">economize 33%</span>}
+              {p === 'monthly' ? T('cv_monthly') : T('cv_plan_annual')}
+              {p === 'annual' && <span className="block text-xs font-normal mt-0.5 opacity-80">{T('cv_yearly_save')}</span>}
             </button>
           ))}
         </div>
@@ -172,26 +184,26 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
         {/* Price */}
         <div className="text-center mb-5 p-4 bg-[var(--bg2)] rounded-xl">
           <p className="text-4xl font-black text-[var(--text)]">
-            ${plan === 'monthly' ? '199' : '1,590'}
-            <span className="text-base font-normal text-[var(--text2)] ml-1">USDC/{plan === 'monthly' ? 'mês' : 'ano'}</span>
+            $ {plan === 'monthly' ? '199' : '1,590'}
+            <span className="text-base font-normal text-[var(--text2)] ml-1">USD / {plan === 'monthly' ? T('cv_per_month') : T('cv_per_year')}</span>
           </p>
-          {plan === 'annual' && <p className="text-green-500 text-sm mt-1">≈ $133/mês · economize $798/ano</p>}
+          {plan === 'annual' && <p className="text-green-500 text-sm mt-1">{T('cv_company_yearly_hint')}</p>}
         </div>
 
         {/* Features */}
         <div className="space-y-2.5 mb-5">
-          {[
-            ['20 CVs inclusos por mês', 'Abra contato de 20 profissionais/mês'],
-            ['CVs adicionais por $8 cada', 'Compre mais conforme necessário'],
-            ['Busca por skills, região e idioma', 'Encontre o talento certo'],
-            ['Sem divisão com criador', 'Você paga direto para a plataforma'],
-            ['Dashboard de recrutamento', 'Gerencie candidatos e contatos'],
-          ].map(([title, desc]) => (
-            <div key={title} className="flex items-start gap-3">
+          {([
+            ['cv_company_f1t', 'cv_company_f1d'],
+            ['cv_company_f2t', 'cv_company_f2d'],
+            ['cv_company_f3t', 'cv_company_f3d'],
+            ['cv_company_f4t', 'cv_company_f4d'],
+            ['cv_company_f5t', 'cv_company_f5d'],
+          ] as const).map(([tk, dk]) => (
+            <div key={tk} className="flex items-start gap-3">
               <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-[var(--text)]">{title}</p>
-                <p className="text-xs text-[var(--text2)]">{desc}</p>
+                <p className="text-sm font-semibold text-[var(--text)]">{T(tk)}</p>
+                <p className="text-xs text-[var(--text2)]">{T(dk)}</p>
               </div>
             </div>
           ))}
@@ -201,9 +213,9 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-white text-sm"
           style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
           <Building2 className="w-4 h-4" />
-          Assinar por ${plan === 'monthly' ? '199' : '1,590'} USDC
+          {T('cv_company_subscribe').replace('{amount}', plan === 'monthly' ? '199' : '1,590')}
         </button>
-        <p className="text-xs text-center text-[var(--text2)] mt-2">Pago via USDC · Polygon · Cancele quando quiser</p>
+        <p className="text-xs text-center text-[var(--text2)] mt-2">{T('cv_pay_note')}</p>
       </div>
     </div>
   );
@@ -213,20 +225,49 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
 const PAGE_SIZE = 12;
 
 export default function CVDirectoryPage() {
+  const T = useT();
   const { user } = useAuth();
   const { add, open: openCart } = useCart();
   const [profiles, setProfiles] = useState<CVProfile[]>([]);
   const [search, setSearch] = useState('');
-  const [skillArea, setSkillArea] = useState('Todos');
-  const [region, setRegion] = useState('Todos');
+  const [skillArea, setSkillArea] = useState<string>(CV_FILTER_ALL);
+  const [region, setRegion] = useState<string>(CV_FILTER_ALL);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const observerRef = useRef<HTMLDivElement>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [directoryPaid, setDirectoryPaid] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  const canBrowseDirectory = isAdmin || directoryPaid;
+
+  useEffect(() => {
+    if (!user?.id) {
+      setIsAdmin(false);
+      setDirectoryPaid(false);
+      setAccessChecked(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [{ data: roleRow }, { data: accessRow }] = await Promise.all([
+        supabase.from('user_roles' as any).select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle(),
+        supabase.from('company_cv_directory_access' as any).select('expires_at').eq('user_id', user.id).maybeSingle(),
+      ]);
+      if (cancelled) return;
+      setIsAdmin(!!roleRow);
+      const exp = accessRow?.expires_at as string | undefined;
+      setDirectoryPaid(!!(exp && new Date(exp) > new Date()));
+      setAccessChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const load = useCallback(async (reset = false) => {
+    if (!canBrowseDirectory) return;
     setLoading(true);
     const from = reset ? 0 : page * PAGE_SIZE;
     let q = supabase.from('mini_sites')
@@ -238,12 +279,12 @@ export default function CVDirectoryPage() {
       .range(from, from + PAGE_SIZE - 1);
 
     if (search) q = (q as any).or(`cv_headline.ilike.%${search}%,site_name.ilike.%${search}%`);
-    if (region !== 'Todos') q = (q as any).ilike('cv_location', `%${region}%`);
+    if (region !== CV_FILTER_ALL) q = (q as any).ilike('cv_location', `%${region}%`);
 
     const { data, count } = await (q as any);
     let filtered = (data || []) as CVProfile[];
 
-    if (skillArea !== 'Todos') {
+    if (skillArea !== CV_FILTER_ALL) {
       filtered = filtered.filter(p => p.cv_skills?.some(s => s.toLowerCase().includes(skillArea.toLowerCase())));
     }
 
@@ -252,9 +293,14 @@ export default function CVDirectoryPage() {
     if (!reset) setPage(p => p + 1);
     if (count) setTotalCount(count);
     setLoading(false);
-  }, [page, search, skillArea, region]);
+  }, [page, search, skillArea, region, canBrowseDirectory]);
 
-  useEffect(() => { load(true); setPage(1); }, [search, skillArea, region]);
+  useEffect(() => {
+    if (!canBrowseDirectory) return;
+    load(true);
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload directory when filters change; avoid loop with `load`+`page`
+  }, [search, skillArea, region, canBrowseDirectory]);
 
   useEffect(() => {
     const obs = new IntersectionObserver(entries => { if (entries[0].isIntersecting && hasMore && !loading) load(); }, { threshold: 0.1 });
@@ -263,17 +309,58 @@ export default function CVDirectoryPage() {
   }, [hasMore, loading, load]);
 
   const handleUnlock = (profile: CVProfile) => {
-    if (!user) { toast.error('Faça login para desbloquear CVs'); return; }
+    if (!user) { toast.error(T('toast_login_unlock_cv')); return; }
     const price = profile.cv_price || 10;
     add({
       id: `cv_unlock_${profile.id}`,
-      label: `CV: ${profile.site_name} (desbloqueio direto)`,
+      label: T('cv_cart_unlock').replace('{name}', profile.site_name),
       price,
-      type: 'plan',
+      type: 'cv',
     });
-    toast.success(`CV de ${profile.site_name} adicionado ao carrinho!`);
+    toast.success(T('toast_cv_unlock_cart').replace('{name}', profile.site_name));
     openCart();
   };
+
+  if (!accessChecked) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)]">
+        <Header />
+        <div className="flex justify-center py-24">
+          <Loader2 className="w-8 h-8 animate-spin text-brand" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!canBrowseDirectory) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)]">
+        <Header />
+        {showCompanyModal && <CompanyModal onClose={() => setShowCompanyModal(false)} />}
+        <div className="max-w-lg mx-auto px-4 py-20 text-center">
+          <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-10 h-10 text-amber-400" />
+          </div>
+          <h1 className="text-2xl font-black text-[var(--text)] mb-2">{T('cv_dir_locked_title')}</h1>
+          <p className="text-[var(--text2)] text-sm mb-8">{T('cv_dir_locked_sub')}</p>
+          {!user ? (
+            <Link href="/auth?redirect=/cv" className="btn-primary inline-flex items-center gap-2 px-6 py-3">
+              {T('cv_dir_locked_login')}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowCompanyModal(true)}
+              className="btn-primary inline-flex items-center gap-2 px-6 py-3"
+            >
+              <Building2 className="w-4 h-4" />
+              {T('cv_dir_locked_cta')}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
@@ -286,15 +373,15 @@ export default function CVDirectoryPage() {
           <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
             <div>
               <div className="inline-flex items-center gap-2 text-xs font-bold text-brand bg-brand/10 px-3 py-1 rounded-full mb-3 border border-brand/20">
-                <Users className="w-3.5 h-3.5" /> Diretório Global de Profissionais
+                <Users className="w-3.5 h-3.5" /> {T('cv_dir_badge')}
               </div>
-              <h1 className="text-3xl md:text-4xl font-black text-[var(--text)]">Encontre Talentos</h1>
-              <p className="text-[var(--text2)] mt-1">Profissionais verificados com mini sites · Pagamento em USDC</p>
+              <h1 className="text-3xl md:text-4xl font-black text-[var(--text)]">{T('cv_dir_title')}</h1>
+              <p className="text-[var(--text2)] mt-1">{T('cv_dir_sub')}</p>
             </div>
             <button onClick={() => setShowCompanyModal(true)}
               className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white text-sm shadow-lg flex-shrink-0"
               style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-              <Building2 className="w-4 h-4" /> Acesso Empresarial · $199/mês
+              <Building2 className="w-4 h-4" /> {T('cv_company_cta')}
             </button>
           </div>
 
@@ -302,25 +389,25 @@ export default function CVDirectoryPage() {
           <div className="relative mb-4">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
             <input value={search} onChange={e => setSearch(e.target.value)}
-              className="input pl-10 text-sm" placeholder="Buscar por nome, headline, skill..." />
+              className="input pl-10 text-sm" placeholder={T('cv_search_ph')} />
           </div>
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2">
             <div className="flex gap-1.5 overflow-x-auto">
-              {SKILL_AREAS.map(a => (
+              {SKILL_OPTIONS.map(a => (
                 <button key={a} onClick={() => setSkillArea(a)}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${skillArea === a ? 'bg-brand text-white' : 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text2)] hover:border-brand/50'}`}>
-                  {a}
+                  {a === CV_FILTER_ALL ? T('cv_filter_all') : a}
                 </button>
               ))}
             </div>
             <div className="w-px h-6 bg-[var(--border)] mx-1 mt-0.5" />
             <div className="flex gap-1.5 overflow-x-auto">
-              {REGIONS.map(r => (
-                <button key={r} onClick={() => setRegion(r)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${region === r ? 'bg-indigo-600 text-white' : 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text2)] hover:border-indigo-400/50'}`}>
-                  {r}
+              {REGION_FILTERS.map((r) => (
+                <button key={r.value} onClick={() => setRegion(r.value)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${region === r.value ? 'bg-indigo-600 text-white' : 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text2)] hover:border-indigo-400/50'}`}>
+                  {T(r.labelKey)}
                 </button>
               ))}
             </div>
@@ -331,7 +418,11 @@ export default function CVDirectoryPage() {
       {/* Grid */}
       <div className="max-w-6xl mx-auto px-4 py-8">
         {profiles.length > 0 && (
-          <p className="text-sm text-[var(--text2)] mb-5">{profiles.length} profissionais encontrados</p>
+          <p className="text-sm text-[var(--text2)] mb-5">
+            {profiles.length === 1
+              ? T('cv_found_one')
+              : T('cv_found_many').replace('{n}', String(profiles.length))}
+          </p>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -360,9 +451,9 @@ export default function CVDirectoryPage() {
             <div className="w-16 h-16 bg-brand/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-8 h-8 text-brand" />
             </div>
-            <h3 className="font-bold text-[var(--text)] mb-1">Nenhum profissional encontrado</h3>
-            <p className="text-[var(--text2)] text-sm">Tente outros filtros ou seja o primeiro a cadastrar seu CV!</p>
-            <Link href="/editor" className="btn-primary mt-4 inline-flex">Criar meu CV</Link>
+            <h3 className="font-bold text-[var(--text)] mb-1">{T('cv_empty_title')}</h3>
+            <p className="text-[var(--text2)] text-sm">{T('cv_empty_sub')}</p>
+            <Link href="/editor" className="btn-primary mt-4 inline-flex">{T('cv_create_cv')}</Link>
           </div>
         )}
         <div ref={observerRef} className="h-10" />

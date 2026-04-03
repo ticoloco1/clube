@@ -1,0 +1,18 @@
+-- =============================================================================
+-- CHECKLIST BD — Místico / loteria PAGA no mini-site (não misturar com ficheiros
+-- antigos). Um único script contém o pacote completo usado pelo código Next.js:
+--
+--   👉 supabase-minisite-mystic-tarot-loteria.sql
+--
+-- Esse ficheiro inclui AGORA:
+--   • public.checkout_pending (+ stripe_connect_account_id)
+--   • public.stripe_webhook_events
+--   • public.mini_sites: stripe_connect_* + mystic_*
+--   • public.mystic_entitlements (+ result_text, result_payload) + RLS + RPC
+--
+-- Opcional / outro módulo (histórico admin /mistico, não obrigatório para venda):
+--   • supabase-mystic-lottery.sql
+--
+-- Stripe + CV empresa (resto do checkout global):
+--   • supabase-stripe-tables.sql (checkout já alinhado sem FK auth.users)
+-- =============================================================================

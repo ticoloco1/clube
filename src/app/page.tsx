@@ -1,34 +1,34 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { useT } from '@/lib/i18n';
+import type { MessageKey } from '@/lib/i18n/messages';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { JackpotBanner } from '@/components/ui/JackpotBanner';
 import {
   Globe, Link2, Video, FileText, Image as ImgIcon, Lock,
   Zap, DollarSign, ArrowRight, GripVertical, Crown,
   Play, Users, Shield, Coins, TrendingUp
 } from 'lucide-react';
 
-// ── Features ──────────────────────────────────────────────────────────────────
-const FEATURES = [
-  { icon: Globe,     title: 'Custom Mini Site',     desc: 'Your own slug.trustbank.xyz page with links, bio, avatar and banner.' },
-  { icon: Link2,     title: 'Social Links',          desc: 'All your profiles in one place — Instagram, YouTube, TikTok, X and more.' },
-  { icon: Video,     title: 'Paywall Videos',        desc: 'YouTube videos behind USDC paywall. Fans pay. You earn 60%.' },
-  { icon: FileText,  title: 'Professional CV',        desc: 'Experience, skills, education. Companies pay $20 USDC to unlock.' },
-  { icon: ImgIcon,   title: 'Photo Gallery',          desc: 'Profile photos, banners and visual portfolio on your page.' },
-  { icon: Lock,      title: 'CV Paywall',             desc: 'CV stays locked. Each unlock pays you 50% directly to your wallet.' },
-  { icon: Zap,       title: 'Boost',                  desc: 'Anyone can boost your profile or videos — $0.50 per position. 7 days.' },
-  { icon: DollarSign,title: 'Earn in USDC',           desc: 'All revenue goes straight to your Polygon wallet. No banks.' },
+// ── Features (i18n keys) ───────────────────────────────────────────────────────
+const FEATURE_DEFS: { icon: typeof Globe; titleKey: MessageKey; descKey: MessageKey }[] = [
+  { icon: Globe, titleKey: 'home_feat_1_t', descKey: 'home_feat_1_d' },
+  { icon: Link2, titleKey: 'home_feat_2_t', descKey: 'home_feat_2_d' },
+  { icon: Video, titleKey: 'home_feat_3_t', descKey: 'home_feat_3_d' },
+  { icon: FileText, titleKey: 'home_feat_4_t', descKey: 'home_feat_4_d' },
+  { icon: ImgIcon, titleKey: 'home_feat_5_t', descKey: 'home_feat_5_d' },
+  { icon: Lock, titleKey: 'home_feat_6_t', descKey: 'home_feat_6_d' },
+  { icon: Zap, titleKey: 'home_feat_7_t', descKey: 'home_feat_7_d' },
+  { icon: DollarSign, titleKey: 'home_feat_8_t', descKey: 'home_feat_8_d' },
 ];
 
 // ── How it works steps ─────────────────────────────────────────────────────────
-const STEPS = [
+const STEP_DEFS: { icon: typeof Globe; titleKey: MessageKey; descKey: MessageKey; mockup: ReactNode }[] = [
   {
     icon: Globe,
-    title: '1. Create your Mini Site',
-    desc: 'Pick your unique slug, upload photo, bio and choose from 30 themes.',
+    titleKey: 'home_step_1_t',
+    descKey: 'home_step_1_d',
     mockup: (
       <div className="bg-gradient-to-b from-purple-900 to-indigo-900 rounded-xl p-4 text-center space-y-2 h-full">
         <div className="w-12 h-12 rounded-full bg-purple-400 mx-auto" />
@@ -41,8 +41,8 @@ const STEPS = [
   },
   {
     icon: Link2,
-    title: '2. Add Social Links',
-    desc: 'Instagram, YouTube, TikTok, X and more — all icons, all in one page.',
+    titleKey: 'home_step_2_t',
+    descKey: 'home_step_2_d',
     mockup: (
       <div className="bg-white rounded-xl p-3 space-y-2 h-full">
         {['Instagram','YouTube','TikTok','LinkedIn'].map(n => (
@@ -57,8 +57,8 @@ const STEPS = [
   },
   {
     icon: Video,
-    title: '3. Paywall Videos',
-    desc: 'Add YouTube videos and set a USDC price. Fans pay to watch your content.',
+    titleKey: 'home_step_3_t',
+    descKey: 'home_step_3_d',
     mockup: (
       <div className="bg-gray-900 rounded-xl p-3 space-y-2 h-full">
         <div className="aspect-video bg-gray-700 rounded-lg flex items-center justify-center">
@@ -68,15 +68,15 @@ const STEPS = [
         </div>
         <div className="flex items-center justify-between">
           <div className="h-2 w-20 bg-white/20 rounded" />
-          <span className="text-[11px] font-black text-green-400">$0.99 USDC</span>
+          <span className="text-[11px] font-black text-green-400">$0.99 USD</span>
         </div>
       </div>
     ),
   },
   {
     icon: FileText,
-    title: '4. Professional CV',
-    desc: 'Add experience, education and skills. Companies pay USDC to unlock your contact.',
+    titleKey: 'home_step_4_t',
+    descKey: 'home_step_4_d',
     mockup: (
       <div className="bg-amber-50 rounded-xl p-3 space-y-2 h-full">
         <div className="h-3 w-28 bg-amber-900/20 rounded" />
@@ -98,8 +98,8 @@ const STEPS = [
   },
   {
     icon: Crown,
-    title: '5. Claim Premium Slug',
-    desc: 'Short slugs like /ceo, /art or /dev are valuable digital assets. Buy, sell, auction.',
+    titleKey: 'home_step_5_t',
+    descKey: 'home_step_5_d',
     mockup: (
       <div className="bg-gray-900 rounded-xl p-3 space-y-2 h-full">
         {[['/ceo','$5,000'],['/art','$3,000'],['/dev','$1,500']].map(([slug, price]) => (
@@ -113,8 +113,8 @@ const STEPS = [
   },
   {
     icon: GripVertical,
-    title: '6. Reorder Modules',
-    desc: 'Drag & drop to arrange Links, Videos, CV, Feed and more exactly how you want.',
+    titleKey: 'home_step_6_t',
+    descKey: 'home_step_6_d',
     mockup: (
       <div className="bg-slate-900 rounded-xl p-3 space-y-1.5 h-full">
         {['🔗 Links','🎬 Videos','📄 CV','📝 Feed'].map(m => (
@@ -128,17 +128,29 @@ const STEPS = [
   },
 ];
 
-// ── Stats ──────────────────────────────────────────────────────────────────────
-const STATS = [
-  { value: 'USDC', label: 'Polygon · No banks', icon: Coins },
-  { value: '60%',  label: 'To creator on videos', icon: TrendingUp },
-  { value: '30',   label: 'Premium themes', icon: ImgIcon },
-  { value: '$0.50',label: 'Per boost position', icon: Zap },
+const STAT_DEFS: { value: string; labelKey: MessageKey; icon: typeof Coins }[] = [
+  { value: 'Stripe', labelKey: 'home_stat_poly', icon: Coins },
+  { value: '60%', labelKey: 'home_stat_creator', icon: TrendingUp },
+  { value: '30', labelKey: 'home_stat_themes', icon: ImgIcon },
+  { value: '$0.50', labelKey: 'home_stat_boost', icon: Zap },
 ];
 
 export default function HomePage() {
   const T = useT();
   const [dbPlans, setDbPlans] = useState<any[]>([]);
+
+  const features = useMemo(
+    () => FEATURE_DEFS.map(f => ({ ...f, title: T(f.titleKey), desc: T(f.descKey) })),
+    [T],
+  );
+  const steps = useMemo(
+    () => STEP_DEFS.map(s => ({ ...s, title: T(s.titleKey), desc: T(s.descKey) })),
+    [T],
+  );
+  const stats = useMemo(
+    () => STAT_DEFS.map(s => ({ ...s, label: T(s.labelKey) })),
+    [T],
+  );
 
   useEffect(() => {
     import('@/lib/supabase').then(({ supabase }) => {
@@ -157,7 +169,7 @@ export default function HomePage() {
           '@type': 'WebSite',
           name: 'TrustBank',
           url: 'https://trustbank.xyz',
-          description: 'Create your professional mini site with paywall videos, CV unlock and USDC payments.',
+          description: T('home_schema_desc'),
           potentialAction: {
             '@type': 'SearchAction',
             target: 'https://trustbank.xyz/slugs?q={search_term_string}',
@@ -166,32 +178,31 @@ export default function HomePage() {
         })}}
       />
       <Header />
-      <JackpotBanner />
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden py-24 px-6"
         style={{ background: 'linear-gradient(135deg, hsl(220 60% 14%), hsl(220 55% 22%), hsl(43 90% 24%))' }}>
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-1.5 rounded-full mb-6 text-sm font-bold text-white/90 border border-white/20">
-            <Globe className="w-4 h-4" /> Your professional presence · USDC payments · Polygon
+            <Globe className="w-4 h-4" /> {T('home_hero_badge')}
           </div>
           <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight mb-5 text-white">
-            Your identity.<br />
-            <span style={{ color: 'hsl(43 90% 55%)' }}>Your revenue.</span>
+            {T('home_hero_line1')}<br />
+            <span style={{ color: 'hsl(43 90% 55%)' }}>{T('home_hero_line2')}</span>
           </h1>
           <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-8">
-            Create a beautiful mini site with paywall videos, professional CV, social links and more.
-            Companies pay to unlock your CV. You earn <strong className="text-white">60% of every sale</strong>.
+            {T('home_hero_sub_lead')}{' '}
+            <strong className="text-white">{T('home_hero_sub_strong')}</strong>.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/editor"
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-black text-lg shadow-xl transition-all hover:opacity-90 hover:-translate-y-0.5"
               style={{ background: 'hsl(43 90% 50%)', color: 'hsl(220 60% 12%)' }}>
-              Create Your Mini Site <ArrowRight className="w-5 h-5" />
+              {T('home_create_mini')} <ArrowRight className="w-5 h-5" />
             </Link>
             <Link href="/sites"
               className="inline-flex items-center gap-2 border-2 border-white/30 text-white px-6 py-3.5 rounded-xl font-bold text-sm hover:bg-white/10 transition-colors">
-              Browse Mini Sites
+              {T('home_browse_sites')}
             </Link>
           </div>
         </div>
@@ -205,8 +216,8 @@ export default function HomePage() {
       {/* ── Stats ── */}
       <section className="py-10 px-6 border-b" style={{ borderColor: 'hsl(var(--border))', background: 'hsl(var(--secondary))' }}>
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
-          {STATS.map(s => (
-            <div key={s.label} className="card p-4 text-center hover:-translate-y-0.5 transition-transform">
+          {stats.map(s => (
+            <div key={s.labelKey} className="card p-4 text-center hover:-translate-y-0.5 transition-transform">
               <s.icon className="w-5 h-5 mx-auto mb-2 text-brand" />
               <p className="text-2xl font-black text-brand">{s.value}</p>
               <p className="text-xs mt-1" style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</p>
@@ -219,14 +230,14 @@ export default function HomePage() {
       <section className="py-16 px-6" style={{ background: 'hsl(var(--secondary) / 0.4)' }}>
         <div className="max-w-6xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-center mb-3" style={{ color: 'hsl(var(--foreground))' }}>
-            Everything in One Page
+            {T('home_features_title')}
           </h2>
           <p className="text-center mb-10 max-w-xl mx-auto" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Your mini site is your digital business card, portfolio, and revenue engine — all in USDC.
+            {T('home_features_sub')}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {FEATURES.map(f => (
-              <div key={f.title} className="card p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+            {features.map(f => (
+              <div key={f.titleKey} className="card p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
                 <div className="w-10 h-10 rounded-xl mb-3 flex items-center justify-center"
                   style={{ background: 'hsl(var(--accent) / 0.12)' }}>
                   <f.icon className="w-5 h-5 text-accent-c" />
@@ -243,14 +254,14 @@ export default function HomePage() {
       <section className="py-16 px-6" style={{ background: 'hsl(var(--background))' }}>
         <div className="max-w-6xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-center mb-3" style={{ color: 'hsl(var(--foreground))' }}>
-            How It Works
+            {T('home_how_title')}
           </h2>
           <p className="text-center mb-10 max-w-xl mx-auto" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Create your professional presence in minutes.
+            {T('home_how_sub')}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {STEPS.map(step => (
-              <div key={step.title} className="card overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all">
+            {steps.map(step => (
+              <div key={step.titleKey} className="card overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all">
                 <div className="h-40 p-3">{step.mockup}</div>
                 <div className="p-4 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
                   <div className="flex items-center gap-2 mb-2">
@@ -268,7 +279,7 @@ export default function HomePage() {
           <div className="text-center mt-10">
             <Link href="/editor"
               className="btn-accent inline-flex items-center gap-2 px-8 py-3.5 text-base font-black">
-              Create My Mini Site <ArrowRight className="w-5 h-5" />
+              {T('home_create_my_mini')} <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
         </div>
@@ -280,23 +291,24 @@ export default function HomePage() {
         <section className="py-16 px-6" style={{ background: 'hsl(var(--secondary) / 0.4)' }}>
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-black text-center mb-2" style={{ color: 'hsl(var(--foreground))' }}>
-              Simple Pricing
+              {T('home_pricing_title')}
             </h2>
             <p className="text-center text-sm mb-10" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              Start free. Upgrade when you need more.
+              {T('home_pricing_sub')}
             </p>
-            <div className={`grid gap-6 ${dbPlans.length === 1 ? 'max-w-sm mx-auto' : dbPlans.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-2xl mx-auto' : 'grid-cols-1 md:grid-cols-3'}`}>
-              {dbPlans.map((plan, idx) => (
-                <div key={plan.id} className={`card p-6 relative ${idx === 0 ? 'ring-2 ring-brand' : ''}`}>
-                  {idx === 0 && (
+            <div className="grid gap-6 max-w-sm mx-auto">
+              {dbPlans.filter((plan: any) => String(plan.slug || '').toLowerCase() === 'pro').map((plan) => (
+                <div key={plan.id} className="card p-6 relative ring-2 ring-brand">
+                  {
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand text-white text-xs font-black px-4 py-1 rounded-full whitespace-nowrap">
-                      Most Popular
+                      {T('home_plan_popular')}
                     </div>
-                  )}
+                  }
                   <div className="text-2xl mb-2">{plan.emoji}</div>
                   <h3 className="font-black text-lg mb-1" style={{ color: plan.color || 'var(--text)' }}>{plan.name}</h3>
                   <div className="text-3xl font-black text-[var(--text)] mb-4">
-                    ${plan.price_monthly}<span className="text-sm text-[var(--text2)] font-normal">/mo</span>
+                    ${Number(plan.price_monthly) > 0 ? Number(plan.price_monthly).toFixed(2) : '29.99'}
+                    <span className="text-sm text-[var(--text2)] font-normal">{T('home_slash_mo')}</span>
                   </div>
                   <ul className="space-y-2 mb-6">
                     {(Array.isArray(plan.features) ? plan.features : []).slice(0, 5).map((f: string, i: number) => (
@@ -305,8 +317,8 @@ export default function HomePage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/planos" className={`block text-center py-2.5 rounded-xl font-black text-sm transition-all ${idx === 0 ? 'btn-primary' : 'btn border border-brand text-brand hover:bg-brand/10'}`}>
-                    Get {plan.name}
+                  <Link href="/planos" className="block text-center py-2.5 rounded-xl font-black text-sm transition-all btn-primary">
+                    {T('home_plan_get').replace('{name}', plan.name)}
                   </Link>
                 </div>
               ))}
@@ -320,21 +332,21 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto text-center card p-12"
           style={{ background: 'linear-gradient(135deg, hsl(220 60% 14%), hsl(220 55% 22%))' }}>
           <Users className="w-12 h-12 mx-auto mb-4 text-white/60" />
-          <h2 className="text-3xl font-black text-white mb-3">Start earning in USDC today</h2>
-          <p className="text-white/70 mb-8 text-lg">Free to create. No credit card. No bank account needed.</p>
+          <h2 className="text-3xl font-black text-white mb-3">{T('home_cta_footer_title')}</h2>
+          <p className="text-white/70 mb-8 text-lg">{T('home_cta_footer_sub')}</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/editor"
               className="inline-flex items-center gap-2 px-10 py-4 rounded-xl font-black text-base shadow-xl hover:opacity-90 transition-all hover:-translate-y-0.5"
               style={{ background: 'hsl(43 90% 50%)', color: 'hsl(220 60% 12%)' }}>
-              Get Started Free <ArrowRight className="w-5 h-5" />
+              {T('home_cta_footer_primary')} <ArrowRight className="w-5 h-5" />
             </Link>
             <Link href="/slugs"
               className="inline-flex items-center gap-2 border-2 border-white/30 text-white px-8 py-4 rounded-xl font-bold hover:bg-white/10 transition-colors">
-              <Crown className="w-5 h-5" /> Browse Slugs
+              <Crown className="w-5 h-5" /> {T('nav_market')}
             </Link>
           </div>
           <p className="text-white/40 text-xs mt-6 flex items-center justify-center gap-1">
-            <Shield className="w-3 h-3" /> Payments via Helio · USDC on Polygon · No custody of funds
+            <Shield className="w-3 h-3" /> {T('home_foot_payments')}
           </p>
         </div>
       </section>

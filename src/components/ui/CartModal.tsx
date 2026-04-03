@@ -4,8 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { X, Coins, Check, Loader2, ShoppingCart, ExternalLink, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 export function CartModal() {
+  const T = useT();
   const { items, isOpen, close, remove, clear, total } = useCart();
   const { user } = useAuth();
   const [processing, setProcessing] = useState(false);
@@ -24,7 +26,7 @@ export function CartModal() {
     if (isAdminBypass) {
       clear();
       setStep('done');
-      toast.success('Admin test mode: checkout bypassed.');
+      toast.success(T('toast_admin_bypass_checkout'));
       return;
     }
     setProcessing(true);
@@ -59,16 +61,16 @@ export function CartModal() {
     } catch (err: any) {
       const msg = String(err?.message || '');
       if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
-        toast.error('Falha de conexao com checkout. Verifique deploy/env e tente novamente.');
+        toast.error(T('toast_checkout_failed'));
       } else {
-        toast.error(msg || 'Checkout error');
+        toast.error(msg || T('toast_checkout_error'));
       }
     } finally {
       setProcessing(false);
     }
   };
 
-  // Called after user returns from Helio payment
+  // Called after user returns from Stripe Checkout
   const handleConfirmPaid = async () => {
     setProcessing(true);
     // Webhook handles activation automatically.
@@ -88,7 +90,7 @@ export function CartModal() {
         <div className="flex items-center justify-between p-5 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-brand" />
-            <h2 className="font-black text-[var(--text)]">Cart</h2>
+            <h2 className="font-black text-[var(--text)]">{T('cart_title')}</h2>
             {items.length > 0 && (
               <span className="text-xs bg-brand/10 text-brand px-2 py-0.5 rounded-full font-bold">
                 {items.length}
@@ -110,7 +112,7 @@ export function CartModal() {
                     <div key={item.id} className="flex items-center gap-3 bg-[var(--bg2)] rounded-xl px-4 py-3 border border-[var(--border)]">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-[var(--text)] truncate">{item.label}</p>
-                        <p className="text-xs text-[var(--text2)]">${item.price.toFixed(2)} USDC</p>
+                        <p className="text-xs text-[var(--text2)]">${item.price.toFixed(2)} USD</p>
                       </div>
                       <button onClick={() => remove(item.id)} className="text-red-400 hover:opacity-70">
                         <X className="w-4 h-4" />
@@ -120,25 +122,25 @@ export function CartModal() {
                 </div>
 
                 <div className="flex items-center justify-between py-3 border-t border-[var(--border)] mb-4">
-                  <span className="font-black text-[var(--text)]">Total</span>
-                  <span className="font-black text-2xl text-brand">${total().toFixed(2)} USDC</span>
+                  <span className="font-black text-[var(--text)]">{T('cart_total')}</span>
+                  <span className="font-black text-2xl text-brand">${total().toFixed(2)} USD</span>
                 </div>
 
                 <div className="bg-brand/5 border border-brand/20 rounded-xl p-3 mb-4 text-xs text-[var(--text2)]">
                   <p className="flex items-center gap-1.5 font-semibold text-[var(--text)] mb-1">
-                    <Coins className="w-3.5 h-3.5 text-brand" /> Secure USDC Payment · Polygon
+                    <Coins className="w-3.5 h-3.5 text-brand" /> {T('cart_secure_title')}
                   </p>
-                  <p>Pay with MetaMask, Rainbow, or credit card via Helio. Splits happen automatically on-chain.</p>
+                  <p>{T('cart_secure_body')}</p>
                 </div>
 
                 <button onClick={handleCheckout} disabled={processing}
                   className="btn-primary w-full justify-center py-3.5 text-base gap-2">
                   {processing
-                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating checkout...</>
-                    : <><Zap className="w-4 h-4" /> Pay ${total().toFixed(2)} USDC</>}
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> {T('cart_creating')}</>
+                    : <><Zap className="w-4 h-4" /> {T('cart_pay').replace('${amount}', total().toFixed(2))}</>}
                 </button>
                 <p className="text-[10px] text-center text-[var(--text2)] mt-2">
-                  Powered by Helio · USDC or Card · Polygon Network
+                  {T('cart_powered')}
                 </p>
               </>
             )}
@@ -151,20 +153,21 @@ export function CartModal() {
             <div className="w-16 h-16 bg-brand/10 rounded-full flex items-center justify-center mx-auto">
               <ExternalLink className="w-8 h-8 text-brand" />
             </div>
-            <p className="font-black text-[var(--text)] text-lg">Complete payment in the new tab</p>
+            <p className="font-black text-[var(--text)] text-lg">{T('cart_pay_tab_title')}</p>
             <p className="text-sm text-[var(--text2)]">
-              Helio checkout is open. Pay with your wallet or credit card.<br />
-              Your items activate automatically after payment is confirmed.
+              {T('cart_pay_tab_body').split('\n').map((line, i) => (
+                <span key={i}>{i > 0 && <br />}{line}</span>
+              ))}
             </p>
             <div className="space-y-2">
               <button onClick={handleConfirmPaid} disabled={processing}
                 className="btn-primary w-full justify-center py-3 gap-2">
                 {processing
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
-                  : '✅ I completed payment'}
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> {T('cart_processing')}</>
+                  : T('cart_i_completed')}
               </button>
               <button onClick={() => setStep('cart')} className="w-full text-xs text-[var(--text2)] py-2 hover:text-[var(--text)]">
-                ← Back to cart
+                {T('cart_back')}
               </button>
             </div>
           </div>
@@ -176,11 +179,11 @@ export function CartModal() {
             <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8 text-green-500" />
             </div>
-            <p className="font-black text-[var(--text)] text-xl mb-2">🎉 Payment received!</p>
+            <p className="font-black text-[var(--text)] text-xl mb-2">{T('cart_done_title')}</p>
             <p className="text-sm text-[var(--text2)] mb-6">
-              Your items will be activated within a few seconds via webhook.
+              {T('cart_done_body')}
             </p>
-            <button onClick={reset} className="btn-primary px-8 py-3">Close</button>
+            <button onClick={reset} className="btn-primary px-8 py-3">{T('cart_close')}</button>
           </div>
         )}
       </div>

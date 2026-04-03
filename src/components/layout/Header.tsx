@@ -49,24 +49,23 @@ export function Header() {
           </div>
           <div>
             <p style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', margin: 0, lineHeight: 1.1 }}>TrustBank</p>
-            <p style={{ fontSize: 9, color: 'var(--text2)', margin: 0, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>MINI SITES · USDC</p>
+            <p style={{ fontSize: 9, color: 'var(--text2)', margin: 0, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{T('header_tagline')}</p>
           </div>
         </Link>
 
         {/* Nav */}
         <nav style={{ display: 'flex', gap: 4, flex: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
           {[
-            { href: '/slugs', label: T('nav_slugs') },
-            { href: '/slugs?tab=market', label: T('nav_market') },
+            { href: '/slugs', label: T('nav_slug_market') },
             { href: '/vault', label: T('nav_vault') },
             { href: '/sites', label: T('nav_sites') },
             { href: '/videos', label: T('nav_videos') },
             { href: '/cv', label: T('nav_cvs') },
             { href: '/planos', label: T('nav_planos') },
-            { href: '/jackpot', label: 'Jackpot' },
+            { href: '/mistico', label: T('nav_mistico') },
           ].map(nav => (
             <Link key={`${nav.href}-${nav.label}`} href={nav.href} style={{
-              padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              padding: '8px 13px', borderRadius: 8, fontSize: 14, fontWeight: 700,
               color: 'var(--text2)', textDecoration: 'none', transition: 'all 0.15s',
             }}
             onMouseEnter={e => { (e.target as HTMLElement).style.color = 'var(--text)'; (e.target as HTMLElement).style.background = 'var(--bg2)'; }}
@@ -102,7 +101,7 @@ export function Header() {
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '6px 14px', borderRadius: 8,
                   background: 'var(--bg2)', border: '1px solid var(--border)',
-                  color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  color: 'var(--text)', textDecoration: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer',
                 }}
               >
                 <User size={14} />
@@ -117,32 +116,32 @@ export function Header() {
                 }}>
                   <Link href="/dashboard" onClick={() => setOpenMenu(false)} style={{
                     display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
-                    color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+                    color: 'var(--text)', textDecoration: 'none', fontSize: 14, fontWeight: 700,
                   }}>
-                    <LayoutDashboard size={14} /> Dashboard
+                    <LayoutDashboard size={14} /> {T('header_dashboard')}
                   </Link>
                   <Link href="/editor" onClick={() => setOpenMenu(false)} style={{
                     display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
-                    color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+                    color: 'var(--text)', textDecoration: 'none', fontSize: 14, fontWeight: 700,
                   }}>
-                    <Settings size={14} /> Editor
+                    <Settings size={14} /> {T('header_editor')}
                   </Link>
                   {isOwnerEmail && (
                     <Link href="/admin" onClick={() => setOpenMenu(false)} style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
-                      color: 'var(--text)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+                      color: 'var(--text)', textDecoration: 'none', fontSize: 14, fontWeight: 700,
                     }}>
-                      <Settings size={14} /> Admin
+                      <Settings size={14} /> {T('header_admin')}
                     </Link>
                   )}
                   <button
                     onClick={() => { setOpenMenu(false); signOut(); }}
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
-                      color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                      color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800,
                     }}
                   >
-                    <LogOut size={14} /> Sair
+                    <LogOut size={14} /> {T('header_sign_out')}
                   </button>
                 </div>
               )}
@@ -151,7 +150,7 @@ export function Header() {
             <Link href="/auth" style={{
               padding: '8px 16px', borderRadius: 8,
               background: 'var(--accent)', color: '#fff',
-              textDecoration: 'none', fontSize: 13, fontWeight: 700,
+              textDecoration: 'none', fontSize: 14, fontWeight: 800,
             }}>
               {T('nav_signin')}
             </Link>

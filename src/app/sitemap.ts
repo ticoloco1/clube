@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { MetadataRoute } from 'next';
+import { getSiteBaseUrl, miniSiteCanonicalUrl } from '@/lib/siteBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,7 @@ function getDb() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = 'https://trustbank.xyz';
+  const base = getSiteBaseUrl();
   const now = new Date();
 
   // Static pages
@@ -23,14 +24,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/cv`,     lastModified: now, changeFrequency: 'daily',   priority: 0.8 },
     { url: `${base}/imoveis`,lastModified: now, changeFrequency: 'daily',   priority: 0.7 },
     { url: `${base}/carros`, lastModified: now, changeFrequency: 'daily',   priority: 0.7 },
-    { url: `${base}/jackpot`,lastModified: now, changeFrequency: 'hourly',  priority: 0.7 },
     { url: `${base}/planos`, lastModified: now, changeFrequency: 'weekly',  priority: 0.6 },
     { url: `${base}/terms`,  lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
     { url: `${base}/privacy`,lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
   ];
 
   try {
-    // Dynamic: all published mini sites
+    // Mini-sites publicados: URL canónica = subdomínio (alinha com generateMetadata do /s/[slug])
     const { data: sites } = await getDb()
       .from('mini_sites')
       .select('slug, updated_at')
@@ -39,15 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .limit(1000);
 
     const siteUrls: MetadataRoute.Sitemap = (sites || []).map(s => ({
-      url: `https://${s.slug}.trustbank.xyz`,
-      lastModified: new Date(s.updated_at || now),
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-    }));
-
-    // Also add subdomain URLs (for Google to discover them)
-    const subdomainUrls: MetadataRoute.Sitemap = (sites || []).map(s => ({
-      url: `https://${s.slug}.trustbank.xyz`,
+      url: miniSiteCanonicalUrl(s.slug),
       lastModified: new Date(s.updated_at || now),
       changeFrequency: 'weekly' as const,
       priority: 0.9,
@@ -67,7 +59,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     }));
 
-    return [...staticPages, ...siteUrls, ...subdomainUrls, ...listingUrls];
+    return [...staticPages, ...siteUrls, ...listingUrls];
   } catch {
     // If DB fails (e.g. build time), return just static pages
     return staticPages;

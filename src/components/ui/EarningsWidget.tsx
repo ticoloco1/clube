@@ -15,7 +15,6 @@ interface Stats {
   cvUnlocks: number;
   boostReceived: number;
   credits: number;
-  jackpotTickets: number;
 }
 
 function AnimatedNumber({ value, prefix = '', decimals = 2 }: { value: number; prefix?: string; decimals?: number }) {
@@ -43,23 +42,21 @@ function AnimatedNumber({ value, prefix = '', decimals = 2 }: { value: number; p
 }
 
 export function EarningsWidget({ userId, accentColor = '#818cf8', compact = false }: EarningsWidgetProps) {
-  const [stats, setStats] = useState<Stats>({ totalEarned: 0, videoUnlocks: 0, cvUnlocks: 0, boostReceived: 0, credits: 0, jackpotTickets: 0 });
+  const [stats, setStats] = useState<Stats>({ totalEarned: 0, videoUnlocks: 0, cvUnlocks: 0, boostReceived: 0, credits: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) return;
     const load = async () => {
-      const [unlocksRes, creditsRes, boostsRes, ticketsRes] = await Promise.all([
+      const [unlocksRes, creditsRes, boostsRes] = await Promise.all([
         (supabase as any).from('paywall_unlocks').select('amount_paid').eq('creator_id', userId),
         (supabase as any).from('credit_wallets').select('balance').eq('user_id', userId).maybeSingle(),
         (supabase as any).from('boosts').select('amount').eq('target_id', userId),
-        (supabase as any).from('jackpot_entries').select('tickets').eq('user_id', userId).is('draw_id', null),
       ]);
 
       const videoEarnings = (unlocksRes.data || []).filter((u: any) => u.source !== 'cv').reduce((s: number, u: any) => s + (u.amount_paid || 0), 0);
       const cvEarnings    = (unlocksRes.data || []).filter((u: any) => u.source === 'cv').reduce((s: number, u: any) => s + (u.amount_paid || 0), 0);
       const boostTotal    = (boostsRes.data || []).reduce((s: number, b: any) => s + (b.amount || 0), 0);
-      const tickets       = (ticketsRes.data || []).reduce((s: number, t: any) => s + (t.tickets || 0), 0);
 
       setStats({
         totalEarned: videoEarnings + cvEarnings,
@@ -67,7 +64,6 @@ export function EarningsWidget({ userId, accentColor = '#818cf8', compact = fals
         cvUnlocks: (unlocksRes.data || []).filter((u: any) => u.source === 'cv').length,
         boostReceived: boostTotal,
         credits: creditsRes.data?.balance || 0,
-        jackpotTickets: tickets,
       });
       setLoading(false);
     };
@@ -105,7 +101,7 @@ export function EarningsWidget({ userId, accentColor = '#818cf8', compact = fals
         <p className="text-3xl font-black" style={{ color: accentColor }}>
           $<AnimatedNumber value={stats.totalEarned} />
         </p>
-        <p className="text-xs text-[var(--text2)] mt-1">Total earned in USDC</p>
+        <p className="text-xs text-[var(--text2)] mt-1">Total earned (USD)</p>
       </div>
 
       {/* Breakdown */}
@@ -122,13 +118,6 @@ export function EarningsWidget({ userId, accentColor = '#818cf8', compact = fals
             <span className="font-bold text-[var(--text)]">{row.value}</span>
           </div>
         ))}
-        {stats.jackpotTickets > 0 && (
-          <div className="flex items-center gap-2.5 text-xs pt-1 border-t border-[var(--border)]">
-            <span className="text-amber-400">🎰</span>
-            <span className="flex-1 text-[var(--text2)]">Jackpot tickets</span>
-            <span className="font-bold text-amber-400">{stats.jackpotTickets}</span>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,15 +1,18 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
-import { LANGS, getLang, setLang, Lang } from '@/lib/i18n';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { LANGS, getLang, setLang, DEFAULT_LANG, type Lang } from '@/lib/i18n';
 import { ChevronDown } from 'lucide-react';
 
 export function LanguageSwitcher() {
   const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState<Lang>('en');
+  const [current, setCurrent] = useState<Lang>(DEFAULT_LANG);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setCurrent(getLang());
+  }, []);
+
+  useEffect(() => {
     const handleLangChange = () => setCurrent(getLang());
     window.addEventListener('lang-change', handleLangChange);
     return () => window.removeEventListener('lang-change', handleLangChange);
@@ -62,7 +65,7 @@ export function LanguageSwitcher() {
               textAlign: 'left',
             }}>
               <span style={{ fontSize: 16 }}>{lang.flag}</span>
-              <span style={{ flex: 1 }}>{lang.label}</span>
+              <span style={{ flex: 1 }}>{lang.label}{lang.mt ? ' · auto' : ''}</span>
               {current === lang.code && <span style={{ color: 'var(--accent)', fontSize: 12 }}>✓</span>}
             </button>
           ))}

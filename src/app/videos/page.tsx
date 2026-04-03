@@ -5,7 +5,8 @@ import { Footer } from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
 import { BoostButton } from '@/components/ui/BoostButton';
 import { SecureVideoPlayer } from '@/components/site/SecureVideoPlayer';
-import { Play, Lock, Search, Shield, ExternalLink } from 'lucide-react';
+import { useT } from '@/lib/i18n';
+import { Play, Lock, Search, Shield } from 'lucide-react';
 
 interface VideoEntry {
   id: string; youtube_video_id: string; title: string;
@@ -17,6 +18,7 @@ interface VideoEntry {
 const PAGE_SIZE = 12;
 
 export default function VideosPage() {
+  const T = useT();
   const [videos, setVideos] = useState<VideoEntry[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'free' | 'premium'>('all');
@@ -58,18 +60,24 @@ export default function VideosPage() {
       <div className="border-b border-[var(--border)] bg-[var(--bg2)]">
         <div className="max-w-6xl mx-auto px-4 py-8">
           <h1 className="text-2xl font-black text-[var(--text)] flex items-center gap-2 mb-4">
-            <Play className="w-6 h-6 text-red-500" /> Videos
+            <Play className="w-6 h-6 text-red-500" /> {T('videos_page_title')}
           </h1>
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
-              <input value={search} onChange={e => setSearch(e.target.value)} className="input pl-10" placeholder="Search videos..." />
+              <input value={search} onChange={e => setSearch(e.target.value)} className="input pl-10" placeholder={T('videos_search_ph')} />
             </div>
             <div className="flex gap-2">
-              {[['all','All'],['free','Free'],['premium','Premium 🔒']].map(([val, label]) => (
+              {(
+                [
+                  ['all', 'videos_filter_all'],
+                  ['free', 'videos_filter_free'],
+                  ['premium', 'videos_filter_premium'],
+                ] as const
+              ).map(([val, key]) => (
                 <button key={val} onClick={() => setFilter(val as any)}
                   className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${filter === val ? 'bg-brand text-white' : 'bg-[var(--bg)] border border-[var(--border)] text-[var(--text2)]'}`}>
-                  {label}
+                  {T(key)}
                 </button>
               ))}
             </div>
@@ -107,7 +115,7 @@ export default function VideosPage() {
                       </div>
                       {video.paywall_enabled && (
                         <div className="absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: accent + '30', color: accent, border: `1px solid ${accent}50` }}>
-                          ${video.paywall_price} USDC
+                          ${video.paywall_price} USD
                         </div>
                       )}
                     </div>
@@ -116,7 +124,7 @@ export default function VideosPage() {
 
                 {/* Info */}
                 <div className="p-4">
-                  <p className="font-bold text-[var(--text)] text-sm mb-3 line-clamp-2">{video.title || 'Untitled'}</p>
+                  <p className="font-bold text-[var(--text)] text-sm mb-3 line-clamp-2">{video.title || T('videos_untitled')}</p>
                   <div className="flex items-center justify-between">
                     <a href={`https://${video.mini_sites?.slug}.trustbank.xyz`} target="_blank" rel="noopener"
                       className="flex items-center gap-2 hover:opacity-80 transition-opacity">
@@ -147,7 +155,7 @@ export default function VideosPage() {
         {!loading && videos.length === 0 && (
           <div className="text-center py-20">
             <Play className="w-12 h-12 text-brand/30 mx-auto mb-3" />
-            <p className="text-[var(--text2)]">No videos found</p>
+            <p className="text-[var(--text2)]">{T('videos_empty')}</p>
           </div>
         )}
         <div ref={observerRef} className="h-10" />

@@ -6,7 +6,19 @@ export interface CartItem {
   id: string;
   label: string;
   price: number;
-  type: 'plan' | 'slug' | 'boost' | 'cv' | 'classified';
+  type:
+    | 'plan'
+    | 'slug'
+    | 'boost'
+    | 'cv'
+    | 'classified'
+    | 'credits'
+    | 'brand_ad'
+    | 'directory_company'
+    | 'video'
+    | 'ai_topup'
+    | 'mystic_tarot'
+    | 'mystic_lottery';
 }
 
 interface CartStore {

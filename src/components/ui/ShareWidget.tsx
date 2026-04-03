@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Share2, QrCode, X, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 interface ShareWidgetProps {
   slug: string;
@@ -10,6 +11,7 @@ interface ShareWidgetProps {
 }
 
 export function ShareWidget({ slug, siteName, accentColor = '#818cf8' }: ShareWidgetProps) {
+  const T = useT();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qrSrc, setQrSrc] = useState('');
@@ -27,7 +29,7 @@ export function ShareWidget({ slug, siteName, accentColor = '#818cf8' }: ShareWi
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success('Link copiado!');
+    toast.success(T('toast_link_copied'));
   };
 
   const share = (platform: string) => {

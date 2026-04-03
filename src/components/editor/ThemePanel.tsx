@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Check, Palette, Type, Layout, Columns } from 'lucide-react';
 import { THEMES, type Theme } from '@/lib/themes';
+import { useT } from '@/lib/i18n';
 
 const ACCENT_PRESETS = [
   '#818cf8', '#a78bfa', '#f472b6', '#34d399', '#fbbf24',
@@ -9,11 +10,7 @@ const ACCENT_PRESETS = [
   '#e879f9', '#2dd4bf', '#facc15', '#f97316', '#06b6d4',
 ];
 
-const FONT_SIZE_OPTIONS = [
-  { id: 'sm', label: 'Small', desc: '13px' },
-  { id: 'md', label: 'Medium', desc: '15px' },
-  { id: 'lg', label: 'Large', desc: '17px' },
-];
+const FONT_SIZE_IDS = ['sm', 'md', 'lg'] as const;
 
 interface ThemePanelProps {
   currentTheme: string;
@@ -30,14 +27,27 @@ export function ThemePanel({
   currentTheme, accentColor, fontSize, videoCols,
   onThemeChange, onAccentChange, onFontSizeChange, onVideoColsChange,
 }: ThemePanelProps) {
+  const T = useT();
   const [tab, setTab] = useState<'themes' | 'colors' | 'layout'>('themes');
   const [customColor, setCustomColor] = useState(accentColor);
 
   const tabs = [
-    { id: 'themes', label: 'Temas', icon: <Palette className="w-3.5 h-3.5" /> },
-    { id: 'colors', label: 'Cores', icon: <span className="w-3.5 h-3.5 rounded-full inline-block" style={{ background: accentColor }} /> },
-    { id: 'layout', label: 'Layout', icon: <Layout className="w-3.5 h-3.5" /> },
+    { id: 'themes' as const, label: T('tpanel_tab_themes'), icon: <Palette className="w-3.5 h-3.5" /> },
+    { id: 'colors' as const, label: T('tpanel_tab_colors'), icon: <span className="w-3.5 h-3.5 rounded-full inline-block" style={{ background: accentColor }} /> },
+    { id: 'layout' as const, label: T('tpanel_tab_layout'), icon: <Layout className="w-3.5 h-3.5" /> },
   ] as const;
+
+  const fontSizeOpts = FONT_SIZE_IDS.map(id => ({
+    id,
+    label: T(id === 'sm' ? 'tpanel_font_sm' : id === 'md' ? 'tpanel_font_md' : 'tpanel_font_lg'),
+    desc: T(id === 'sm' ? 'tpanel_font_sm_px' : id === 'md' ? 'tpanel_font_md_px' : 'tpanel_font_lg_px'),
+  }));
+
+  const videoColOpts = [
+    { cols: 1, icon: '▬' as const, short: T('tpanel_vid_1_short'), desc: T('tpanel_vid_mob') },
+    { cols: 2, icon: '▬▬' as const, short: T('tpanel_vid_2_short'), desc: T('tpanel_vid_def') },
+    { cols: 3, icon: '▬▬▬' as const, short: T('tpanel_vid_3_short'), desc: T('tpanel_vid_netflix') },
+  ];
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg2)] overflow-hidden">
@@ -66,6 +76,9 @@ export function ThemePanel({
                 selected={currentTheme === theme.id}
                 accentColor={accentColor}
                 onClick={() => onThemeChange(theme.id)}
+                themeLabel={T(`ed_theme_${theme.id}`)}
+                themeDesc={T(`tpanel_desc_${theme.id}`)}
+                categoryLabel={T(`tpanel_cat_${theme.category}`)}
               />
             ))}
           </div>
@@ -76,7 +89,7 @@ export function ThemePanel({
       {tab === 'colors' && (
         <div className="p-4 space-y-5">
           <div>
-            <p className="text-xs font-semibold text-[var(--text2)] mb-3 uppercase tracking-wide">Cor de destaque</p>
+            <p className="text-xs font-semibold text-[var(--text2)] mb-3 uppercase tracking-wide">{T('tpanel_accent_color')}</p>
             <div className="grid grid-cols-5 gap-2 mb-4">
               {ACCENT_PRESETS.map(color => (
                 <button key={color} onClick={() => onAccentChange(color)}
@@ -104,7 +117,7 @@ export function ThemePanel({
                 </div>
               </div>
               <div className="flex-1">
-                <p className="text-xs font-semibold text-[var(--text)]">Cor personalizada</p>
+                <p className="text-xs font-semibold text-[var(--text)]">{T('tpanel_custom_color')}</p>
                 <p className="text-xs text-[var(--text2)] font-mono">{customColor.toUpperCase()}</p>
               </div>
             </div>
@@ -112,14 +125,14 @@ export function ThemePanel({
 
           {/* Preview */}
           <div>
-            <p className="text-xs font-semibold text-[var(--text2)] mb-2 uppercase tracking-wide">Preview</p>
+            <p className="text-xs font-semibold text-[var(--text2)] mb-2 uppercase tracking-wide">{T('tpanel_preview')}</p>
             <div className="rounded-xl overflow-hidden border border-[var(--border)]" style={{ background: '#111' }}>
               <div className="p-4 text-center">
                 <div className="w-12 h-12 rounded-full mx-auto mb-2" style={{ background: accentColor }} />
                 <div className="h-3 rounded-full w-24 mx-auto mb-1.5" style={{ background: accentColor + '99' }} />
                 <div className="h-2 rounded-full w-32 mx-auto" style={{ background: '#ffffff20' }} />
                 <div className="mt-3 rounded-full py-2 px-4 text-xs font-bold text-white" style={{ background: accentColor, display: 'inline-block' }}>
-                  Link de exemplo
+                  {T('tpanel_example_link')}
                 </div>
               </div>
             </div>
@@ -133,10 +146,10 @@ export function ThemePanel({
           {/* Font size */}
           <div>
             <p className="text-xs font-semibold text-[var(--text2)] mb-3 uppercase tracking-wide flex items-center gap-1.5">
-              <Type className="w-3.5 h-3.5" /> Tamanho do texto
+              <Type className="w-3.5 h-3.5" /> {T('tpanel_text_size')}
             </p>
             <div className="flex gap-2">
-              {FONT_SIZE_OPTIONS.map(opt => (
+              {fontSizeOpts.map(opt => (
                 <button key={opt.id} onClick={() => onFontSizeChange(opt.id)}
                   className={`flex-1 py-2.5 rounded-xl border text-center transition-all ${
                     fontSize === opt.id
@@ -153,14 +166,10 @@ export function ThemePanel({
           {/* Video columns */}
           <div>
             <p className="text-xs font-semibold text-[var(--text2)] mb-3 uppercase tracking-wide flex items-center gap-1.5">
-              <Columns className="w-3.5 h-3.5" /> Colunas de vídeo
+              <Columns className="w-3.5 h-3.5" /> {T('tpanel_video_cols')}
             </p>
             <div className="flex gap-2">
-              {[
-                { cols: 1, label: '1 coluna', icon: '▬', desc: 'Mobile-first' },
-                { cols: 2, label: '2 colunas', icon: '▬▬', desc: 'Padrão' },
-                { cols: 3, label: '3 colunas', icon: '▬▬▬', desc: 'Netflix' },
-              ].map(opt => (
+              {videoColOpts.map(opt => (
                 <button key={opt.cols} onClick={() => onVideoColsChange(opt.cols)}
                   className={`flex-1 py-3 rounded-xl border text-center transition-all ${
                     videoCols === opt.cols
@@ -168,7 +177,7 @@ export function ThemePanel({
                       : 'border-[var(--border)] text-[var(--text2)] hover:border-brand/50'
                   }`}>
                   <div className="text-base mb-0.5 tracking-tight">{opt.icon}</div>
-                  <div className="text-xs font-semibold">{opt.cols === 1 ? '1 col' : opt.cols === 2 ? '2 cols' : '3 cols'}</div>
+                  <div className="text-xs font-semibold">{opt.short}</div>
                   <div className="text-xs text-[var(--text2)]">{opt.desc}</div>
                 </button>
               ))}
@@ -190,8 +199,9 @@ export function ThemePanel({
 }
 
 // ─── Individual theme card ─────────────────────────────────────────────────────
-function ThemeCard({ theme, selected, accentColor, onClick }: {
+function ThemeCard({ theme, selected, accentColor, onClick, themeLabel, themeDesc, categoryLabel }: {
   theme: Theme; selected: boolean; accentColor: string; onClick: () => void;
+  themeLabel: string; themeDesc: string; categoryLabel: string;
 }) {
   return (
     <button onClick={onClick}
@@ -233,7 +243,7 @@ function ThemeCard({ theme, selected, accentColor, onClick }: {
             background: theme.previewText + '15',
             color: theme.previewText + '80',
           }}>
-          {theme.category}
+          {categoryLabel}
         </span>
       </div>
     </button>

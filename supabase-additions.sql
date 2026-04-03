@@ -26,10 +26,8 @@ create policy "plans_all"  on platform_plans for all using (true);
 -- Default plans
 insert into platform_plans (name, slug, price_monthly, price_yearly, color, emoji, features, sort_order)
 values
-  ('Pro', 'pro', 29.90, 239.00, '#818cf8', '⚡',
-   '["Unlimited links","3 site pages","Video paywall","CV unlock","30 themes","Analytics","1 free slug included"]'::jsonb, 1),
-  ('Business', 'business', 99.90, 799.00, '#f59e0b', '👑',
-   '["Everything in Pro","10 premium slugs","Custom domain","Multi-site","API access","Priority support","White label"]'::jsonb, 2)
+  ('Pro', 'pro', 29.99, 288.00, '#818cf8', '⚡',
+   '["Unlimited links","3 site pages","Video paywall","CV unlock","30 themes","Analytics","1 free slug included"]'::jsonb, 1)
 on conflict (slug) do nothing;
 
 -- Site visits analytics

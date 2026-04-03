@@ -1,10 +1,11 @@
 'use client';
-import { HelioCheckout } from '@/components/ui/HelioCheckout';
+import { StripeCheckout } from '@/components/ui/StripeCheckout';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/store/cart';
 import { Play, Lock, Loader2, LogIn, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 interface SecureVideoPlayerProps {
   videoId: string;           // DB id of mini_site_video
@@ -20,6 +21,7 @@ export function SecureVideoPlayer({
   videoId, title, paywallEnabled, paywallPrice,
   creatorName, siteSlug, accentColor = '#818cf8',
 }: SecureVideoPlayerProps) {
+  const T = useT();
   const { user } = useAuth();
   const { add, open: openCart } = useCart();
   const [state, setState] = useState<'idle' | 'loading' | 'playing' | 'login' | 'pay' | 'error'>('idle');
@@ -52,14 +54,10 @@ export function SecureVideoPlayer({
     } catch (err: any) {
       console.error(err);
       setState('error');
-      toast.error('Erro ao carregar vídeo');
+      toast.error(T('err_video_load'));
     }
   };
 
-  const handleUnlock = () => {
-    if (!user) { setState('login'); return; }
-    // handled by HelioCheckout component inline
-  };
 
   // ── States ──────────────────────────────────────────────────────────────────
   if (state === 'playing' && ytId) {
@@ -135,23 +133,29 @@ export function SecureVideoPlayer({
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-center">
             <div className="px-4 py-2 rounded-full font-bold text-sm" style={{ background: accentColor + '20', color: accentColor, border: `1px solid ${accentColor}40` }}>
-              ${paywallPrice} USDC · 24h de acesso
+              ${paywallPrice} USD · 24h de acesso
             </div>
           </div>
-          <div className="flex flex-col gap-2 w-full max-w-xs">
-            <button onClick={handleUnlock}
-              className="w-full py-3 rounded-xl font-black text-white text-sm"
-              style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}>
-              Desbloquear agora
-            </button>
-            {!user && (
+          <div className="flex flex-col gap-2 w-full max-w-sm px-2">
+            {user ? (
+              <StripeCheckout
+                itemId={videoId}
+                label={title ? `Vídeo: ${title}` : 'Desbloqueio de vídeo'}
+                price={Number(paywallPrice) || 0}
+                type="video"
+                accentColor={accentColor}
+                buttonText="Desbloquear com cartão (Stripe)"
+                onSuccess={() => { void requestToken(); }}
+              />
+            ) : (
               <a href={`/auth?redirect=${encodeURIComponent(window.location.pathname)}`}
-                className="w-full py-2.5 rounded-xl font-semibold text-sm text-center" style={{ color: accentColor, border: `1px solid ${accentColor}30` }}>
-                Já paguei? Entrar
+                className="w-full py-3 rounded-xl font-black text-white text-sm text-center"
+                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}>
+                Entrar para pagar
               </a>
             )}
           </div>
-          <p className="text-white/20 text-xs">Pagamento via USDC · Polygon · Sem exposição do vídeo</p>
+          <p className="text-white/20 text-xs">Pagamento via Stripe (USD) · Carrinho seguro</p>
         </div>
       </div>
     );
@@ -191,7 +195,7 @@ export function SecureVideoPlayer({
         {title && <p className="text-white/70 text-sm font-semibold max-w-xs text-center px-4">{title}</p>}
         {paywallEnabled && paywallPrice && (
           <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: accentColor + '20', color: accentColor, border: `1px solid ${accentColor}40` }}>
-            ${paywallPrice} USDC
+            ${paywallPrice} USD
           </span>
         )}
       </div>

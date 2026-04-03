@@ -1,6 +1,12 @@
+'use client';
+
 import Link from 'next/link';
+import { useT } from '@/lib/i18n';
 
 export function Footer() {
+  const T = useT();
+  const year = new Date().getFullYear();
+
   return (
     <footer className="border-t border-[var(--border)] bg-[var(--bg2)] mt-auto">
       <div className="max-w-6xl mx-auto px-4 py-10">
@@ -13,43 +19,57 @@ export function Footer() {
               <span className="font-black text-[var(--text)]">TrustBank</span>
             </div>
             <p className="text-xs text-[var(--text2)] leading-relaxed">
-              Decentralized content & classifieds platform. Payments in USDC on Polygon.
+              {T('footer_desc')}
             </p>
           </div>
           <div>
-            <p className="font-bold text-xs text-[var(--text2)] uppercase tracking-wider mb-3">Platform</p>
+            <p className="font-bold text-xs text-[var(--text2)] uppercase tracking-wider mb-3">{T('footer_platform')}</p>
             <div className="space-y-2">
-              {[['/', 'Home'],['/slugs','Slugs'],['/cv','CVs'],['/imoveis','Properties'],['/carros','Cars'],['/jackpot','Jackpot']].map(([href,label]) => (
+              {[
+                ['/', T('footer_home')],
+                ['/slugs', T('nav_slug_market')],
+                ['/cv', T('nav_cvs')],
+                ['/imoveis', T('imoveis_title')],
+                ['/carros', T('carros_title')],
+              ].map(([href, label]) => (
                 <Link key={href} href={href} className="block text-xs text-[var(--text2)] hover:text-[var(--text)] transition-colors">{label}</Link>
               ))}
             </div>
           </div>
           <div>
-            <p className="font-bold text-xs text-[var(--text2)] uppercase tracking-wider mb-3">Account</p>
+            <p className="font-bold text-xs text-[var(--text2)] uppercase tracking-wider mb-3">{T('footer_account')}</p>
             <div className="space-y-2">
-              {[['/editor','Editor'],['/creditos','Credits'],['/planos','Plans'],['/auth','Sign In']].map(([href,label]) => (
+              {[
+                ['/editor', T('header_editor')],
+                ['/creditos', T('footer_creditos')],
+                ['/planos', T('nav_planos')],
+                ['/auth', T('nav_signin')],
+              ].map(([href, label]) => (
                 <Link key={href} href={href} className="block text-xs text-[var(--text2)] hover:text-[var(--text)] transition-colors">{label}</Link>
               ))}
             </div>
           </div>
           <div>
-            <p className="font-bold text-xs text-[var(--text2)] uppercase tracking-wider mb-3">Legal</p>
+            <p className="font-bold text-xs text-[var(--text2)] uppercase tracking-wider mb-3">{T('footer_legal')}</p>
             <div className="space-y-2">
-              {[['/terms','Terms of Service'],['/privacy','Privacy Policy'],['/disclaimer','Disclaimer']].map(([href,label]) => (
+              {[
+                ['/terms', T('footer_terms')],
+                ['/privacy', T('footer_privacy')],
+                ['/disclaimer', T('footer_disclaimer_link')],
+              ].map(([href, label]) => (
                 <Link key={href} href={href} className="block text-xs text-[var(--text2)] hover:text-[var(--text)] transition-colors">{label}</Link>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Legal disclaimer */}
         <div className="border-t border-[var(--border)] pt-6 space-y-2">
           <p className="text-[10px] text-[var(--text2)] leading-relaxed">
-            <strong className="text-[var(--text2)]">Legal Disclaimer:</strong>{' '}
-            <em>TrustBank is a decentralized content and classifieds platform. We do not provide banking, financial, investment, or payment services. The name "TrustBank" refers to trust between users and does not imply any banking license or financial institution status. All transactions are peer-to-peer in USDC (a stablecoin) on the Polygon blockchain. TrustBank does not hold, custody, or transfer funds on behalf of users. Users are solely responsible for their wallets, transactions, and compliance with local laws. The Jackpot feature is a platform loyalty reward program and is not a lottery or gambling service.</em>
+            <strong className="text-[var(--text2)]">{T('footer_legal_disclaimer_title')}</strong>{' '}
+            <em>{T('footer_disclaimer_body')}</em>
           </p>
           <p className="text-[10px] text-[var(--text2)]">
-            © {new Date().getFullYear()} TrustBank. All rights reserved. · USDC payments powered by Helio · Polygon Network
+            {T('footer_copyright').replace('{year}', String(year))}
           </p>
         </div>
       </div>

@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next';
+import { getSiteBaseUrl } from '@/lib/siteBaseUrl';
 
 export default function robots(): MetadataRoute.Robots {
+  const base = getSiteBaseUrl();
   return {
     rules: [
       {
@@ -16,13 +18,12 @@ export default function robots(): MetadataRoute.Robots {
           '/auth',
         ],
       },
-      // Allow Google to crawl mini sites
       {
         userAgent: 'Googlebot',
         allow: ['/s/', '/sites', '/cv', '/videos', '/slugs', '/imoveis', '/carros'],
       },
     ],
-    sitemap: 'https://trustbank.xyz/sitemap.xml',
-    host: 'https://trustbank.xyz',
+    sitemap: `${base}/sitemap.xml`,
+    host: base,
   };
 }

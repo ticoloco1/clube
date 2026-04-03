@@ -5,14 +5,32 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/store/cart';
 import { Zap, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
+
+type BoostTarget = 'site' | 'classified' | 'video';
 
 interface Props {
-  siteId: string;
-  slug: string;
+  /** Mini-site UUID (boost no diretório de sites) */
+  siteId?: string;
+  slug?: string;
+  targetType?: BoostTarget;
+  /** UUID do classificado ou do vídeo quando não for site */
+  targetId?: string;
+  targetName?: string;
   accentColor?: string;
+  compact?: boolean;
 }
 
-export function BoostButton({ siteId, slug, accentColor = '#818cf8' }: Props) {
+export function BoostButton({
+  siteId,
+  slug,
+  targetType = 'site',
+  targetId,
+  targetName,
+  accentColor = '#818cf8',
+  compact = false,
+}: Props) {
+  const T = useT();
   const { user } = useAuth();
   const { add, open } = useCart();
   const [openModal, setOpenModal] = useState(false);
@@ -21,31 +39,57 @@ export function BoostButton({ siteId, slug, accentColor = '#818cf8' }: Props) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!siteId) return;
-    (supabase as any).from('site_boosts').select('amount').eq('site_id', siteId)
-      .then(({ data }: any) => {
-        if (data) setScore(data.reduce((a: number, b: any) => a + (b.amount || 0), 0));
-      });
-  }, [siteId]);
+    if (targetType === 'site' && siteId) {
+      (supabase as any).from('site_boosts').select('amount').eq('site_id', siteId)
+        .then(({ data }: any) => {
+          if (data) setScore(data.reduce((a: number, b: any) => a + (b.amount || 0), 0));
+        });
+    } else {
+      setScore(0);
+    }
+  }, [siteId, targetType]);
 
   const positions = amount * 2;
   const price = (amount * 0.5).toFixed(2);
 
+  const displayLabel =
+    targetType === 'site' && slug
+      ? `${slug}.trustbank.xyz`
+      : targetName || targetId || 'item';
+
   const handleBoost = async () => {
-    if (!user) { toast.error('Faça login para dar boost'); return; }
+    if (!user) { toast.error(T('toast_login_boost')); return; }
+    if (targetType === 'site' && !siteId) {
+      toast.error(T('toast_boost_error'));
+      return;
+    }
+    if (targetType !== 'site' && !targetId) {
+      toast.error(T('toast_boost_error'));
+      return;
+    }
     setLoading(true);
     try {
+      const cartId =
+        targetType === 'classified'
+          ? `boost_classified_${targetId}_${amount}`
+          : targetType === 'video'
+            ? `boost_video_${targetId}_${amount}`
+            : `boost_${siteId}_${amount}`;
+      const label =
+        targetType === 'site'
+          ? `Boost ${displayLabel} (+${positions} posições)`
+          : `Boost ${targetType} "${displayLabel}" (+${positions})`;
       add({
-        id: `boost_${siteId}_${amount}`,
-        label: `Boost ${slug}.trustbank.xyz (+${positions} posições)`,
+        id: cartId,
+        label,
         price: parseFloat(price),
         type: 'boost',
       });
       open();
-      toast.success('Abra o carrinho e pague com USDC para ativar o boost.');
+      toast.success(T('toast_boost_cart'));
       setOpenModal(false);
     } catch {
-      toast.error('Erro');
+      toast.error(T('toast_boost_error'));
     }
     setLoading(false);
   };
@@ -54,12 +98,12 @@ export function BoostButton({ siteId, slug, accentColor = '#818cf8' }: Props) {
     <>
       <button onClick={() => setOpenModal(true)} style={{
         display: 'flex', alignItems: 'center', gap: 6,
-        padding: '7px 14px', borderRadius: 10,
+        padding: compact ? '5px 10px' : '7px 14px', borderRadius: 10,
         background: 'transparent', border: '1px solid var(--border)',
-        color: 'var(--text2)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+        color: 'var(--text2)', cursor: 'pointer', fontSize: compact ? 12 : 13, fontWeight: 700,
         transition: 'all 0.15s',
       }}>
-        <Zap size={14} /> Boost
+        <Zap size={compact ? 12 : 14} /> Boost
       </button>
 
       {openModal && (
@@ -85,7 +129,7 @@ export function BoostButton({ siteId, slug, accentColor = '#818cf8' }: Props) {
               <Zap size={20} color={accentColor} />
               <div>
                 <p style={{ fontWeight: 900, color: 'var(--text)', fontSize: 18, margin: 0 }}>Boost</p>
-                <p style={{ fontSize: 12, color: 'var(--text2)', margin: 0 }}>{slug}.trustbank.xyz</p>
+                <p style={{ fontSize: 12, color: 'var(--text2)', margin: 0 }}>{displayLabel}</p>
               </div>
             </div>
 
@@ -99,7 +143,7 @@ export function BoostButton({ siteId, slug, accentColor = '#818cf8' }: Props) {
                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
                   Positions: <span style={{ color: accentColor }}>+{positions}</span>
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>${price} USDC</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>${price} USD</span>
               </div>
               <input type="range" min={1} max={2000} value={amount}
                 onChange={e => setAmount(Number(e.target.value))}
@@ -113,7 +157,7 @@ export function BoostButton({ siteId, slug, accentColor = '#818cf8' }: Props) {
             <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>
               <p style={{ margin: '0 0 4px' }}>• <span style={{ color: accentColor, fontWeight: 700 }}>$0.50</span> = +1 ranking position</p>
               <p style={{ margin: '0 0 4px' }}>• Stays in top for <span style={{ fontWeight: 700 }}>7 days</span>, then drops 150 positions</p>
-              <p style={{ margin: 0 }}>• O boost só conta após confirmação do pagamento (Helio)</p>
+              <p style={{ margin: 0 }}>• Boost applies after Stripe confirms payment</p>
             </div>
 
             <button onClick={handleBoost} disabled={loading} style={{
@@ -125,10 +169,10 @@ export function BoostButton({ siteId, slug, accentColor = '#818cf8' }: Props) {
               opacity: loading ? 0.7 : 1,
             }}>
               <Zap size={18} />
-              Ir para pagamento · ${price} USDC
+              Pay · ${price} USD
             </button>
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text2)', marginTop: 8, marginBottom: 0 }}>
-              USDC · Polygon · Helio
+              USD · Stripe
             </p>
           </div>
         </div>

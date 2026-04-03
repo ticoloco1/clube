@@ -115,7 +115,7 @@ export function WindowFeed() {
                   </div>
                   {card.paywall_enabled && (
                     <div style={{ position: 'absolute', top: 12, right: 12, padding: '4px 10px', borderRadius: 999, background: accent, color: '#fff', fontSize: 12, fontWeight: 800 }}>
-                      ${card.paywall_price} USDC
+                      ${card.paywall_price} USD
                     </div>
                   )}
                 </div>

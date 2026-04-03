@@ -5,7 +5,8 @@ import { Footer } from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
 import { BoostButton } from '@/components/ui/BoostButton';
 import { SiteFollowButton } from '@/components/site/SiteFollowButton';
-import { useT } from '@/lib/i18n';
+import { useI18n, useT } from '@/lib/i18n';
+import { DIRECTORY_PROFILE_I18N_KEYS } from '@/lib/directoryProfileLabels';
 import { Shield, Search, Globe, Users, Zap, ExternalLink } from 'lucide-react';
 
 interface SiteEntry {
@@ -18,22 +19,12 @@ interface SiteEntry {
   ad_asking_price_usdc?: number | null;
 }
 
-const PROFILE_SHORT: Record<string, string> = {
-  influencer: 'Influencer',
-  actor: 'Ator',
-  actress: 'Atriz',
-  athlete: 'Atleta',
-  entrepreneur: 'Empresário',
-  automotive: 'Auto',
-  creator: 'Criador',
-  services: 'Serviços',
-  other: 'Outro',
-};
-
 const PAGE_SIZE = 16;
 
 export default function SitesDirectoryPage() {
   const T = useT();
+  const { lang } = useI18n();
+  const numLocale = lang === 'pt' ? 'pt-BR' : 'en-US';
   const [sites, setSites] = useState<SiteEntry[]>([]);
   const [search, setSearch] = useState('');
   const [profileFilter, setProfileFilter] = useState('');
@@ -89,35 +80,35 @@ export default function SitesDirectoryPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
             <select value={profileFilter} onChange={e => setProfileFilter(e.target.value)} className="input text-sm">
-              <option value="">Todos os perfis</option>
-              <option value="influencer">Influencer</option>
-              <option value="actor">Ator</option>
-              <option value="actress">Atriz</option>
-              <option value="athlete">Jogador / Atleta</option>
-              <option value="entrepreneur">Empresário</option>
-              <option value="automotive">Carros / Automotivo</option>
-              <option value="creator">Criador</option>
-              <option value="services">Serviços</option>
-              <option value="other">Outro</option>
+              <option value="">{T('sites_filter_all_profiles')}</option>
+              <option value="influencer">{T('sites_prof_influencer')}</option>
+              <option value="actor">{T('sites_prof_actor')}</option>
+              <option value="actress">{T('sites_prof_actress')}</option>
+              <option value="athlete">{T('sites_prof_athlete')}</option>
+              <option value="entrepreneur">{T('sites_prof_entrepreneur')}</option>
+              <option value="automotive">{T('sites_prof_automotive')}</option>
+              <option value="creator">{T('sites_prof_creator')}</option>
+              <option value="services">{T('sites_prof_services')}</option>
+              <option value="other">{T('sites_prof_other')}</option>
             </select>
             <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="input text-sm">
-              <option value="">Todas as categorias</option>
-              <option value="creator">Criador / Influencer</option>
-              <option value="services">Serviços</option>
-              <option value="tech">Tech &amp; Dev</option>
-              <option value="business">Negócios</option>
-              <option value="local">Local</option>
-              <option value="other">Outros</option>
+              <option value="">{T('sites_filter_all_categories')}</option>
+              <option value="creator">{T('sites_cat_creator')}</option>
+              <option value="services">{T('sites_cat_services')}</option>
+              <option value="tech">{T('sites_cat_tech')}</option>
+              <option value="business">{T('sites_cat_business')}</option>
+              <option value="local">{T('sites_cat_local')}</option>
+              <option value="other">{T('sites_cat_other')}</option>
             </select>
             <select value={sortBy} onChange={e => setSortBy(e.target.value as 'recent' | 'followers')} className="input text-sm">
-              <option value="followers">Ordenar: seguidores</option>
-              <option value="recent">Ordenar: recentes</option>
+              <option value="followers">{T('sites_filter_sort_followers')}</option>
+              <option value="recent">{T('sites_filter_sort_recent')}</option>
             </select>
             <a
               href="/marketplace/ads"
               className="input text-sm flex items-center justify-center font-semibold text-brand border-brand/40 hover:bg-brand/10"
             >
-              Patrocínios TrustBank →
+              {T('sites_sponsor_cta')}
             </a>
           </div>
         </div>
@@ -143,16 +134,18 @@ export default function SitesDirectoryPage() {
                 <div className="flex flex-wrap items-center justify-center gap-1 mt-1.5 min-h-[22px]">
                   {site.directory_profile_slug && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--bg2)] text-[var(--text2)] border border-[var(--border)]">
-                      {PROFILE_SHORT[site.directory_profile_slug] || site.directory_profile_slug}
+                      {DIRECTORY_PROFILE_I18N_KEYS[site.directory_profile_slug]
+                        ? T(DIRECTORY_PROFILE_I18N_KEYS[site.directory_profile_slug])
+                        : site.directory_profile_slug}
                     </span>
                   )}
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/25">
                     <Users className="w-3 h-3 inline mr-0.5 align-text-bottom" />
-                    {(site.follower_count ?? 0).toLocaleString('pt-BR')}
+                    {(site.follower_count ?? 0).toLocaleString(numLocale)}
                   </span>
                   {site.ad_asking_price_usdc != null && site.ad_asking_price_usdc > 0 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30" title="Valor mínimo indicado pelo criador">
-                      desde US${Number(site.ad_asking_price_usdc).toLocaleString('en-US')}
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30" title={T('ads_price_title')}>
+                      {T('sites_from_usdc').replace('{value}', Number(site.ad_asking_price_usdc).toLocaleString(numLocale))}
                     </span>
                   )}
                 </div>
@@ -174,9 +167,9 @@ export default function SitesDirectoryPage() {
                     href={`/marketplace/ads?slug=${encodeURIComponent(site.slug)}`}
                     className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold border border-amber-500/40 text-amber-500 hover:bg-amber-500/10 transition-all"
                   >
-                    Ads
+                    {T('sites_ads_short')}
                   </a>
-                  <BoostButton targetType="site" targetId={site.id} targetName={site.site_name} compact />
+                  <BoostButton targetType="site" siteId={site.id} slug={site.slug} targetName={site.site_name} compact />
                 </div>
               </div>
             );

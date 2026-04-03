@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Megaphone, ExternalLink } from 'lucide-react';
+import { useI18n, useT } from '@/lib/i18n';
 
 const TB_ORIGIN =
   typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL
@@ -12,7 +13,7 @@ interface MiniSiteAdsPanelProps {
   siteSlug: string;
   siteName: string;
   accentColor: string;
-  /** Preço mínimo em US$ que o criador definiu */
+  /** Minimum weekly rate in US$ set by the creator */
   askingPriceUsdc?: number | null;
   showPricePublic?: boolean;
   profileLabel?: string | null;
@@ -41,6 +42,9 @@ export function MiniSiteAdsPanel({
   bgCard,
   radius,
 }: MiniSiteAdsPanelProps) {
+  const T = useT();
+  const { lang } = useI18n();
+  const numLocale = lang === 'pt' ? 'pt-BR' : 'en-US';
   const [showTip, setShowTip] = useState(false);
 
   const marketplaceUrl = `${TB_ORIGIN}/marketplace/ads?slug=${encodeURIComponent(siteSlug)}&ref=minisite`;
@@ -76,11 +80,10 @@ export function MiniSiteAdsPanel({
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: textColor }}>
-            Patrocínios & anúncios
+            {T('ads_minisite_title')}
           </p>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: textMuted, lineHeight: 1.5 }}>
-            Marcas entram pelo TrustBank: proposta, pagamento (Helio) e repasse ao criador. Passe o rato
-            para ver valores de referência.
+            {T('ads_minisite_intro')}
           </p>
           {(profileLabel || followerCount > 0) && (
             <p style={{ margin: '8px 0 0', fontSize: 11, color: textMuted }}>
@@ -88,7 +91,7 @@ export function MiniSiteAdsPanel({
               {profileLabel && followerCount > 0 && ' · '}
               {followerCount > 0 && (
                 <span>
-                  {followerCount.toLocaleString('pt-BR')} seguidores
+                  {T('ads_followers').replace('{n}', followerCount.toLocaleString(numLocale))}
                 </span>
               )}
             </p>
@@ -103,7 +106,7 @@ export function MiniSiteAdsPanel({
       >
         {hasPrice && showPricePublic && (
           <div
-            title="Valor mínimo semanal para aceitar campanha (definido pelo criador)"
+            title={T('ads_price_title')}
             style={{
               padding: '8px 14px',
               borderRadius: 10,
@@ -116,7 +119,10 @@ export function MiniSiteAdsPanel({
             }}
             onMouseEnter={() => setShowTip(true)}
           >
-            A partir de US${askingPriceUsdc!.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/semana
+            {T('ads_from_weekly').replace(
+              '{value}',
+              askingPriceUsdc!.toLocaleString(numLocale, { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+            )}
           </div>
         )}
         {hasPrice && !showPricePublic && (
@@ -131,11 +137,11 @@ export function MiniSiteAdsPanel({
               color: textMuted,
             }}
           >
-            Valor sob consulta — peça orçamento no TrustBank
+            {T('ads_on_request')}
           </div>
         )}
         {!hasPrice && (
-          <span style={{ fontSize: 12, color: textMuted }}>Orçamento via marketplace TrustBank</span>
+          <span style={{ fontSize: 12, color: textMuted }}>{T('ads_marketline')}</span>
         )}
 
         <a
@@ -156,7 +162,7 @@ export function MiniSiteAdsPanel({
             boxShadow: `0 6px 24px ${accentColor}35`,
           }}
         >
-          Abrir no TrustBank
+          {T('ads_open_trustbank')}
           <ExternalLink style={{ width: 14, height: 14 }} />
         </a>
       </div>
@@ -176,8 +182,9 @@ export function MiniSiteAdsPanel({
           {benchmarkHint && <p style={{ margin: 0 }}>{benchmarkHint}</p>}
           {hasPrice && (
             <p style={{ margin: benchmarkHint ? '6px 0 0' : 0 }}>
-              O criador definiu <strong style={{ color: textColor }}>US${askingPriceUsdc!.toFixed(0)}</strong> como
-              mínimo para aceitar. A marca pode propor acima disso para {siteName || siteSlug}.
+              {T('ads_tip_creator')
+                .replace('{price}', askingPriceUsdc!.toLocaleString(numLocale, { maximumFractionDigits: 0 }))
+                .replace('{name}', siteName || siteSlug)}
             </p>
           )}
         </div>

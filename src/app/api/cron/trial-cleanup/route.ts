@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   let unpublished = 0;
   let deleted = 0;
+  let cancelledDeleted = 0;
 
   const { data: sites } = await db
     .from('mini_sites')
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     const graceEnd = (site as any).trial_grace_until ? new Date((site as any).trial_grace_until) : null;
 
     if ((site as any).published && trialEnd && trialEnd <= now) {
-      const nextGrace = graceEnd || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const nextGrace = graceEnd || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       await db.from('mini_sites').update({
         published: false,
         trial_grace_until: nextGrace.toISOString(),
@@ -64,5 +65,34 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, unpublished, deleted });
+  // Accounts with cancelled subscription and expired grace window (30d)
+  const { data: cancelledSubs } = await db
+    .from('subscriptions' as any)
+    .select('user_id, status, expires_at')
+    .eq('status', 'cancelled')
+    .not('expires_at', 'is', null);
+
+  for (const sub of cancelledSubs || []) {
+    const exp = (sub as any).expires_at ? new Date((sub as any).expires_at) : null;
+    if (!exp || exp > now) continue;
+    const userId = (sub as any).user_id as string;
+    const { data: userSites } = await db.from('mini_sites').select('id,slug').eq('user_id', userId);
+    for (const s of userSites || []) {
+      await Promise.all([
+        db.from('mini_site_links').delete().eq('site_id', (s as any).id),
+        db.from('mini_site_videos').delete().eq('site_id', (s as any).id),
+        (db as any).from('feed_posts').delete().eq('site_id', (s as any).id),
+        (db as any).from('slug_registrations').delete().eq('user_id', userId).eq('slug', (s as any).slug),
+      ]);
+      await db.from('mini_sites').delete().eq('id', (s as any).id);
+    }
+    await (db as any).from('slug_registrations').delete().eq('user_id', userId);
+    await (db as any).from('subscriptions').delete().eq('user_id', userId);
+    try {
+      await (db as any).auth.admin.deleteUser(userId);
+    } catch {}
+    cancelledDeleted += 1;
+  }
+
+  return NextResponse.json({ ok: true, unpublished, deleted, cancelledDeleted });
 }

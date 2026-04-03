@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { Lock, Play, X, CreditCard, Coins, CheckCircle, Loader2, Shield } from 'lucide-react';
+import { Lock, Play, X, CreditCard, CheckCircle, Loader2, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useT } from '@/lib/i18n';
 
 interface PaywallModalProps {
   video: {
@@ -17,12 +18,11 @@ interface PaywallModalProps {
   onUnlocked?: () => void;
 }
 
-type PayMethod = 'usdc' | 'card';
 type Step = 'gate' | 'select' | 'processing' | 'success';
 
 export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnlocked }: PaywallModalProps) {
+  const T = useT();
   const [step, setStep] = useState<Step>('gate');
-  const [method, setMethod] = useState<PayMethod>('usdc');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -33,8 +33,9 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
     setError('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setError('Faça login para continuar.'); setLoading(false); return; }
+      if (!session) { setError(T('paywall_login_required')); setLoading(false); return; }
 
+      const titleFallback = video.title || T('paywall_premium');
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,19 +45,18 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
             id: video.id,
             type: 'video',
             price,
-            creatorWallet,
+            label: T('paywall_cart_label').replace('{title}', titleFallback),
           }],
-          paymentMethod: method,
         }),
       });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
       } else {
-        setError(data.error || 'Erro ao gerar pagamento. Tente novamente.');
+        setError(data.error || T('paywall_checkout_error'));
       }
     } catch {
-      setError('Erro de conexão. Tente novamente.');
+      setError(T('paywall_connection_error'));
     } finally {
       setLoading(false);
     }
@@ -75,25 +75,25 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
           <Lock className="w-9 h-9 text-white/80" />
         </div>
 
-        <h3 className="text-white font-black text-xl mb-1">Conteúdo Exclusivo</h3>
+        <h3 className="text-white font-black text-xl mb-1">{T('paywall_exclusive')}</h3>
         {video.title && <p className="text-white/60 text-sm mb-5 max-w-xs leading-snug">"{video.title}"</p>}
 
-        <div className="flex items-center gap-3 mb-6">
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-full px-4 py-1.5 flex items-center gap-2">
-            <Coins className="w-4 h-4 text-yellow-400" />
-            <span className="text-yellow-300 font-bold text-sm">${price} USDC</span>
+        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-6">
+          <div className="bg-white/10 border border-white/15 rounded-full px-4 py-1.5 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-white/70" />
+            <span className="text-white font-bold text-sm">${price} USD</span>
           </div>
-          <span className="text-white/30 text-xs">ou cartão de crédito</span>
+          <span className="text-white/40 text-xs">{T('paywall_usd_stripe')}</span>
         </div>
 
         <button onClick={() => setStep('select')}
           className="flex items-center gap-2 bg-white text-zinc-900 font-black px-7 py-3 rounded-2xl hover:bg-white/90 transition-all shadow-xl hover:shadow-white/10 text-sm">
-          <Play className="w-4 h-4 fill-zinc-900" /> Desbloquear vídeo
+          <Play className="w-4 h-4 fill-zinc-900" /> {T('paywall_unlock_video')}
         </button>
 
         {creatorName && (
           <p className="text-white/30 text-xs mt-4 flex items-center gap-1">
-            <Shield className="w-3 h-3" /> Pagamento seguro via Helio · Creator: {creatorName}
+            <Shield className="w-3 h-3" /> {T('paywall_creator_line').replace('{name}', creatorName)}
           </p>
         )}
       </div>
@@ -104,7 +104,7 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
   if (step === 'select') return (
     <div className="bg-zinc-950 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-white font-black text-lg">Escolha o pagamento</h3>
+        <h3 className="text-white font-black text-lg">{T('paywall_choose_payment')}</h3>
         {onClose && (
           <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
             <X className="w-5 h-5" />
@@ -116,55 +116,30 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
       <div className="bg-white/5 rounded-xl p-4 mb-5">
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-white/60 text-xs mb-0.5">Desbloqueio de vídeo</p>
-            <p className="text-white font-semibold text-sm line-clamp-1">{video.title || 'Vídeo premium'}</p>
+            <p className="text-white/60 text-xs mb-0.5">{T('paywall_order_unlock')}</p>
+            <p className="text-white font-semibold text-sm line-clamp-1">{video.title || T('paywall_premium_video')}</p>
           </div>
           <p className="text-white font-black text-lg">${price}</p>
         </div>
         <div className="border-t border-white/10 mt-3 pt-3 flex justify-between text-xs text-white/40">
-          <span>Acesso por 24h</span>
-          <span>USDC · Polygon</span>
+          <span>{T('paywall_access_24h')}</span>
+          <span>{T('paywall_usd_stripe')}</span>
         </div>
       </div>
 
-      {/* Payment method selection */}
-      <div className="space-y-3 mb-5">
-        <button onClick={() => setMethod('usdc')}
-          className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${method === 'usdc' ? 'border-yellow-500 bg-yellow-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
-          <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-            <Coins className="w-5 h-5 text-yellow-400" />
-          </div>
-          <div className="text-left">
-            <p className="text-white font-bold text-sm">USDC · Polygon</p>
-            <p className="text-white/40 text-xs">Carteira cripto · Taxas mínimas</p>
-          </div>
-          {method === 'usdc' && <CheckCircle className="w-5 h-5 text-yellow-400 ml-auto" />}
-        </button>
-
-        <button onClick={() => setMethod('card')}
-          className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${method === 'card' ? 'border-blue-500 bg-blue-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}>
-          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-            <CreditCard className="w-5 h-5 text-blue-400" />
-          </div>
-          <div className="text-left">
-            <p className="text-white font-bold text-sm">Cartão de crédito</p>
-            <p className="text-white/40 text-xs">Visa, Mastercard, Amex</p>
-          </div>
-          {method === 'card' && <CheckCircle className="w-5 h-5 text-blue-400 ml-auto" />}
-        </button>
-      </div>
+      <p className="text-white/45 text-xs mb-5 leading-relaxed">{T('paywall_checkout_blurb')}</p>
 
       {error && <p className="text-red-400 text-xs mb-4 text-center">{error}</p>}
 
       <button onClick={handlePayment} disabled={loading}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{ background: method === 'usdc' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff' }}>
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white"
+        type="button">
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-        {loading ? 'Gerando checkout...' : `Pagar $${price} ${method === 'usdc' ? 'USDC' : 'via cartão'}`}
+        {loading ? T('paywall_opening') : T('paywall_pay_usd').replace('${amount}', String(price))}
       </button>
 
       <p className="text-white/25 text-xs text-center mt-3 flex items-center justify-center gap-1">
-        <Shield className="w-3 h-3" /> Pagamento processado com segurança pela Helio
+        <Shield className="w-3 h-3" /> {T('paywall_stripe_processed')}
       </p>
     </div>
   );
@@ -175,11 +150,11 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
       <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
         <CheckCircle className="w-8 h-8 text-green-400" />
       </div>
-      <h3 className="text-white font-black text-lg mb-1">Desbloqueado!</h3>
-      <p className="text-white/50 text-sm mb-5">Aproveite seu vídeo exclusivo por 24 horas.</p>
+      <h3 className="text-white font-black text-lg mb-1">{T('paywall_unlocked_title')}</h3>
+      <p className="text-white/50 text-sm mb-5">{T('paywall_unlocked_body')}</p>
       <button onClick={onUnlocked}
         className="flex items-center gap-2 bg-white text-zinc-900 font-black px-6 py-3 rounded-xl mx-auto hover:bg-white/90 transition-all text-sm">
-        <Play className="w-4 h-4 fill-zinc-900" /> Assistir agora
+        <Play className="w-4 h-4 fill-zinc-900" /> {T('paywall_watch_now')}
       </button>
     </div>
   );

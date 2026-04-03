@@ -108,3 +108,10 @@ body {
 .rich-content img { max-width: 100%; border-radius: 8px; margin: 8px 0; }
 .rich-content iframe { max-width: 100%; border-radius: 8px; margin: 8px 0; }
 @media (max-width: 640px) { .rich-content { font-size: 15px !important; } }
+
+/* Tarô — flip de cartas (módulo místico) */
+.tb-tarot-perspective { perspective: 1000px; }
+.tb-tarot-3d { transform-style: preserve-3d; transition: transform 0.7s; }
+.tb-tarot-backface { backface-visibility: hidden; }
+.tb-tarot-flipped { transform: rotateY(180deg); }
+.tb-tarot-face-back { transform: rotateY(180deg); }

@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
-import { useCart } from '@/store/cart';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Home, Search, ChevronLeft, ChevronRight, Heart, MapPin,
@@ -12,11 +12,19 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BoostButton } from '@/components/ui/BoostButton';
-import { useT } from '@/lib/i18n';
+import { useT, type MessageKey } from '@/lib/i18n';
 
 // ─── Regions ──────────────────────────────────────────────────────────────────
 const REGIONS = ['Todos', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Middle East'];
 const TIPOS   = ['Todos', 'Apartamento', 'Casa', 'Comercial', 'Terreno', 'Studio', 'Fazenda'];
+const TIPO_I18N: Record<string, MessageKey> = {
+  Apartamento: 'imoveis_type_apartment',
+  Casa: 'imoveis_type_house',
+  Comercial: 'imoveis_type_commercial',
+  Terreno: 'imoveis_type_land',
+  Studio: 'imoveis_type_studio',
+  Fazenda: 'imoveis_type_farm',
+};
 const CURRENCIES = ['BRL','USD','EUR','GBP','ARS','MXN','COP','CLP'];
 
 interface Listing {
@@ -52,7 +60,6 @@ function PhotoCarousel({ images, title }: { images: string[]; title: string }) {
       <button onClick={e=>{e.stopPropagation();setLiked(l=>!l)}} className="absolute top-2 left-2 w-8 h-8 rounded-full bg-white/90 shadow flex items-center justify-center z-10 hover:scale-110 transition-all">
         <Heart className={`w-4 h-4 ${liked?'fill-red-500 text-red-500':'text-slate-600'}`}/>
       </button>
-    <Footer />
     </div>
   );
 }
@@ -79,8 +86,18 @@ function Lightbox({ images, startIdx, onClose }: { images:string[]; startIdx:num
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 function DetailModal({ item, onClose }: { item:Listing; onClose:()=>void }) {
+  const T = useT();
   const [lbIdx, setLbIdx] = useState<number|null>(null);
   const images = item.images||[];
+  const tipoKey = item.extra?.tipo ? TIPO_I18N[item.extra.tipo] : null;
+  const tipoLabel = tipoKey ? T(tipoKey) : item.extra?.tipo;
+  const g = item.extra?.garagem;
+  const parkingLabel =
+    g == null
+      ? ''
+      : g === 1
+        ? T('imoveis_parking_1')
+        : T('imoveis_parking_n').replace('{n}', String(g));
   return (
     <>
       {lbIdx!==null && <Lightbox images={images} startIdx={lbIdx} onClose={()=>setLbIdx(null)}/>}
@@ -106,23 +123,23 @@ function DetailModal({ item, onClose }: { item:Listing; onClose:()=>void }) {
               </p>
             </div>
             <div className="flex flex-wrap gap-3 mb-6">
-              {item.extra?.tipo && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><Home className="w-4 h-4 text-blue-500"/><span className="text-sm font-medium">{item.extra.tipo}</span></div>}
-              {item.extra?.quartos!=null && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><Bed className="w-4 h-4 text-blue-500"/><span className="text-sm font-medium">{item.extra.quartos} quartos</span></div>}
-              {item.extra?.banheiros!=null && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><Bath className="w-4 h-4 text-blue-500"/><span className="text-sm font-medium">{item.extra.banheiros} banheiros</span></div>}
+              {item.extra?.tipo && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><Home className="w-4 h-4 text-blue-500"/><span className="text-sm font-medium">{tipoLabel}</span></div>}
+              {item.extra?.quartos!=null && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><Bed className="w-4 h-4 text-blue-500"/><span className="text-sm font-medium">{T('imoveis_rooms').replace('{n}', String(item.extra.quartos))}</span></div>}
+              {item.extra?.banheiros!=null && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><Bath className="w-4 h-4 text-blue-500"/><span className="text-sm font-medium">{T('imoveis_baths').replace('{n}', String(item.extra.banheiros))}</span></div>}
               {item.extra?.m2!=null && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><Maximize2 className="w-4 h-4 text-blue-500"/><span className="text-sm font-medium">{item.extra.m2} m²</span></div>}
-              {item.extra?.garagem!=null && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><span className="text-blue-500">🚗</span><span className="text-sm font-medium">{item.extra.garagem} vaga{item.extra.garagem!==1?'s':''}</span></div>}
+              {item.extra?.garagem!=null && <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl"><span className="text-blue-500">🚗</span><span className="text-sm font-medium">{parkingLabel}</span></div>}
             </div>
-            {item.extra?.descricao && <div className="mb-6"><h3 className="font-bold text-slate-800 dark:text-slate-200 mb-2">Descrição</h3><p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed whitespace-pre-line">{item.extra.descricao}</p></div>}
+            {item.extra?.descricao && <div className="mb-6"><h3 className="font-bold text-slate-800 dark:text-slate-200 mb-2">{T('imoveis_detail_description')}</h3><p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed whitespace-pre-line">{item.extra.descricao}</p></div>}
             {/* Boost */}
             <div className="flex items-center justify-between mb-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
-              <p className="text-xs text-slate-500">Ajude este imóvel a subir nas buscas</p>
+              <p className="text-xs text-slate-500">{T('imoveis_detail_boost_hint')}</p>
               <BoostButton targetType="classified" targetId={item.id} targetName={item.title} compact />
             </div>
             {item.mini_sites && (
               <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center gap-4">
                 {item.mini_sites.avatar_url ? <img src={item.mini_sites.avatar_url} className="w-12 h-12 rounded-full object-cover"/> : <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center"><Home className="w-5 h-5 text-blue-500"/></div>}
-                <div className="flex-1"><p className="font-bold text-slate-900 dark:text-white flex items-center gap-1">{item.mini_sites.site_name}{item.mini_sites.is_verified&&<Shield className="w-4 h-4 text-blue-500"/>}</p><p className="text-xs text-slate-500">Anunciante verificado</p></div>
-                <a href={`https://${item.mini_sites.slug}.trustbank.xyz`} target="_blank" className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors flex-shrink-0">Ver perfil <ExternalLink className="w-3.5 h-3.5"/></a>
+                <div className="flex-1"><p className="font-bold text-slate-900 dark:text-white flex items-center gap-1">{item.mini_sites.site_name}{item.mini_sites.is_verified&&<Shield className="w-4 h-4 text-blue-500"/>}</p><p className="text-xs text-slate-500">{T('imoveis_detail_verified')}</p></div>
+                <a href={`https://${item.mini_sites.slug}.trustbank.xyz`} target="_blank" className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors flex-shrink-0">{T('imoveis_detail_view_profile')} <ExternalLink className="w-3.5 h-3.5"/></a>
               </div>
             )}
           </div>
@@ -134,16 +151,14 @@ function DetailModal({ item, onClose }: { item:Listing; onClose:()=>void }) {
 
 // ─── Advertise Modal ──────────────────────────────────────────────────────────
 function AdvertiseModal({ onClose }: { onClose: ()=>void }) {
+  const T = useT();
+  const router = useRouter();
   const { user } = useAuth();
-  const { add, open: openCart } = useCart();
-  const [step, setStep] = useState<'info'|'confirm'>('info');
 
   const handleStart = () => {
-    if (!user) { toast.error('Faça login primeiro'); return; }
-    add({ id: `classified_imovel_${Date.now()}`, label: 'Anúncio de Imóvel — $1.00 USDC/mês', price: 1, type: 'plan' });
-    toast.success('$1/mês adicionado ao carrinho. Complete o pagamento para ativar!');
-    openCart();
+    if (!user) { toast.error(T('toast_login_first')); return; }
     onClose();
+    router.push('/imoveis/novo');
   };
 
   return (
@@ -151,15 +166,15 @@ function AdvertiseModal({ onClose }: { onClose: ()=>void }) {
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e=>e.stopPropagation()}>
         <div className="text-center mb-5">
           <div className="w-14 h-14 bg-blue-100 dark:bg-blue-950 rounded-2xl flex items-center justify-center mx-auto mb-3"><Home className="w-7 h-7 text-blue-600"/></div>
-          <h3 className="font-black text-xl text-slate-900 dark:text-white">Anunciar Imóvel</h3>
-          <p className="text-slate-500 text-sm mt-1">Entre no diretório global de imóveis</p>
+          <h3 className="font-black text-xl text-slate-900 dark:text-white">{T('imoveis_ad_title')}</h3>
+          <p className="text-slate-500 text-sm mt-1">{T('imoveis_ad_sub')}</p>
         </div>
         <div className="space-y-3 mb-5">
           {[
-            ['🌍','Visibilidade global','Seu imóvel aparece para compradores do mundo todo'],
-            ['📸','Até 10 fotos','Carrossel completo com lightbox'],
-            ['🔗','Link para seu mini site','Compradores vão direto ao seu perfil'],
-            ['💳','$1.00 USDC / mês','Cancele quando quiser'],
+            ['🌍', T('imoveis_ad_feat_global_t'), T('imoveis_ad_feat_global_d')],
+            ['📸', T('imoveis_ad_feat_photos_t'), T('imoveis_ad_feat_photos_d')],
+            ['🔗', T('imoveis_ad_feat_link_t'), T('imoveis_ad_feat_link_d')],
+            ['💳', T('imoveis_ad_price_row'), T('imoveis_ad_cancel_row')],
           ].map(([icon,title,desc])=>(
             <div key={title} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800">
               <span className="text-xl flex-shrink-0">{icon}</span>
@@ -168,9 +183,9 @@ function AdvertiseModal({ onClose }: { onClose: ()=>void }) {
           ))}
         </div>
         <button onClick={handleStart} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-white text-sm" style={{ background:'linear-gradient(135deg,#2563eb,#3b82f6)' }}>
-          <DollarSign className="w-4 h-4"/> Anunciar por $1/mês
+          <DollarSign className="w-4 h-4"/> {T('imoveis_ad_cta')}
         </button>
-        <p className="text-xs text-center text-slate-400 mt-2">Pago via USDC · Polygon · Cancele quando quiser</p>
+        <p className="text-xs text-center text-slate-400 mt-2">{T('imoveis_stripe_note')}</p>
       </div>
     </div>
   );
@@ -241,11 +256,11 @@ export default function ImoveisPage() {
         <div className="max-w-7xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto">
           <Globe className="w-4 h-4 text-slate-400 flex-shrink-0 mt-1.5"/>
           {REGIONS.map(r => (
-            <button key={r} onClick={()=>setRegion(r)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all ${region===r?'bg-blue-600 text-white':'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'}`}>{r}</button>
+            <button key={r} onClick={()=>setRegion(r)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all ${region===r?'bg-blue-600 text-white':'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'}`}>{r === 'Todos' ? T('cv_filter_all') : r}</button>
           ))}
           <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 flex-shrink-0 mx-1 mt-1"/>
           {TIPOS.filter(t=>t!=='Todos').map(t => (
-            <button key={t} onClick={()=>setTipo(tipo===t?'Todos':t)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all ${tipo===t?'bg-indigo-600 text-white':'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'}`}>{t}</button>
+            <button key={t} onClick={()=>setTipo(tipo===t?'Todos':t)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all ${tipo===t?'bg-indigo-600 text-white':'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'}`}>{T(TIPO_I18N[t])}</button>
           ))}
         </div>
       </div>
@@ -270,7 +285,11 @@ export default function ImoveisPage() {
                   <p className="text-xl font-black text-slate-900 dark:text-white">
                     {item.currency||'R$'} {item.price?Number(item.price).toLocaleString():'-'}
                   </p>
-                  {item.extra?.tipo && <span className="text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium border border-blue-100 dark:border-blue-900">{item.extra.tipo}</span>}
+                  {item.extra?.tipo && (
+                    <span className="text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium border border-blue-100 dark:border-blue-900">
+                      {TIPO_I18N[item.extra.tipo] ? T(TIPO_I18N[item.extra.tipo]) : item.extra.tipo}
+                    </span>
+                  )}
                 </div>
                 <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-sm leading-snug line-clamp-2 mb-1.5">{item.title}</h3>
                 {(item.state_city||item.location) && (
@@ -313,6 +332,7 @@ export default function ImoveisPage() {
         <div ref={observerRef} className="h-10"/>
       </div>
 
+      <Footer />
       {selected && <DetailModal item={selected} onClose={()=>setSelected(null)}/>}
     </div>
   );

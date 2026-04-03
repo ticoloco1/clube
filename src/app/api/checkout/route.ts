@@ -1,134 +1,168 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
+import { cartItemToFulfillmentLine } from '@/lib/cartFulfillment';
+import { validateCartCreatorsHaveStripe } from '@/lib/cartConnectValidation';
+import {
+  mysticCheckoutCancelUrl,
+  mysticCheckoutSuccessUrl,
+  mysticDirectCheckoutEligibility,
+} from '@/lib/mysticDirectCheckout';
 
-const HELIO_API_KEY   = process.env.HELIO_API_KEY || process.env.HELIO_SECRET_KEY || process.env.NEXT_PUBLIC_HELIO_API_KEY || '';
-const PLATFORM_WALLET = process.env.NEXT_PUBLIC_PLATFORM_WALLET || '';
-const SITE_URL        = process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbankzero.vercel.app';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').replace(/\/+$/, '');
 
-/** Helio webhook reads meta.type — must match webhook cases (subscription, boost, slug, …) */
-function buildHelioMeta(userId: string, items: { id: string; label: string; price: number; type: string }[]) {
-  const first = items[0];
-  const rawType = first?.type || 'plan';
-
-  let type = rawType;
-  if (rawType === 'plan') type = 'subscription';
-  if ((first?.id || '').startsWith('slug_bid_')) type = 'slug_bid';
-  if (rawType === 'brand_ad') type = 'brand_ad';
-
-  const meta: Record<string, string> = {
-    user_id: userId,
-    userId: userId,
-    type,
-    items: items.map(i => i.id).join(','),
-  };
-
-  if (type === 'subscription') {
-    const m = first.id.match(/^plan_([^_]+)_(mo|yr)$/);
-    if (m) {
-      meta.plan_id = m[1];
-      meta.billing_period = m[2] === 'yr' ? 'yearly' : 'monthly';
-    } else {
-      meta.plan_id = 'pro';
-      meta.billing_period = 'monthly';
-    }
-    meta.item_id = userId;
-  }
-
-  if (type === 'boost') {
-    const m = first.id.match(/^boost_([0-9a-f-]{36})_/i);
-    meta.item_id = m ? m[1] : first.id.replace(/^boost_/, '').replace(/_\d+$/, '');
-    meta.target_type = 'site';
-  }
-
-  if (type === 'slug' || type === 'slug_bid') {
-    const id = first.id;
-    let slugToken = id;
-    if (id.startsWith('slug_')) slugToken = id.slice(5);
-    if (id.startsWith('slug_prem_')) slugToken = id.slice(10);
-    if (id.startsWith('slug_market_')) slugToken = id.slice(12);
-    if (id.startsWith('slug_renewal_')) slugToken = id.replace(/^slug_renewal_/, '');
-    if (id.startsWith('slug_bid_')) slugToken = id.replace(/^slug_bid_/, '');
-    meta.item_id = slugToken;
-  }
-
-  // Pagamento de proposta de anúncio (marketplace) — meta.item_id = UUID da linha ad_proposals
-  if (type === 'brand_ad') {
-    const id = first?.id || '';
-    meta.item_id = id.startsWith('ad_proposal_') ? id.replace(/^ad_proposal_/, '') : id;
-  }
-
-  return { type, meta };
+function getDb() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 }
 
 export async function POST(req: Request) {
   try {
+    const secret = process.env.STRIPE_SECRET_KEY || '';
+    if (!secret) {
+      return NextResponse.json({ error: 'STRIPE_SECRET_KEY missing on server' }, { status: 500 });
+    }
+
+    const stripe = new Stripe(secret);
     const body = await req.json();
-    const { items, userId } = body;
+    const { items, userId } = body as { items: { id: string; label: string; price: number; type: string }[]; userId: string };
 
     if (!items?.length || !userId) {
       return NextResponse.json({ error: 'Missing items or userId' }, { status: 400 });
     }
 
-    const totalAmount = items.reduce((acc: number, item: any) => acc + (Number(item.price) || 0), 0);
-    const { type: purchaseType, meta: metaData } = buildHelioMeta(userId, items);
+    const db = getDb();
+    const lines = items.map((item) => cartItemToFulfillmentLine(item, userId));
 
-    if (!HELIO_API_KEY) {
-      return NextResponse.json({ error: 'HELIO_API_KEY ausente no servidor' }, { status: 500 });
+    const mysticOnly = mysticDirectCheckoutEligibility(lines);
+    const hasMystic = lines.some((l) => l.kind === 'mystic_service');
+    if (hasMystic && !mysticOnly.ok) {
+      return NextResponse.json(
+        {
+          error:
+            'Serviços místicos: coloca só itens deste perfil no carrinho (sem misturar com outros produtos). O pagamento é directo no Stripe do criador.',
+        },
+        { status: 400 },
+      );
     }
 
-    const splitPayments = PLATFORM_WALLET
-      ? [{ address: PLATFORM_WALLET, share: 100 }]
-      : [];
+    const connectOk = await validateCartCreatorsHaveStripe(db, items, userId);
+    if (!connectOk.ok) {
+      return NextResponse.json({ error: connectOk.error }, { status: 400 });
+    }
 
-    const helioBody = {
-      amount: totalAmount.toString(),
-      currency: 'USDC',
-      network: 'polygon',
-      name: `TrustBank · ${purchaseType}`,
-      paymentMethods: ['crypto', 'card'],
-      returnUrl: `${SITE_URL}/dashboard?payment=success`,
-      cancelUrl: `${SITE_URL}/dashboard?payment=cancel`,
-      metaData,
-      ...(splitPayments.length > 0 ? { splitPayments } : {}),
+    const totalUsd = items.reduce((acc, item) => acc + (Number(item.price) || 0), 0);
+    const totalCents = Math.round(totalUsd * 100);
+    if (totalCents < 50) {
+      return NextResponse.json({ error: 'Minimum charge is $0.50 USD' }, { status: 400 });
+    }
+    const storedLines = lines.map(({ userId: _u, ...rest }) => rest);
+
+    let stripeConnectAccountId: string | null = null;
+    let successUrl = `${SITE_URL}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`;
+    let cancelUrl = `${SITE_URL}/dashboard?payment=cancel`;
+
+    if (mysticOnly.ok) {
+      const { data: siteRow } = await db
+        .from('mini_sites')
+        .select('slug, stripe_connect_account_id, stripe_connect_charges_enabled')
+        .eq('id', mysticOnly.siteId)
+        .maybeSingle();
+      const s = siteRow as {
+        slug?: string;
+        stripe_connect_account_id?: string | null;
+        stripe_connect_charges_enabled?: boolean | null;
+      } | null;
+      if (!s?.slug || !s.stripe_connect_account_id || !s.stripe_connect_charges_enabled) {
+        return NextResponse.json({ error: 'Mini-site indisponível para checkout directo.' }, { status: 400 });
+      }
+      stripeConnectAccountId = s.stripe_connect_account_id;
+    }
+
+    const { data: pending, error: pErr } = await db
+      .from('checkout_pending' as any)
+      .insert({
+        user_id: userId,
+        lines: storedLines,
+        stripe_connect_account_id: stripeConnectAccountId,
+      })
+      .select('id')
+      .single();
+
+    if (pErr || !pending) {
+      console.error('[Checkout] pending insert', pErr);
+      return NextResponse.json(
+        { error: 'Could not start checkout. Run supabase-stripe-tables.sql and supabase-minisite-mystic-tarot-loteria.sql.' },
+        { status: 500 },
+      );
+    }
+
+    const pendingId = (pending as { id: string }).id;
+
+    if (mysticOnly.ok && stripeConnectAccountId) {
+      const { data: siteRow } = await db
+        .from('mini_sites')
+        .select('slug')
+        .eq('id', mysticOnly.siteId)
+        .maybeSingle();
+      const slug = (siteRow as { slug?: string } | null)?.slug || '';
+      if (slug) {
+        successUrl = `${mysticCheckoutSuccessUrl(slug, pendingId)}&session_id={CHECKOUT_SESSION_ID}`;
+        cancelUrl = mysticCheckoutCancelUrl(slug);
+      }
+    }
+
+    const sessionCreateParams: Stripe.Checkout.SessionCreateParams = {
+      mode: 'payment',
+      line_items: items.map((item) => ({
+        price_data: {
+          currency: 'usd',
+          product_data: { name: item.label || 'Serviço' },
+          unit_amount: Math.round((Number(item.price) || 0) * 100),
+        },
+        quantity: 1,
+      })),
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: userId,
+      metadata: {
+        pending_id: pendingId,
+        user_id: userId,
+      },
     };
 
-    const endpoints = [
-      'https://api.helio.pay/v1/paylink/create/fixed',
-      'https://api.helio.cash/v1/paylink/create/fixed',
-    ];
-    let helioData: any = null;
-    let lastError: any = null;
-    for (const endpoint of endpoints) {
-      const helioRes = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${HELIO_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(helioBody),
-      });
-      helioData = await helioRes.json().catch(() => ({}));
-      if (helioRes.ok) {
-        lastError = null;
-        break;
-      }
-      lastError = `${endpoint} :: ${helioRes.status} :: ${helioData?.message || helioData?.error || 'unknown'}`;
+    const session =
+      stripeConnectAccountId
+        ? await stripe.checkout.sessions.create(sessionCreateParams, { stripeAccount: stripeConnectAccountId })
+        : await stripe.checkout.sessions.create(sessionCreateParams);
+
+    await db
+      .from('checkout_pending' as any)
+      .update({ stripe_checkout_session_id: session.id })
+      .eq('id', pendingId);
+
+    if (!session.url) {
+      return NextResponse.json({ error: 'Stripe did not return a checkout URL' }, { status: 502 });
     }
 
-    if (lastError) {
-      console.error('[Helio Error]', lastError);
-      return NextResponse.json({ error: `Helio: ${lastError}` }, { status: 502 });
-    }
-
-    const url = helioData?.paylinkUrl || helioData?.url;
-    if (!url) {
-      return NextResponse.json({ error: 'Helio não retornou URL' }, { status: 502 });
-    }
-
-    return NextResponse.json({ url, amount: totalAmount });
-
-  } catch (err: any) {
+    return NextResponse.json({
+      url: session.url,
+      amount: totalUsd,
+      directToCreator: !!stripeConnectAccountId,
+      pendingId,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal error';
     console.error('[Checkout]', err);
-    return NextResponse.json({ error: err?.message || 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+export async function GET() {
+  const stripeOk = !!process.env.STRIPE_SECRET_KEY;
+  return NextResponse.json({
+    ok: true,
+    stripeConfigured: stripeOk,
+    siteUrlConfigured: !!SITE_URL,
+  });
 }

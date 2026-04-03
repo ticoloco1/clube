@@ -1,95 +1,195 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useI18n } from '@/lib/i18n';
 
 interface SlugTickerProps {
-  // Se passado, mostra os slugs do dono do site
   siteUserId?: string;
-  // Se não passado, mostra slugs do marketplace (homepage)
   customItems?: { label: string; url: string }[];
   enabled?: boolean;
 }
 
+type Row =
+  | { kind: 'custom'; slug: string; url: string; label: string }
+  | { kind: 'owner_sale'; slug: string; url: string; price: number }
+  | { kind: 'owner_auc'; slug: string; url: string }
+  | { kind: 'pub_sale'; slug: string; url: string; price: number }
+  | { kind: 'pub_auc'; slug: string; url: string; price: number };
+
+function formatTickerAmount(n: number, locale: string) {
+  return n.toLocaleString(locale, { minimumFractionDigits: 0, maximumFractionDigits: n % 1 === 0 ? 0 : 2 });
+}
+
 export function SlugTicker({ siteUserId, customItems = [], enabled = true }: SlugTickerProps) {
-  const [items, setItems] = useState<{ slug: string; url: string; label: string }[]>([]);
+  const { t, lang } = useI18n();
+  const locale = lang === 'pt' ? 'pt-BR' : 'en-US';
+  const [rows, setRows] = useState<Row[]>([]);
 
   useEffect(() => {
-    if (!enabled) { setItems([]); return; }
+    if (!enabled) {
+      setRows([]);
+      return;
+    }
     const normalizedCustom = (customItems || [])
       .filter((it) => it?.label && it?.url)
-      .map((it, idx) => ({ slug: `custom_${idx}`, label: it.label, url: it.url }));
+      .map((it, idx) => ({
+        kind: 'custom' as const,
+        slug: `custom_${idx}`,
+        label: it.label,
+        url: it.url,
+      }));
     if (normalizedCustom.length > 0) {
-      setItems(normalizedCustom);
+      setRows(normalizedCustom);
       return;
     }
     if (siteUserId) {
-      // Mini-site: mostra slugs do dono que estão em venda/leilão
-      supabase.from('slug_registrations' as any)
+      supabase
+        .from('slug_registrations' as any)
         .select('slug, sale_price, status')
         .eq('user_id', siteUserId)
         .eq('for_sale', true)
         .limit(10)
-        .then(r => {
-          const slugs = (r.data || []).map((s: any) => ({
-            slug: s.slug,
-            url: s.status === 'auction' ? '/slugs?tab=auctions' : '/slugs?tab=market',
-            label: `${s.slug}.trustbank.xyz · ${s.status === 'auction' ? 'Leilão' : `$${s.sale_price || 0} USDC`}`,
-          }));
-          setItems(slugs);
+        .then((r) => {
+          const next: Row[] = (r.data || []).map((s: any) =>
+            s.status === 'auction'
+              ? {
+                  kind: 'owner_auc' as const,
+                  slug: s.slug,
+                  url: '/slugs?tab=auctions',
+                }
+              : {
+                  kind: 'owner_sale' as const,
+                  slug: s.slug,
+                  url: '/slugs?tab=market',
+                  price: Number(s.sale_price || 0),
+                }
+          );
+          setRows(next);
         });
     } else {
-      // Site principal: mistura vendas diretas e leilões ativos
       Promise.all([
-        supabase.from('slug_registrations' as any)
-          .select('slug, sale_price, status')
-          .eq('for_sale', true)
-          .neq('status', 'auction')
-          .order('sale_price', { ascending: true })
-          .limit(12),
-        supabase.from('slug_auctions' as any)
+        fetch('/api/public/slug-market-list?offset=0&limit=24', { cache: 'no-store' })
+          .then(async (r) => {
+            const j = (await r.json().catch(() => ({}))) as { rows?: unknown };
+            if (!r.ok || !Array.isArray(j.rows)) return [] as { slug: string; sale_price: unknown; status?: string | null }[];
+            return j.rows as { slug: string; sale_price: unknown; status?: string | null }[];
+          })
+          .catch(() => []),
+        supabase
+          .from('slug_auctions' as any)
           .select('slug, min_bid, current_bid, status, ends_at')
           .eq('status', 'active')
           .gt('ends_at', new Date().toISOString())
           .order('ends_at', { ascending: true })
           .limit(12),
-      ]).then(([sales, auctions]) => {
-        const saleItems = (sales.data || []).map((s: any) => ({
-          slug: s.slug,
-          url: '/slugs?tab=market',
-          label: `${s.slug}.trustbank.xyz · $${Number(s.sale_price || 0).toLocaleString()} USDC`,
-        }));
-        const auctionItems = (auctions.data || []).map((a: any) => ({
+      ]).then(([saleRowsRaw, auctions]) => {
+        const saleRows: Row[] = saleRowsRaw
+          .filter((s) => (s.status ?? '') !== 'auction')
+          .slice(0, 12)
+          .map((s) => ({
+            kind: 'pub_sale' as const,
+            slug: s.slug,
+            url: '/slugs?tab=market',
+            price: Number(s.sale_price || 0),
+          }));
+        const aucRows: Row[] = (auctions.data || []).map((a: any) => ({
+          kind: 'pub_auc' as const,
           slug: a.slug,
           url: '/slugs?tab=auctions',
-          label: `${a.slug}.trustbank.xyz · leilão $${Number(a.current_bid || a.min_bid || 0).toLocaleString()}`,
+          price: Number(a.current_bid || a.min_bid || 0),
         }));
-        setItems([...saleItems, ...auctionItems]);
+        setRows([...saleRows, ...aucRows]);
       });
     }
   }, [siteUserId, customItems, enabled]);
 
+  const items = useMemo(() => {
+    return rows.map((r) => {
+      if (r.kind === 'custom') {
+        return { slug: r.slug, url: r.url, label: r.label, parts: null as null };
+      }
+      const slugHost = `${r.slug}.trustbank.xyz`;
+      if (r.kind === 'owner_auc') {
+        return {
+          slug: r.slug,
+          url: r.url,
+          label: t('ticker_owner_auction').replace('{slug}', slugHost),
+          parts: null as null,
+        };
+      }
+      if (r.kind === 'owner_sale') {
+        const priceFmt = formatTickerAmount(r.price, locale);
+        return {
+          slug: r.slug,
+          url: r.url,
+          label: t('ticker_owner_sale').replace('{slug}', slugHost).replace('{price}', priceFmt),
+          parts: { host: slugHost, sep: '·', price: priceFmt, suffix: 'USD' } as const,
+        };
+      }
+      if (r.kind === 'pub_sale') {
+        const priceFmt = formatTickerAmount(r.price, locale);
+        return {
+          slug: r.slug,
+          url: r.url,
+          label: t('ticker_public_sale').replace('{slug}', slugHost).replace('{price}', priceFmt),
+          parts: { host: slugHost, sep: '·', price: priceFmt, suffix: 'USD' } as const,
+        };
+      }
+      const priceFmt = formatTickerAmount(r.price, locale);
+      return {
+        slug: r.slug,
+        url: r.url,
+        label: t('ticker_public_auction').replace('{slug}', slugHost).replace('{price}', priceFmt),
+        parts: null as null,
+      };
+    });
+  }, [rows, t, locale]);
+
   if (items.length === 0) return null;
 
-  // Triple for seamless loop
   const repeated = [...items, ...items, ...items];
 
   return (
-    <div className="overflow-hidden border-b border-[var(--border)]"
-      style={{ background: 'linear-gradient(90deg,#0a0a0f,#0f1020,#0a0a0f)', height: 36 }}>
-      <div className="flex items-center h-full"
-        style={{ animation: 'slugTicker 35s linear infinite', width: 'max-content' }}>
+    <div
+      className="overflow-hidden border-b border-[var(--border)]"
+      style={{ background: 'linear-gradient(90deg,#0a0a0f,#0f1020,#0a0a0f)', height: 36 }}
+    >
+      <div
+        className="flex items-center h-full"
+        style={{ animation: 'slugTicker 35s linear infinite', width: 'max-content' }}
+      >
         {repeated.map((item, i) => {
           const len = item.slug.length;
           const color = len <= 3 ? '#f59e0b' : len <= 5 ? '#818cf8' : '#34d399';
           return (
-            <a key={i} href={item.url} target={siteUserId ? '_blank' : '_self'}
+            <a
+              key={i}
+              href={item.url}
+              target={siteUserId ? '_blank' : '_self'}
               rel="noopener"
-              className="inline-flex items-center gap-2 mx-5 group hover:opacity-80 transition-opacity"
-              style={{ flexShrink: 0, textDecoration: 'none' }}>
-              <span className="font-mono font-black text-sm"
-                style={{ color, textShadow: `0 0 8px ${color}50` }}>
-                {item.label}
-              </span>
+              className="inline-flex items-center gap-3 mx-5 group hover:opacity-80 transition-opacity"
+              style={{ flexShrink: 0, textDecoration: 'none' }}
+            >
+              {item.parts ? (
+                <>
+                  <span className="font-mono font-black text-sm" style={{ color, textShadow: `0 0 8px ${color}50` }}>
+                    {item.parts.host}
+                  </span>
+                  <span className="text-white/25 text-xs font-bold px-0.5" aria-hidden>
+                    {item.parts.sep}
+                  </span>
+                  <span className="font-mono font-black text-sm tabular-nums" style={{ color, textShadow: `0 0 8px ${color}50` }}>
+                    $ {item.parts.price}
+                    {item.parts.suffix ? (
+                      <span className="text-white/70 font-bold text-xs ml-1.5">{item.parts.suffix}</span>
+                    ) : null}
+                  </span>
+                </>
+              ) : (
+                <span className="font-mono font-black text-sm" style={{ color, textShadow: `0 0 8px ${color}50` }}>
+                  {item.label}
+                </span>
+              )}
               {siteUserId && (
                 <span className="text-white/30 text-xs group-hover:text-white/60 transition-colors">↗</span>
               )}

@@ -3,54 +3,72 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMySite } from '@/hooks/useSite';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/store/cart';
-import { slugPrice, extractYouTubeId } from '@/lib/utils';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { extractYouTubeId } from '@/lib/utils';
+import {
+  slugRegistrationDueUsd,
+  slugLengthTierUsd,
+  isSlugReservedAdminOnly,
+  SLUG_EXTRA_REGISTRATION_USD,
+} from '@/lib/slugPolicy';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useT } from '@/lib/i18n';
+import { useT, useI18n } from '@/lib/i18n';
 import {
   Save, Eye, Upload, Plus, X, Loader2,
   Globe, Link2, Video, FileText, ChevronDown,
-  Image as ImageIcon, Shield, GripVertical, ExternalLink
+  Image as ImageIcon, Shield, GripVertical, ExternalLink,   CreditCard, Sparkles,
+  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone,
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { CVEditor, type CVData } from '@/components/editor/CVEditor';
+import { SeoTrafficMeter, GoogleSerpPreview, buildDefaultSeoTitle } from '@/components/editor/SeoToolkit';
+import { LIVELY_AVATAR_MODELS } from '@/lib/livelyAvatarModels';
+import { FLOATING_PRESETS } from '@/lib/floatingAgentPresets';
+import { IdentityLabPanel } from '@/components/editor/IdentityLabPanel';
+import { CreatorStudioPanel } from '@/components/editor/CreatorStudioPanel';
+import { AvatarCharacterInspirationPanel } from '@/components/editor/AvatarCharacterInspirationPanel';
+import { readSiteAiBudget } from '@/lib/aiUsdBudget';
+import { SiteCopilotPanel } from '@/components/editor/SiteCopilotPanel';
+import { TrustGenesisHub } from '@/components/editor/TrustGenesisHub';
+import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
+import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
 
-// ── 30 Themes ─────────────────────────────────────────────────────────────────
+// ── 30 Themes (rótulos: T(`ed_theme_${id}`)) ───────────────────────────────────
 const THEMES = [
-  { id:'midnight',  label:'Midnight',   emoji:'🌑', bg:'#0d1117', text:'#e6edf3', accent:'#818cf8' },
-  { id:'noir',      label:'Noir',       emoji:'⬛', bg:'#000000', text:'#ffffff', accent:'#ffffff' },
-  { id:'neon',      label:'Neon',       emoji:'🌆', bg:'#0a0015', text:'#fce7f3', accent:'#c084fc' },
-  { id:'gold',      label:'Gold',       emoji:'✨', bg:'#0c0900', text:'#fef3c7', accent:'#fde68a' },
-  { id:'ocean',     label:'Ocean',      emoji:'🌊', bg:'#020c18', text:'#e0f2fe', accent:'#38bdf8' },
-  { id:'rose',      label:'Rose',       emoji:'🌹', bg:'#1a0010', text:'#ffe4e6', accent:'#fb7185' },
-  { id:'forest',    label:'Forest',     emoji:'🌿', bg:'#0a1a0a', text:'#dcfce7', accent:'#4ade80' },
-  { id:'aurora',    label:'Aurora',     emoji:'🌌', bg:'#050218', text:'#e0e7ff', accent:'#818cf8' },
-  { id:'steel',     label:'Steel',      emoji:'🔩', bg:'#1a1f2e', text:'#c8d3e0', accent:'#94a3b8' },
-  { id:'matrix',    label:'Matrix',     emoji:'💻', bg:'#000800', text:'#00ff41', accent:'#00ff41' },
-  { id:'nebula',    label:'Nebula',     emoji:'🔮', bg:'#0d0520', text:'#f3e8ff', accent:'#a855f7' },
-  { id:'ember',     label:'Ember',      emoji:'🔥', bg:'#1c0800', text:'#ffedd5', accent:'#f97316' },
-  { id:'arctic',    label:'Arctic',     emoji:'🧊', bg:'#0a1628', text:'#e0f2fe', accent:'#7dd3fc' },
-  { id:'volcanic',  label:'Volcanic',   emoji:'🌋', bg:'#1a0505', text:'#fecaca', accent:'#ef4444' },
-  { id:'hex',       label:'Hex',        emoji:'⬡',  bg:'#0f1923', text:'#e2e8f0', accent:'#06b6d4' },
-  { id:'ivory',     label:'Ivory',      emoji:'🤍', bg:'#fafafa', text:'#18181b', accent:'#6366f1' },
-  { id:'editorial', label:'Editorial',  emoji:'📰', bg:'#fffbf5', text:'#1c1917', accent:'#78716c' },
-  { id:'sky',       label:'Sky',        emoji:'🩵', bg:'#f0f9ff', text:'#0c4a6e', accent:'#0ea5e9' },
-  { id:'mint',      label:'Mint',       emoji:'🌱', bg:'#f0fdf4', text:'#14532d', accent:'#16a34a' },
-  { id:'lavender',  label:'Lavender',   emoji:'💜', bg:'#faf5ff', text:'#4c1d95', accent:'#7c3aed' },
-  { id:'peach',     label:'Peach',      emoji:'🍑', bg:'#fff7ed', text:'#7c2d12', accent:'#ea580c' },
-  { id:'lemon',     label:'Lemon',      emoji:'🍋', bg:'#fefce8', text:'#713f12', accent:'#ca8a04' },
-  { id:'blush',     label:'Blush',      emoji:'🌸', bg:'#fdf2f8', text:'#831843', accent:'#db2777' },
-  { id:'paper',     label:'Paper',      emoji:'📜', bg:'#faf8f4', text:'#3d2b1f', accent:'#92400e' },
-  { id:'geo',       label:'Geometric',  emoji:'📐', bg:'#f8fafc', text:'#1e293b', accent:'#6366f1' },
-  { id:'cream',     label:'Cream',      emoji:'🧈', bg:'#fdf6e3', text:'#3b2f1e', accent:'#b45309' },
-  { id:'cloud',     label:'Cloud',      emoji:'☁️', bg:'#f8f9ff', text:'#1e3a5f', accent:'#3b82f6' },
-  { id:'sand',      label:'Sand',       emoji:'🏖️', bg:'#fdf4e7', text:'#44260a', accent:'#d97706' },
-  { id:'nordic',    label:'Nordic',     emoji:'🇸🇪', bg:'#f5f5f0', text:'#2d2d2a', accent:'#4b7bb5' },
-  { id:'sakura',    label:'Sakura',     emoji:'🌺', bg:'#fff1f5', text:'#4a1530', accent:'#e11d79' },
-];
+  { id:'midnight',  emoji:'🌑', bg:'#0d1117', text:'#e6edf3', accent:'#818cf8' },
+  { id:'noir',      emoji:'⬛', bg:'#000000', text:'#ffffff', accent:'#ffffff' },
+  { id:'neon',      emoji:'🌆', bg:'#0a0015', text:'#fce7f3', accent:'#c084fc' },
+  { id:'gold',      emoji:'✨', bg:'#0c0900', text:'#fef3c7', accent:'#fde68a' },
+  { id:'ocean',     emoji:'🌊', bg:'#020c18', text:'#e0f2fe', accent:'#38bdf8' },
+  { id:'rose',      emoji:'🌹', bg:'#1a0010', text:'#ffe4e6', accent:'#fb7185' },
+  { id:'forest',    emoji:'🌿', bg:'#0a1a0a', text:'#dcfce7', accent:'#4ade80' },
+  { id:'aurora',    emoji:'🌌', bg:'#050218', text:'#e0e7ff', accent:'#818cf8' },
+  { id:'steel',     emoji:'🔩', bg:'#1a1f2e', text:'#c8d3e0', accent:'#94a3b8' },
+  { id:'matrix',    emoji:'💻', bg:'#000800', text:'#00ff41', accent:'#00ff41' },
+  { id:'nebula',    emoji:'🔮', bg:'#0d0520', text:'#f3e8ff', accent:'#a855f7' },
+  { id:'ember',     emoji:'🔥', bg:'#1c0800', text:'#ffedd5', accent:'#f97316' },
+  { id:'arctic',    emoji:'🧊', bg:'#0a1628', text:'#e0f2fe', accent:'#7dd3fc' },
+  { id:'volcanic',  emoji:'🌋', bg:'#1a0505', text:'#fecaca', accent:'#ef4444' },
+  { id:'hex',       emoji:'⬡',  bg:'#0f1923', text:'#e2e8f0', accent:'#06b6d4' },
+  { id:'ivory',     emoji:'🤍', bg:'#fafafa', text:'#18181b', accent:'#6366f1' },
+  { id:'editorial', emoji:'📰', bg:'#fffbf5', text:'#1c1917', accent:'#78716c' },
+  { id:'sky',       emoji:'🩵', bg:'#f0f9ff', text:'#0c4a6e', accent:'#0ea5e9' },
+  { id:'mint',      emoji:'🌱', bg:'#f0fdf4', text:'#14532d', accent:'#16a34a' },
+  { id:'lavender',  emoji:'💜', bg:'#faf5ff', text:'#4c1d95', accent:'#7c3aed' },
+  { id:'peach',     emoji:'🍑', bg:'#fff7ed', text:'#7c2d12', accent:'#ea580c' },
+  { id:'lemon',     emoji:'🍋', bg:'#fefce8', text:'#713f12', accent:'#ca8a04' },
+  { id:'blush',     emoji:'🌸', bg:'#fdf2f8', text:'#831843', accent:'#db2777' },
+  { id:'paper',     emoji:'📜', bg:'#faf8f4', text:'#3d2b1f', accent:'#92400e' },
+  { id:'geo',       emoji:'📐', bg:'#f8fafc', text:'#1e293b', accent:'#6366f1' },
+  { id:'cream',     emoji:'🧈', bg:'#fdf6e3', text:'#3b2f1e', accent:'#b45309' },
+  { id:'cloud',     emoji:'☁️', bg:'#f8f9ff', text:'#1e3a5f', accent:'#3b82f6' },
+  { id:'sand',      emoji:'🏖️', bg:'#fdf4e7', text:'#44260a', accent:'#d97706' },
+  { id:'nordic',    emoji:'🇸🇪', bg:'#f5f5f0', text:'#2d2d2a', accent:'#4b7bb5' },
+  { id:'sakura',    emoji:'🌺', bg:'#fff1f5', text:'#4a1530', accent:'#e11d79' },
+] as const;
 
 const BRAND_COLORS: Record<string,string> = {
   instagram:'#E1306C', youtube:'#FF0000', tiktok:'#000000', twitter:'#1DA1F2',
@@ -72,10 +90,22 @@ const SOCIAL_URL_TEMPLATES: Record<string, string> = {
 
 export default function EditorPage() {
   const { user, loading: authLoading } = useAuth();
-  const { site, loading: siteLoading, save } = useMySite();
+  const { site, loading: siteLoading, save, reload } = useMySite();
   const { add: addToCart, open: openCart } = useCart();
   const router = useRouter();
   const T = useT();
+  const { lang } = useI18n();
+  const iaBudget = useMemo(() => readSiteAiBudget(site ?? undefined), [site]);
+  const modLab = useMemo(
+    () => ({
+      links: T('ed_mod_links'),
+      videos: T('ed_mod_videos'),
+      cv: T('ed_mod_cv'),
+      feed: T('ed_mod_feed'),
+      ads: T('ed_mod_ads'),
+    }),
+    [T, lang],
+  );
 
   // ── Profile state ────────────────────────────────────────────────────────
   const [siteName,     setSiteName]     = useState('');
@@ -95,6 +125,34 @@ export default function EditorPage() {
   const [seoTitle,     setSeoTitle]     = useState('');
   const [seoDescription, setSeoDescription] = useState('');
   const [seoOgImage,   setSeoOgImage]   = useState('');
+  const [seoSearchTags, setSeoSearchTags] = useState<string[]>([]);
+  const [seoJsonLd, setSeoJsonLd] = useState('');
+  const [seoTagDraft, setSeoTagDraft] = useState('');
+  const [magicDescLoading, setMagicDescLoading] = useState(false);
+  const [suggestTagsLoading, setSuggestTagsLoading] = useState(false);
+  const [seoPackLoading, setSeoPackLoading] = useState(false);
+  const [livelyAvatarEnabled, setLivelyAvatarEnabled] = useState(false);
+  const [livelyAvatarModel, setLivelyAvatarModel] = useState('neo');
+  const [livelyAvatarWelcome, setLivelyAvatarWelcome] = useState('');
+  const [livelyNftVerifyLoading, setLivelyNftVerifyLoading] = useState(false);
+  const [livelyCentralMagic, setLivelyCentralMagic] = useState(false);
+  const [livelyFloatingPreset, setLivelyFloatingPreset] = useState('classic');
+  const [livelyFloatingExpressive, setLivelyFloatingExpressive] = useState(false);
+  const [livelyDualAgent, setLivelyDualAgent] = useState(false);
+  const [livelyAgentInstructions, setLivelyAgentInstructions] = useState('');
+  const [livelyElevenOwner, setLivelyElevenOwner] = useState('');
+  const [livelyElevenAgent, setLivelyElevenAgent] = useState('');
+  const [livelyPremiumVerifyLoading, setLivelyPremiumVerifyLoading] = useState(false);
+  const [livelySuggestWelcomeBusy, setLivelySuggestWelcomeBusy] = useState(false);
+  const [scriptsAdsDialogOpen, setScriptsAdsDialogOpen] = useState(false);
+  const [livelyProfileAsAvatar, setLivelyProfileAsAvatar] = useState(false);
+  const [livelyProfileSpeakOnEntry, setLivelyProfileSpeakOnEntry] = useState(true);
+  const [livelyProfileSpeechTap, setLivelyProfileSpeechTap] = useState('');
+  const [livelyProfileSpeechBeforeReply, setLivelyProfileSpeechBeforeReply] = useState('');
+  const [identityPortraitUrl, setIdentityPortraitUrl] = useState('');
+  const [identityStylePreset, setIdentityStylePreset] = useState<IdentityStyleId>('buccaneer');
+  const [identityVoiceEffect, setIdentityVoiceEffect] = useState<VoiceEffectId>('neutral');
+  const [magicPortraitEnabled, setMagicPortraitEnabled] = useState(false);
 
   // ── Theme state ──────────────────────────────────────────────────────────
   const [theme,       setTheme]       = useState('midnight');
@@ -131,13 +189,14 @@ export default function EditorPage() {
   // ── Feed state ───────────────────────────────────────────────────────────
   const [showFeed,    setShowFeed]    = useState(true);
   const [feedCols,    setFeedCols]    = useState<1|2|3>(1);
-  const [moduleOrder, setModuleOrder] = useState(['links','videos','cv','feed','ads']);
+  const [moduleOrder, setModuleOrder] = useState(['links','videos','cv','feed']);
   const [pageWidth, setPageWidth] = useState<number>(600);
   const [sitePages,   setSitePages]   = useState<{id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[]>([{id:'home',label:'Home',template:'default'}]);
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
-  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed','ads'] });
+  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed'] });
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
-  const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({ home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 } });
+  const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({ home: { links: 1, videos: 1, cv: 1, feed: 1 } });
+  const [clearAllArmed, setClearAllArmed] = useState<Record<string, boolean>>({});
   const [adAskingPrice, setAdAskingPrice] = useState('');
   const [adShowPricePublic, setAdShowPricePublic] = useState(true);
   const [directoryProfileSlug, setDirectoryProfileSlug] = useState('');
@@ -157,10 +216,14 @@ export default function EditorPage() {
   const [cvHireCurrency, setCvHireCurrency] = useState('USD');
   const [cvHireType, setCvHireType] = useState('hour');
   const [cvFree, setCvFree] = useState(false);
+  const [mysticPublicEnabled, setMysticPublicEnabled] = useState(false);
+  const [mysticTarotPrice, setMysticTarotPrice] = useState('4.99');
+  const [mysticLotteryPrice, setMysticLotteryPrice] = useState('2.99');
   const [sectionOrder, setSectionOrder] = useState<string[]>(['summary','experience','education','skills','projects','languages','certificates','contact']);
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [activeTab,       setActiveTab]       = useState('profile');
+  const [livePreviewTab, setLivePreviewTab]   = useState<'minisite' | 'google'>('minisite');
   const [saving,          setSaving]          = useState(false);
   const [lastSaved,       setLastSaved]       = useState<Date|null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -170,16 +233,57 @@ export default function EditorPage() {
   const isDirty = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const [trialHours, setTrialHours] = useState(24);
-  const [graceDays, setGraceDays] = useState(7);
+  const [graceDays, setGraceDays] = useState(30);
   const ADMIN_BYPASS_EMAIL = 'arytcf@gmail.com';
   const [isAdminBypass, setIsAdminBypass] = useState(false);
+  const [userSlugRegCount, setUserSlugRegCount] = useState(0);
   const [creatingSite, setCreatingSite] = useState(false);
   const [newSiteSlug, setNewSiteSlug] = useState('');
-  const [newSiteName, setNewSiteName] = useState('My Site');
+  const [newSiteName, setNewSiteName] = useState('');
+  const [showSchemaHint, setShowSchemaHint] = useState(false);
+  const [stripeOnboarding, setStripeOnboarding] = useState(false);
+  /** Evita repor slug/campos a cada refresh do objeto `site` (load após save) */
+  const editorHydratedForSiteId = useRef<string | null>(null);
+  const stripeReturnHandled = useRef(false);
 
-  // ── Load site data ────────────────────────────────────────────────────────
+  const enforceHomeFixedModules = useCallback((mods: string[]) => {
+    const unique = Array.from(new Set(mods));
+    const withoutFixed = unique.filter((m) => m !== 'links' && m !== 'feed');
+    return ['links', 'feed', ...withoutFixed];
+  }, []);
+
+  const trialGraceEndsAt = (site as any)?.trial_grace_until ? new Date((site as any).trial_grace_until) : null;
+  const inGraceWindow = !published && !isAdminBypass && !!trialGraceEndsAt && trialGraceEndsAt > new Date();
+  const graceDaysLeft = inGraceWindow
+    ? Math.max(0, Math.ceil((trialGraceEndsAt!.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : 0;
+
+  useEffect(() => {
+    if (stripeReturnHandled.current || typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const stripe = sp.get('stripe');
+    if (!stripe) return;
+    stripeReturnHandled.current = true;
+    void reload().then(() => {
+      if (stripe === 'done') toast.success(T('ed_stripe_return_done'));
+      else if (stripe === 'refresh') toast.message(T('ed_stripe_return_refresh'));
+      router.replace('/editor');
+    });
+  }, [reload, router, T]);
+
+  const stripePayoutsReady = !!(site as any)?.stripe_connect_account_id && (site as any)?.stripe_connect_charges_enabled;
+  const mysticTarotNum = parseFloat(String(mysticTarotPrice).replace(',', '.')) || 0;
+  const mysticLotteryNum = parseFloat(String(mysticLotteryPrice).replace(',', '.')) || 0;
+  const monetizationNeedsStripe =
+    (paywallEnabled && parseFloat(String(paywallPrice).replace(',', '.')) > 0)
+    || (cvLocked && !cvFree && parseFloat(String(cvPrice).replace(',', '.')) > 0)
+    || (mysticPublicEnabled && (mysticTarotNum >= 0.5 || mysticLotteryNum >= 0.5));
+
+  // ── Load site data (uma vez por mini-site; não sobrescreve enquanto editas o mesmo id) ──
   useEffect(() => {
     if (!site) return;
+    if (editorHydratedForSiteId.current === site.id) return;
+    editorHydratedForSiteId.current = site.id;
     setSiteName(site.site_name || '');
     setSlug(site.slug || '');
     setBio(site.bio || '');
@@ -203,9 +307,52 @@ export default function EditorPage() {
         if (Array.isArray(parsed)) setTickerItems(parsed.filter((x: any) => x?.label && x?.url));
       }
     } catch {}
-    setSeoTitle((site as any).seo_title || '');
+    if (!((site as any).ticker_items?.length)) {
+      setTickerItems([
+        { label: 'Open my links', url: `https://${site.slug}.trustbank.xyz` },
+        { label: 'Sponsorships', url: 'https://trustbank.xyz/marketplace/ads' },
+      ]);
+    }
+    const savedSeoTitle = (site as any).seo_title;
+    setSeoTitle(
+      typeof savedSeoTitle === 'string' && savedSeoTitle.trim() !== ''
+        ? savedSeoTitle
+        : buildDefaultSeoTitle(site.slug || '', site.site_name || ''),
+    );
     setSeoDescription((site as any).seo_description || '');
     setSeoOgImage((site as any).seo_og_image || '');
+    const rawTags = (site as any).seo_search_tags;
+    if (Array.isArray(rawTags)) setSeoSearchTags(rawTags.map(String).filter(Boolean));
+    else setSeoSearchTags([]);
+    setSeoJsonLd(typeof (site as any).seo_json_ld === 'string' ? (site as any).seo_json_ld : '');
+    setLivelyAvatarEnabled((site as any).lively_avatar_enabled === true);
+    setLivelyAvatarModel((site as any).lively_avatar_model || 'neo');
+    setLivelyAvatarWelcome(typeof (site as any).lively_avatar_welcome === 'string' ? (site as any).lively_avatar_welcome : '');
+    setLivelyCentralMagic((site as any).lively_central_magic === true);
+    setLivelyFloatingPreset((site as any).lively_floating_preset || 'classic');
+    setLivelyFloatingExpressive((site as any).lively_floating_expressive === true);
+    setLivelyDualAgent((site as any).lively_dual_agent === true);
+    setLivelyAgentInstructions(typeof (site as any).lively_agent_instructions === 'string' ? (site as any).lively_agent_instructions : '');
+    setLivelyElevenOwner(typeof (site as any).lively_elevenlabs_voice_owner === 'string' ? (site as any).lively_elevenlabs_voice_owner : '');
+    setLivelyElevenAgent(typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : '');
+    setLivelyProfileAsAvatar((site as any).lively_profile_as_avatar === true);
+    setLivelyProfileSpeakOnEntry((site as any).lively_profile_speak_on_entry !== false);
+    setLivelyProfileSpeechTap(typeof (site as any).lively_profile_speech_tap === 'string' ? (site as any).lively_profile_speech_tap : '');
+    setLivelyProfileSpeechBeforeReply(
+      typeof (site as any).lively_profile_speech_before_reply === 'string' ? (site as any).lively_profile_speech_before_reply : '',
+    );
+    setIdentityPortraitUrl(typeof (site as any).identity_portrait_url === 'string' ? (site as any).identity_portrait_url : '');
+    const isp = (site as any).identity_style_preset;
+    setIdentityStylePreset(
+      isp === 'buccaneer' || isp === 'glitch' || isp === 'manga_hero' || isp === 'galactic_knight' ? isp : 'buccaneer',
+    );
+    const ive = (site as any).identity_voice_effect;
+    setIdentityVoiceEffect(
+      ive === 'neutral' || ive === 'buccaneer' || ive === 'glitch' || ive === 'manga_hero' || ive === 'galactic_knight'
+        ? ive
+        : 'neutral',
+    );
+    setMagicPortraitEnabled((site as any).magic_portrait_enabled === true);
     setTheme(site.theme || 'midnight');
     setAccentColor(site.accent_color || '#818cf8');
     setPhotoShape(site.photo_shape || 'round');
@@ -229,6 +376,17 @@ export default function EditorPage() {
     setCvHireCurrency((site as any).cv_hire_currency || 'USD');
     setCvHireType((site as any).cv_hire_type || 'hour');
     setCvFree(Boolean((site as any).cv_free));
+    setMysticPublicEnabled((site as any).mystic_public_enabled === true);
+    setMysticTarotPrice(
+      (site as any).mystic_tarot_price_usd != null && String((site as any).mystic_tarot_price_usd) !== ''
+        ? String((site as any).mystic_tarot_price_usd)
+        : '4.99',
+    );
+    setMysticLotteryPrice(
+      (site as any).mystic_lottery_premium_price_usd != null && String((site as any).mystic_lottery_premium_price_usd) !== ''
+        ? String((site as any).mystic_lottery_premium_price_usd)
+        : '2.99',
+    );
     setSectionOrder((site as any).section_order || ['summary','experience','education','skills','projects','languages','certificates','contact']);
     setShowFeed((site as any).show_feed !== false);
     setFeedCols((site as any).feed_cols || 1);
@@ -243,7 +401,7 @@ export default function EditorPage() {
     if ((site as any).site_pages) {
       try { setSitePages(JSON.parse((site as any).site_pages)); } catch {}
     }
-    if ((site as any).page_width) setPageWidth((site as any).page_width);
+    if ((site as any).page_width) setPageWidth(Math.min(1010, Number((site as any).page_width) || 600));
     if ((site as any).page_contents) {
       try { setPageContents(JSON.parse((site as any).page_contents)); } catch {}
     }
@@ -261,9 +419,9 @@ export default function EditorPage() {
               mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 };
               return;
             }
-            const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed','ads'];
+            const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
             const cols = [1,2,3].includes(Number(raw?.columns)) ? Number(raw.columns) as 1|2|3 : 1;
-            pm[pageId] = modules;
+            pm[pageId] = pageId === 'home' ? enforceHomeFixedModules(modules) : modules;
             pc[pageId] = cols;
             mc[pageId] = {
               links: [1,2,3].includes(Number(raw?.moduleColumns?.links)) ? Number(raw.moduleColumns.links) as 1|2|3 : 1,
@@ -282,6 +440,18 @@ export default function EditorPage() {
   }, [site]);
 
   useEffect(() => {
+    if (!site) editorHydratedForSiteId.current = null;
+  }, [site]);
+
+  useEffect(() => {
+    if (!user?.id) { setUserSlugRegCount(0); return; }
+    (supabase as any).from('slug_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .then(({ count }: any) => setUserSlugRegCount(typeof count === 'number' ? count : 0));
+  }, [user?.id]);
+
+  useEffect(() => {
     const enforceTrialLifecycle = async () => {
       if (!site?.id || !user?.id) return;
       const { data: sub } = await supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user?.id).maybeSingle();
@@ -294,10 +464,10 @@ export default function EditorPage() {
       const graceEnd = graceEndRaw ? new Date(graceEndRaw) : null;
 
       if (site.published && trialEnd && trialEnd <= now) {
-        const nextGrace = graceEnd || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const nextGrace = graceEnd || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
         await save({ published: false, trial_grace_until: nextGrace.toISOString() } as any);
         setPublished(false);
-        toast.error('Trial expired. Your mini-site is now in a 7-day grace period.');
+        toast.error(T('err_trial_expired'));
         return;
       }
 
@@ -309,7 +479,7 @@ export default function EditorPage() {
           (supabase as any).from('slug_registrations').delete().eq('user_id', user.id).eq('slug', site.slug),
         ]);
         await supabase.from('mini_sites').delete().eq('id', site.id).eq('user_id', user.id);
-        toast.error('Grace period ended. Profile data was removed and slug returned to marketplace.');
+        toast.error(T('err_grace_ended'));
       }
     };
     enforceTrialLifecycle();
@@ -328,7 +498,7 @@ export default function EditorPage() {
     (supabase as any).from('platform_settings').select('key,value').in('key', ['trial_hours', 'grace_days']).then(({ data }: any) => {
       (data || []).forEach((s: any) => {
         if (s.key === 'trial_hours') setTrialHours(Math.max(1, Number(s.value) || 24));
-        if (s.key === 'grace_days') setGraceDays(Math.max(1, Number(s.value) || 7));
+        if (s.key === 'grace_days') setGraceDays(Math.max(30, Number(s.value) || 30));
       });
     });
   }, []);
@@ -356,8 +526,9 @@ export default function EditorPage() {
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
       showCv, cvLocked, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
-      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
-      adAskingPrice, adShowPricePublic, directoryProfileSlug, siteCategorySlug]);
+      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, seoSearchTags, seoJsonLd,       livelyAvatarEnabled, livelyAvatarModel, livelyAvatarWelcome, livelyCentralMagic, livelyFloatingPreset, livelyFloatingExpressive, livelyDualAgent, livelyAgentInstructions, livelyElevenOwner, livelyElevenAgent, identityPortraitUrl, identityStylePreset, identityVoiceEffect, magicPortraitEnabled, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
+      adAskingPrice, adShowPricePublic, directoryProfileSlug, siteCategorySlug,
+      mysticPublicEnabled, mysticTarotPrice, mysticLotteryPrice]);
 
   // ── Upload helper ─────────────────────────────────────────────────────────
   const uploadToStorage = async (file: File, folder: string): Promise<string> => {
@@ -368,6 +539,246 @@ export default function EditorPage() {
     return supabase.storage.from('platform-assets').getPublicUrl(path).data.publicUrl;
   };
 
+  const seoAssistPayload = () => ({
+    siteName: siteName.trim(),
+    bio: bio.trim(),
+    slug: slug.trim(),
+    cvHeadline: cvHeadline.trim(),
+    cvSkills: cvSkills.split(',').map((s) => s.trim()).filter(Boolean),
+    links: links.map((l: { title?: string; url?: string }) => ({ title: l.title, url: l.url })),
+    pageLabels: sitePages.map((p) => p.label),
+    category: siteCategorySlug.trim() || undefined,
+    subcategory: directoryProfileSlug.trim() || undefined,
+  });
+
+  const notifySearchEnginesPublished = () => {
+    const s = slug.trim().toLowerCase();
+    if (!s) return;
+    void fetch('/api/seo/notify-published', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ slug: s }),
+    }).catch(() => {});
+  };
+
+  const runMagicDescription = async () => {
+    if (!site?.id || magicDescLoading) return;
+    setMagicDescLoading(true);
+    try {
+      const res = await fetch('/api/editor/seo-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId: site.id,
+          action: 'magic_description',
+          payload: seoAssistPayload(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : T('ed_seo_ai_error'));
+        return;
+      }
+      const d = typeof data.description === 'string' ? data.description : '';
+      if (d) {
+        setSeoDescription(d.slice(0, 160));
+        markDirty();
+        toast.success(T('ed_seo_magic_done'));
+      }
+    } catch {
+      toast.error(T('ed_seo_ai_error'));
+    } finally {
+      setMagicDescLoading(false);
+    }
+  };
+
+  const runSuggestSearchTags = async () => {
+    if (!site?.id || suggestTagsLoading) return;
+    setSuggestTagsLoading(true);
+    try {
+      const res = await fetch('/api/editor/seo-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId: site.id,
+          action: 'suggest_keywords',
+          payload: seoAssistPayload(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : T('ed_seo_ai_error'));
+        return;
+      }
+      const tags = Array.isArray(data.tags) ? data.tags : [];
+      if (!tags.length) return;
+      setSeoSearchTags((prev) => {
+        const next = [...prev];
+        for (const t of tags) {
+          const x = String(t).trim();
+          if (x && !next.includes(x) && next.length < 16) next.push(x);
+        }
+        return next;
+      });
+      markDirty();
+      toast.success(T('ed_seo_tags_done'));
+    } catch {
+      toast.error(T('ed_seo_ai_error'));
+    } finally {
+      setSuggestTagsLoading(false);
+    }
+  };
+
+  const runSeoPack = async () => {
+    if (!site?.id || seoPackLoading) return;
+    setSeoPackLoading(true);
+    try {
+      const res = await fetch('/api/editor/seo-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId: site.id,
+          action: 'seo_pack',
+          payload: seoAssistPayload(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : T('ed_seo_ai_error'));
+        return;
+      }
+      const st = typeof data.pack?.seoTitle === 'string' ? data.pack.seoTitle.trim() : '';
+      const sd = typeof data.pack?.seoDescription === 'string' ? data.pack.seoDescription.trim() : '';
+      const jld = typeof data.seoJsonLd === 'string' ? data.seoJsonLd.trim() : '';
+      if (st) setSeoTitle(st.slice(0, 70));
+      if (sd) setSeoDescription(sd.slice(0, 160));
+      if (jld) setSeoJsonLd(jld);
+      const services = Array.isArray(data.pack?.services) ? data.pack.services : [];
+      if (services.length) {
+        setSeoSearchTags((prev) => {
+          const next = [...prev];
+          for (const x of services) {
+            const t = String(x).trim();
+            if (t && !next.includes(t) && next.length < 16) next.push(t);
+          }
+          return next;
+        });
+      }
+      const intro = typeof data.pack?.intro === 'string' ? data.pack.intro.trim() : '';
+      if (intro && !bio.trim()) {
+        setBio(intro.slice(0, 2500));
+      }
+      markDirty();
+      toast.success(T('ed_seo_pack_done'));
+    } catch {
+      toast.error(T('ed_seo_ai_error'));
+    } finally {
+      setSeoPackLoading(false);
+    }
+  };
+
+  const runVerifyLivelyNft = async () => {
+    if (!user?.id || livelyNftVerifyLoading) return;
+    setLivelyNftVerifyLoading(true);
+    try {
+      const res = await fetch('/api/lively-avatar/verify-nft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : T('ed_lively_nft_fail'));
+        return;
+      }
+      toast.success(T('ed_lively_nft_ok'));
+      await reload();
+    } catch {
+      toast.error(T('ed_lively_nft_fail'));
+    } finally {
+      setLivelyNftVerifyLoading(false);
+    }
+  };
+
+  const runVerifyPremiumNft = async () => {
+    if (!user?.id || livelyPremiumVerifyLoading) return;
+    setLivelyPremiumVerifyLoading(true);
+    try {
+      const res = await fetch('/api/lively-avatar/verify-nft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: 'premium' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : T('ed_lively_premium_fail'));
+        return;
+      }
+      toast.success(T('ed_lively_premium_ok'));
+      await reload();
+    } catch {
+      toast.error(T('ed_lively_premium_fail'));
+    } finally {
+      setLivelyPremiumVerifyLoading(false);
+    }
+  };
+
+  const runSuggestLivelyWelcome = async () => {
+    const slug = site?.slug?.trim();
+    if (!slug || livelySuggestWelcomeBusy) return;
+    setLivelySuggestWelcomeBusy(true);
+    try {
+      const res = await fetch('/api/lively-avatar/suggest-welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : T('ed_lively_suggest_fail'));
+        return;
+      }
+      const w = typeof data.welcome === 'string' ? data.welcome.trim() : '';
+      if (w) {
+        setLivelyAvatarWelcome(w.slice(0, 500));
+        markDirty();
+        toast.success(T('ed_lively_suggest_ok'));
+      }
+    } catch {
+      toast.error(T('ed_lively_suggest_fail'));
+    } finally {
+      setLivelySuggestWelcomeBusy(false);
+    }
+  };
+
+  const runSuggestAdPrice = async () => {
+    if (!site?.id || suggestingPrice) return;
+    setSuggestingPrice(true);
+    try {
+      const res = await fetch('/api/pricing-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteId: site.id }),
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Falha');
+      const v = data.ai?.min_usd_week ?? data.heuristic?.base ?? data.heuristic?.min;
+      if (v != null && !Number.isNaN(Number(v))) {
+        setAdAskingPrice(String(Math.round(Number(v))));
+        markDirty();
+        toast.success(T('ed_toast_price_suggest_ok'));
+      } else {
+        toast.info(T('ed_toast_price_suggest_none'));
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Unexpected error');
+    } finally {
+      setSuggestingPrice(false);
+    }
+  };
+
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async (silent = false) => {
     if (!user || !site) return;
@@ -375,8 +786,10 @@ export default function EditorPage() {
     try {
       const combinedPageModules: Record<string, any> = {};
       sitePages.forEach((p) => {
+        const rawModules = pageModules[p.id] || (p.id === 'home' ? moduleOrder : []);
+        const modules = p.id === 'home' ? enforceHomeFixedModules(rawModules) : rawModules;
         combinedPageModules[p.id] = {
-          modules: pageModules[p.id] || (p.id === 'home' ? moduleOrder : []),
+          modules,
           columns: pageColumns[p.id] || 1,
           moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 },
         };
@@ -421,7 +834,7 @@ export default function EditorPage() {
         feed_cols:     feedCols,
         module_order:  JSON.stringify(moduleOrder),
         site_pages:    JSON.stringify(sitePages),
-        page_width: pageWidth,
+        page_width: Math.min(1010, Math.max(320, pageWidth)),
         page_contents: JSON.stringify(pageContents),
         page_modules: JSON.stringify(combinedPageModules),
         wallet_address: walletAddr,
@@ -431,6 +844,26 @@ export default function EditorPage() {
         seo_title: seoTitle || null,
         seo_description: seoDescription || null,
         seo_og_image: seoOgImage || null,
+        seo_search_tags: seoSearchTags.length ? seoSearchTags : [],
+        seo_json_ld: seoJsonLd.trim() || null,
+        lively_avatar_enabled: livelyAvatarEnabled,
+        lively_avatar_model: livelyAvatarModel || 'neo',
+        lively_avatar_welcome: livelyAvatarWelcome.trim() || null,
+        lively_central_magic: livelyCentralMagic,
+        lively_floating_preset: livelyFloatingPreset || 'classic',
+        lively_floating_expressive: livelyFloatingExpressive,
+        lively_dual_agent: livelyDualAgent,
+        lively_agent_instructions: livelyAgentInstructions.trim() || null,
+        lively_elevenlabs_voice_owner: livelyElevenOwner.trim() || null,
+        lively_elevenlabs_voice_agent: livelyElevenAgent.trim() || null,
+        lively_profile_as_avatar: livelyProfileAsAvatar,
+        lively_profile_speak_on_entry: livelyProfileSpeakOnEntry,
+        lively_profile_speech_tap: livelyProfileSpeechTap.trim() || null,
+        lively_profile_speech_before_reply: livelyProfileSpeechBeforeReply.trim() || null,
+        identity_portrait_url: identityPortraitUrl.trim() || null,
+        identity_style_preset: identityStylePreset || null,
+        identity_voice_effect: identityVoiceEffect || 'neutral',
+        magic_portrait_enabled: magicPortraitEnabled,
         published,
         ad_asking_price_usdc: (() => {
           const t = adAskingPrice.trim();
@@ -442,10 +875,17 @@ export default function EditorPage() {
         ad_show_price_public: adShowPricePublic,
         directory_profile_slug: directoryProfileSlug.trim() || null,
         site_category_slug: siteCategorySlug.trim() || null,
+        mystic_public_enabled: mysticPublicEnabled,
+        mystic_tarot_price_usd: Math.max(0.5, mysticTarotNum || 4.99),
+        mystic_lottery_premium_price_usd: Math.max(0.5, mysticLotteryNum || 2.99),
       } as any);
 
       // Handle slug change
       if (slug !== site.slug) {
+        if (!isAdminBypass && isSlugReservedAdminOnly(slug)) {
+          if (!silent) toast.error(T('err_slug_reserved'));
+          return;
+        }
         if (isAdminBypass) {
           await supabase.from('mini_sites').update({ slug }).eq('id', site.id).eq('user_id', user.id);
           const { data: owned } = await (supabase as any).from('slug_registrations').select('id').eq('user_id', user.id).eq('slug', slug).maybeSingle();
@@ -458,7 +898,7 @@ export default function EditorPage() {
               expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
             });
           }
-          if (!silent) toast.success(`✅ Slug ${slug}.trustbank.xyz aplicado (admin bypass)!`);
+          if (!silent) toast.success(T('toast_slug_admin_bypass').replace('{slug}', slug));
           isDirty.current = false;
           setLastSaved(new Date());
           return;
@@ -467,8 +907,7 @@ export default function EditorPage() {
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id);
         const ownCount = typeof count === 'number' ? count : 0;
-        const basePrice = slugPrice(slug);
-        const price = basePrice > 0 ? basePrice : (ownCount > 0 ? 12 : 0);
+        const price = slugRegistrationDueUsd(slug, ownCount);
         if (price > 0) {
           // Check if user already owns this slug
           const { data: owned } = await (supabase as any)
@@ -476,10 +915,10 @@ export default function EditorPage() {
             .eq('user_id', user.id).eq('slug', slug).maybeSingle();
           if (owned) {
             await supabase.from('mini_sites').update({ slug }).eq('id', site.id).eq('user_id', user.id);
-            if (!silent) toast.success(`✅ Slug ${slug}.trustbank.xyz aplicado!`);
+            if (!silent) toast.success(T('toast_slug_applied').replace('{slug}', slug));
           } else {
             addToCart({ id:`slug_${slug}`, label:`Slug: ${slug}.trustbank.xyz`, price, type:'slug' });
-            if (!silent) { openCart(); toast.success(`Slug adicionado ao carrinho!`); }
+            if (!silent) { openCart(); toast.success(T('toast_slug_cart').replace('{slug}', slug)); }
           }
         } else {
           const { data: existing } = await (supabase as any)
@@ -494,15 +933,21 @@ export default function EditorPage() {
             });
           }
           await supabase.from('mini_sites').update({ slug }).eq('id', site.id).eq('user_id', user.id);
-          if (!silent) toast.success(`✅ ${slug}.trustbank.xyz`);
+          if (!silent) toast.success(T('toast_slug_domain_ok').replace('{slug}', slug));
         }
       }
 
       isDirty.current = false;
       setLastSaved(new Date());
-      if (!silent) toast.success('✅ Salvo!');
+      if (!silent) toast.success(T('toast_saved'));
     } catch (e: any) {
-      toast.error('Error: ' + e.message);
+      const msg = String(e?.message || '');
+      const isSchemaColumnIssue =
+        /could not find.*column/i.test(msg) ||
+        /schema cache/i.test(msg) ||
+        /column .* does not exist/i.test(msg);
+      if (isSchemaColumnIssue) setShowSchemaHint(true);
+      toast.error(T('toast_error_prefix') + msg);
     } finally {
       setSaving(false);
     }
@@ -517,7 +962,7 @@ export default function EditorPage() {
     }).select().single();
     if (data) setLinks(prev => [...prev, data]);
     setLinkTitle(''); setLinkUrl(''); setLinkColor('');
-    toast.success('Link added!');
+    toast.success(T('toast_link_added'));
   };
 
   const deleteLink = async (id: string) => {
@@ -539,11 +984,11 @@ export default function EditorPage() {
   const addVideo = async () => {
     if (!ytUrl || !site?.id) return;
     if (!site.is_verified) {
-      toast.error('Verify your YouTube channel (Verify tab) before publishing videos.');
+      toast.error(T('err_youtube_verify_first'));
       return;
     }
     const ytId = extractYouTubeId(ytUrl);
-    if (!ytId) { toast.error('Invalid YouTube URL'); return; }
+    if (!ytId) { toast.error(T('toast_invalid_youtube')); return; }
     await supabase.from('mini_site_videos').insert({
       site_id: site.id, youtube_video_id: ytId,
       title: ytTitle || 'Video', paywall_enabled: paywallEnabled,
@@ -552,7 +997,7 @@ export default function EditorPage() {
     supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order')
       .then(r => setVideos(r.data || []));
     setYtUrl(''); setYtTitle('');
-    toast.success('Video added!');
+    toast.success(T('toast_video_added'));
   };
 
   const deleteVideo = async (id: string) => {
@@ -573,9 +1018,9 @@ export default function EditorPage() {
       const data = await res.json();
       if (data.verified) {
         await supabase.from('mini_sites').update({ is_verified: true, youtube_channel_id: data.channelId }).eq('id', site.id);
-        toast.success('✅ Channel verified!');
+        toast.success(T('toast_channel_verified'));
       } else {
-        const allow = window.confirm(`${data?.message || 'Backlink not found on channel.'}\n\nDo you want to verify manually anyway?`);
+        const allow = window.confirm(`${data?.message || T('toast_backlink_not_found')}\n\n${T('ed_verify_manual_confirm')}`);
         if (allow) {
           const res2 = await fetch('/api/verify-youtube', {
             method: 'POST',
@@ -585,15 +1030,15 @@ export default function EditorPage() {
           const data2 = await res2.json();
           if (data2.verified) {
             await supabase.from('mini_sites').update({ is_verified: true, youtube_channel_id: data2.channelId }).eq('id', site.id);
-            toast.success('✅ Channel verified (manual confirmation).');
+            toast.success(T('toast_channel_verified_manual'));
           } else {
-            toast.error(data2?.message || 'Verification failed');
+            toast.error(data2?.message || T('toast_verification_failed'));
           }
         } else {
-          toast.error('Backlink not found on channel');
+          toast.error(T('toast_backlink_not_found'));
         }
       }
-    } catch { toast.error('Verification error'); }
+    } catch { toast.error(T('toast_verification_error')); }
     setVerifying(false);
   };
 
@@ -611,27 +1056,24 @@ export default function EditorPage() {
         <Header />
         <div className="max-w-2xl mx-auto px-4 py-14">
           <div className="card p-6 space-y-4">
-            <h1 className="font-black text-xl text-[var(--text)] mb-1">Criar mini-site</h1>
-            <p className="text-sm text-[var(--text2)]">
-              Escolhe o <strong>slug</strong> (endereço) antes de criar — só letras minúsculas, números e hífen.
-              Não usamos mais um código automático com letras/números aleatórios.
-            </p>
+            <h1 className="font-black text-xl text-[var(--text)] mb-1">{T('ed_create_title')}</h1>
+            <p className="text-sm text-[var(--text2)]">{T('ed_create_body')}</p>
             <div>
-              <label className="text-xs font-bold text-[var(--text2)] block mb-1">Nome do site</label>
+              <label className="text-xs font-bold text-[var(--text2)] block mb-1">{T('ed_label_site_name')}</label>
               <input
                 value={newSiteName}
                 onChange={e => setNewSiteName(e.target.value)}
                 className="input w-full"
-                placeholder="My Site"
+                placeholder={T('ed_placeholder_portfolio')}
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-[var(--text2)] block mb-1">Slug (username)</label>
+              <label className="text-xs font-bold text-[var(--text2)] block mb-1">{T('ed_label_slug_username')}</label>
               <input
                 value={newSiteSlug}
                 onChange={e => setNewSiteSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 className="input w-full font-mono"
-                placeholder="omeunome"
+                placeholder={T('ed_placeholder_slug_user')}
               />
               <p className="text-xs text-brand mt-1 font-mono">
                 {slugPreview}.trustbank.xyz
@@ -643,7 +1085,7 @@ export default function EditorPage() {
                 onClick={() => window.location.reload()}
                 className="btn-secondary"
               >
-                Recarregar
+                {T('ed_reload')}
               </button>
               <button
                 type="button"
@@ -651,21 +1093,31 @@ export default function EditorPage() {
                   if (!user?.id) return;
                   const clean = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
                   if (clean.length < 2) {
-                    toast.error('Slug deve ter pelo menos 2 caracteres (a-z, 0-9, -).');
+                    toast.error(T('err_slug_min_2'));
+                    return;
+                  }
+                  const nameTrim = newSiteName.trim();
+                  if (!nameTrim) {
+                    toast.error(T('err_site_name_required'));
                     return;
                   }
                   setCreatingSite(true);
                   try {
                     await save({
-                      site_name: newSiteName.trim() || 'My Site',
+                      site_name: nameTrim,
                       slug: clean,
                       bio: '',
                       published: false,
                     } as any);
-                    toast.success('Mini-site criado.');
-                    window.location.reload();
+                    toast.success(T('toast_mini_site_created'));
+                    /* Sem reload: evita corrida com sessão/Supabase e o hook já faz load() após gravar */
                   } catch (e: unknown) {
-                    const msg = e instanceof Error ? e.message : 'Falha ao criar';
+                    const msg = e instanceof Error ? e.message : T('err_create_failed');
+                    const isSchemaColumnIssue =
+                      /could not find.*column/i.test(msg) ||
+                      /schema cache/i.test(msg) ||
+                      /column .* does not exist/i.test(msg);
+                    if (isSchemaColumnIssue) setShowSchemaHint(true);
                     toast.error(msg);
                   } finally {
                     setCreatingSite(false);
@@ -674,14 +1126,14 @@ export default function EditorPage() {
                 className="btn-primary"
                 disabled={creatingSite}
               >
-                {creatingSite ? 'A criar…' : 'Criar mini-site'}
+                {creatingSite ? T('ed_creating') : T('ed_create_site_btn')}
               </button>
             </div>
-            <p className="text-xs text-amber-400/90 border border-amber-500/30 rounded-xl p-3">
-              Se ao gravar aparecer erro de coluna em falta (ex.: <code className="text-amber-200">banner_fit</code>),
-              executa no Supabase o ficheiro <code className="text-amber-200">supabase-mini-sites-editor-columns.sql</code> e
-              recarrega o schema da API.
-            </p>
+            {showSchemaHint && (
+              <p className="text-xs text-amber-400/90 border border-amber-500/30 rounded-xl p-3">
+                {T('ed_schema_migration_hint')}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -689,6 +1141,79 @@ export default function EditorPage() {
   }
 
   const currentTheme = THEMES.find(t => t.id === theme) || THEMES[0];
+  const coachSnapshot = useMemo(() => {
+    if (!site?.id) return {};
+    return {
+      siteName: siteName.trim(),
+      slug: slug.trim(),
+      bio: bio.trim().slice(0, 1200),
+      theme,
+      accentColor,
+      photoShape,
+      paywall: {
+        anyVideoPaywall: videos.some((v: { paywall_enabled?: boolean }) => v.paywall_enabled),
+        defaultPriceHint: paywallPrice,
+      },
+      links: links.map((l) => ({
+        title: l.title,
+        url: String(l.url || '').slice(0, 220),
+        icon: l.icon,
+      })),
+      videos: videos.map((v: { title?: string; paywall_enabled?: boolean; paywall_price?: number }) => ({
+        title: v.title,
+        paywall: !!v.paywall_enabled,
+        price: v.paywall_price,
+      })),
+      cv: {
+        headline: cvHeadline.trim().slice(0, 220),
+        contentPreview: cvContent.trim().slice(0, 3500),
+        skills: cvSkills.trim().slice(0, 500),
+        location: cvLocation.trim().slice(0, 160),
+        showCv,
+      },
+      seo: {
+        title: seoTitle.trim().slice(0, 80),
+        description: seoDescription.trim().slice(0, 200),
+        tagsCount: seoSearchTags.length,
+      },
+      pages: sitePages.map((p) => ({
+        label: p.label,
+        contentChars: (pageContents[p.id] || '').length,
+        template: p.template,
+      })),
+      feed: {
+        count: feedPosts.length,
+        samples: feedPosts.slice(0, 10).map((p: { text?: string }) => String(p.text || '').slice(0, 220)),
+      },
+      moduleOrder,
+      showFeed,
+    };
+  }, [
+    site?.id,
+    siteName,
+    slug,
+    bio,
+    theme,
+    accentColor,
+    photoShape,
+    paywallPrice,
+    links,
+    videos,
+    cvHeadline,
+    cvContent,
+    cvSkills,
+    cvLocation,
+    showCv,
+    seoTitle,
+    seoDescription,
+    seoSearchTags.length,
+    sitePages,
+    pageContents,
+    feedPosts,
+    moduleOrder,
+    showFeed,
+  ]);
+
   const siteUrl = site?.slug ? `https://${site.slug}.trustbank.xyz` : null;
   const managePreviewUrl = site?.slug ? `/s/${site.slug}?manage=1` : null;
   const photoSizePx: Record<string,number> = { sm:72, md:96, lg:128, xl:160 };
@@ -700,10 +1225,12 @@ export default function EditorPage() {
     { id:'links',   label:T('ed_links'),   icon:Link2 },
     { id:'videos',  label:T('ed_videos'),  icon:Video },
     { id:'cv',      label:T('ed_cv'),      icon:FileText },
-    { id:'feed',    label:'Feed',        icon:ChevronDown },
-    { id:'pages',   label:'Pages',     icon:FileText },
-    { id:'seo',     label:'SEO',         icon:Globe },
-    { id:'verify',  label:'Verify',         icon:Shield },
+    { id:'feed',    label:T('ed_feed'),    icon:ChevronDown },
+    { id:'pages',   label:T('ed_pages'),   icon:FileText },
+    { id:'seo',     label:T('ed_seo'),     icon:Globe },
+    { id:'copilot', label:T('ed_copilot_tab'), icon:Wand2 },
+    { id:'ia',     label:T('ed_ia_tab'),     icon:Cpu },
+    { id:'verify',  label:T('ed_verify'),  icon:Shield },
   ];
 
   return (
@@ -723,8 +1250,8 @@ export default function EditorPage() {
           <div className="flex-1" />
           <div className="flex items-center gap-2 flex-shrink-0">
             {isDirty.current
-              ? <span className="text-xs text-amber-400 font-semibold">● Unsaved</span>
-              : lastSaved && <span className="text-xs text-green-500">✓ {lastSaved.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'})}</span>}
+              ? <span className="text-xs text-amber-400 font-semibold">{T('ed_unsaved')}</span>
+              : lastSaved && <span className="text-xs text-green-500">{T('ed_saved_at')} {lastSaved.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</span>}
             <button onClick={() => handleSave()} disabled={saving}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold border border-[var(--border)] hover:border-brand/50 transition-all">
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -737,12 +1264,13 @@ export default function EditorPage() {
               </a>
             )}
             <button onClick={async () => {
-              if (!user?.id) { toast.error('Please sign in'); return; }
+              if (!user?.id) { toast.error(T('toast_sign_in_required')); return; }
               if (isAdminBypass) {
                 await save({ published: true } as any);
                 setPublished(true);
                 markDirty();
-                toast.success('✅ Published via admin bypass.');
+                notifySearchEnginesPublished();
+                toast.success(T('toast_published_admin'));
                 return;
               }
               const { data: sub } = await supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user.id).maybeSingle();
@@ -756,24 +1284,63 @@ export default function EditorPage() {
                   await save({ trial_publish_until: trialEnd, trial_grace_until: graceEnd, trial_notice_sent_at: null, published: true } as any);
                   setPublished(true);
                   markDirty();
-                  toast.success('🎉 Published for a free 24h trial. Subscribe to keep it online after that.');
+                  notifySearchEnginesPublished();
+                  toast.success(T('toast_trial_published'));
                   return;
                 }
-                toast.error('Free trial already used. Subscribe to keep your mini-site online.');
+                toast.error(T('toast_trial_used'));
                 router.push('/planos');
                 return;
               }
               setPublished(true); markDirty();
               await handleSave(true);
               await save({ published: true } as any);
-              toast.success('🎉 Published!');
+              notifySearchEnginesPublished();
+              toast.success(T('toast_published_ok'));
             }} className="px-4 py-1.5 rounded-xl text-sm font-black text-white"
               style={{ background: published ? '#22c55e' : 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
-              {published ? '✓ Live' : T('ed_publish')}
+              {published ? T('ed_live') : T('ed_publish')}
             </button>
           </div>
         </div>
       </div>
+
+      {inGraceWindow && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs sm:text-sm font-semibold text-amber-200">
+              {T('ed_grace_banner').replace('{days}', String(graceDaysLeft))}
+            </p>
+            <a href="/planos" className="text-xs sm:text-sm font-black text-amber-300 underline underline-offset-2 hover:text-amber-200">
+              {T('ed_grace_cta')}
+            </a>
+          </div>
+        </div>
+      )}
+
+      {site?.id && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <TrustGenesisHub
+            siteId={site.id}
+            snapshot={coachSnapshot}
+            markDirty={markDirty}
+            setBio={setBio}
+            setCvHeadline={setCvHeadline}
+            setCvContent={setCvContent}
+            setSeoTitle={setSeoTitle}
+            setSeoDescription={setSeoDescription}
+            setShowCv={setShowCv}
+            onPrefillLink={(title, url) => {
+              setLinkTitle(title);
+              setLinkUrl(url);
+            }}
+            onNavigateTab={setActiveTab}
+            onAppendLivelyInstructions={(s) => {
+              setLivelyAgentInstructions((prev) => (prev + `\n\n${s}`).slice(0, 2000));
+            }}
+          />
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* ── Main panel ── */}
@@ -782,11 +1349,17 @@ export default function EditorPage() {
           {/* PROFILE */}
           {activeTab === 'profile' && (
             <div className="card p-6 space-y-5">
-              <h2 className="font-black text-lg text-[var(--text)]">Profile</h2>
-              {!walletAddr.trim() && (
+              <h2 className="font-black text-lg text-[var(--text)]">{T('ed_profile_section')}</h2>
+              {monetizationNeedsStripe && !stripePayoutsReady && (
                 <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                  <p className="text-xs font-bold text-amber-300">Set wallet to receive payments</p>
-                  <p className="text-xs text-amber-200/90">Add Polygon wallet below so paid content and payouts work correctly.</p>
+                  <p className="text-xs font-bold text-amber-300">{T('ed_stripe_warn_title')}</p>
+                  <p className="text-xs text-amber-200/90">{T('ed_stripe_warn_body')}</p>
+                </div>
+              )}
+              {!walletAddr.trim() && (
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] px-3 py-2">
+                  <p className="text-xs font-bold text-[var(--text2)]">{T('ed_wallet_warn_title')}</p>
+                  <p className="text-xs text-[var(--text2)]/90">{T('ed_wallet_warn_body')}</p>
                 </div>
               )}
 
@@ -806,29 +1379,29 @@ export default function EditorPage() {
                         const f = e.target.files?.[0]; if (!f) return;
                         setUploadingAvatar(true);
                         try { const url = await uploadToStorage(f, 'avatars'); setAvatarUrl(url); markDirty(); }
-                        catch { toast.error('Upload failed'); }
+                        catch { toast.error(T('toast_upload_failed')); }
                         setUploadingAvatar(false);
                       }} />
                   </label>
                 </div>
                 <div className="flex-1 space-y-3">
                   <div>
-                    <label className="label block mb-1">Display Name</label>
+                    <label className="label block mb-1">{T('ed_label_display_name')}</label>
                     <input value={siteName} onChange={e => { setSiteName(e.target.value); markDirty(); }}
-                      className="input" placeholder="Your Name" />
+                      className="input" placeholder={T('ed_ph_display_name')} />
                   </div>
                   <div>
-                    <label className="label block mb-1">Banner (wide image)</label>
+                    <label className="label block mb-1">{T('ed_label_banner')}</label>
                     <div className="flex items-center gap-2">
                       <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-[var(--border)] cursor-pointer hover:border-brand/50 text-sm text-[var(--text2)] transition-all flex-1">
                         {uploadingBanner ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                        {bannerUrl ? 'Change banner' : 'Upload banner'}
+                        {bannerUrl ? T('ed_banner_change') : T('ed_banner_upload')}
                         <input type="file" accept="image/*" className="hidden" disabled={uploadingBanner}
                           onChange={async e => {
                             const f = e.target.files?.[0]; if (!f) return;
                             setUploadingBanner(true);
                             try { const url = await uploadToStorage(f, 'banners'); setBannerUrl(url); markDirty(); }
-                            catch { toast.error('Upload failed'); }
+                            catch { toast.error(T('toast_upload_failed')); }
                             setUploadingBanner(false);
                           }} />
                       </label>
@@ -863,26 +1436,26 @@ export default function EditorPage() {
                               className="w-full" />
                           </div>
                           <div>
-                            <label className="label block mb-1 text-xs">Banner Focus Y</label>
+                            <label className="label block mb-1 text-xs">{T('ed_banner_focus_y')}</label>
                             <input type="range" min={0} max={100} value={bannerFocusY}
                               onChange={e => { setBannerFocusY(Number(e.target.value)); markDirty(); }}
                               className="w-full" />
                           </div>
                           <div>
-                            <label className="label block mb-1 text-xs">Banner Zoom</label>
+                            <label className="label block mb-1 text-xs">{T('ed_banner_zoom')}</label>
                             <input type="range" min={50} max={150} value={bannerZoom}
                               onChange={e => { setBannerZoom(Number(e.target.value)); markDirty(); }}
                               className="w-full" />
                           </div>
                           <div>
-                            <label className="label block mb-1 text-xs">Banner Fit</label>
+                            <label className="label block mb-1 text-xs">{T('ed_banner_fit')}</label>
                             <select
                               value={bannerFit}
                               onChange={e => { setBannerFit(e.target.value as 'cover'|'contain'); markDirty(); }}
                               className="input py-1.5 text-xs"
                             >
-                              <option value="cover">Cover (fill)</option>
-                              <option value="contain">Contain (full image)</option>
+                              <option value="cover">{T('ed_banner_fit_cover')}</option>
+                              <option value="contain">{T('ed_banner_fit_contain')}</option>
                             </select>
                           </div>
                         </div>
@@ -891,7 +1464,7 @@ export default function EditorPage() {
                     {!bannerUrl && (
                       <div className="mt-2 rounded-xl border border-[var(--border)] p-3 bg-[var(--bg2)]">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-[var(--text2)]">No banner placeholder</span>
+                          <span className="text-xs font-bold text-[var(--text2)]">{T('ed_banner_placeholder_toggle')}</span>
                           <button onClick={() => { setBannerPlaceholderEnabled(v => !v); markDirty(); }}
                             className={`relative w-10 h-5 rounded-full transition-colors ${bannerPlaceholderEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}>
                             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${bannerPlaceholderEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -913,45 +1486,149 @@ export default function EditorPage() {
               </div>
 
               <div>
-                <label className="label block mb-1">Bio</label>
+                <label className="label block mb-1">{T('ed_label_bio')}</label>
                 <textarea value={bio} onChange={e => { setBio(e.target.value); markDirty(); }}
-                  className="input resize-none" rows={3} placeholder="A short description about you..." />
+                  className="input resize-none" rows={3} placeholder={T('ed_ph_bio')} />
               </div>
 
               <div>
-                <label className="label block mb-1">Username / Slug</label>
+                <label className="label block mb-1">{T('ed_label_username_slug')}</label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[var(--text2)] flex-shrink-0"></span>
                   <input value={slug} onChange={e => { setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')); markDirty(); }}
-                    className="input flex-1 font-mono" placeholder="yourname" />
+                    className="input flex-1 font-mono" placeholder={T('ed_ph_slug')} />
                 </div>
                 {slug && <p className="text-xs text-brand mt-1">✓ {slug}.trustbank.xyz</p>}
-                {slug && slug !== site?.slug && slugPrice(slug) > 0 && (
-                  <p className="text-xs text-amber-400 mt-1">⚡ Premium slug — ${slugPrice(slug)} USDC</p>
+                {slug && slug !== site?.slug && !isAdminBypass && isSlugReservedAdminOnly(slug) && (
+                  <p className="text-xs text-amber-500 mt-1">{T('err_slug_reserved')}</p>
+                )}
+                {slug && slug !== site?.slug && (isAdminBypass || !isSlugReservedAdminOnly(slug)) && slugRegistrationDueUsd(slug, isAdminBypass ? 0 : userSlugRegCount) > 0 && (
+                  <p className="text-xs text-amber-400 mt-1">
+                    ⚡ {slugLengthTierUsd(slug) > 0
+                      ? `${T('editor_slug_premium_hint')} $${slugLengthTierUsd(slug)} USD`
+                      : `${T('editor_slug_extra_hint')} $${SLUG_EXTRA_REGISTRATION_USD} USD`}
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-bold text-[var(--text)]">{T('ed_stripe_section_title')}</p>
+                  <p className="text-xs text-[var(--text2)] mt-1">{T('ed_stripe_section_body')}</p>
+                </div>
+                {stripePayoutsReady ? (
+                  <p className="text-xs font-semibold text-emerald-400 flex items-center gap-2">
+                    <Shield className="w-4 h-4" /> {T('ed_stripe_ok')}
+                  </p>
+                ) : (site as any)?.stripe_connect_account_id ? (
+                  <p className="text-xs text-amber-200/90">{T('ed_stripe_pending')}</p>
+                ) : (
+                  <p className="text-xs text-[var(--text2)]">{T('ed_stripe_none')}</p>
+                )}
+                <button
+                  type="button"
+                  disabled={stripeOnboarding}
+                  onClick={async () => {
+                    setStripeOnboarding(true);
+                    try {
+                      const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || T('err_stripe_generic'));
+                      window.location.href = data.url;
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : T('err_stripe_generic'));
+                      setStripeOnboarding(false);
+                    }
+                  }}
+                  className="btn-primary w-full justify-center gap-2 text-sm py-2.5"
+                  style={{ background: accentColor }}
+                >
+                  {stripeOnboarding ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                  {T('ed_stripe_btn')}
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <p className="text-sm font-bold text-[var(--text)]">Serviços místicos no mini-site</p>
+                </div>
+                <p className="text-xs text-[var(--text2)]">
+                  Visitantes pagam <span className="font-semibold text-[var(--text)]">directamente na tua conta Stripe</span> (Checkout
+                  Connect — sem passar pelo saldo da plataforma). O site só confirma o pagamento e gera o resultado (IA no servidor).
+                </p>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg)]/80">
+                  <span className="text-sm font-semibold text-[var(--text)]">Mostrar bloco no perfil público</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMysticPublicEnabled((v) => !v);
+                      markDirty();
+                    }}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${mysticPublicEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        mysticPublicEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {mysticPublicEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label block mb-1">Preço tarô (USD)</label>
+                      <input
+                        value={mysticTarotPrice}
+                        onChange={(e) => {
+                          setMysticTarotPrice(e.target.value);
+                          markDirty();
+                        }}
+                        className="input"
+                        type="number"
+                        step="0.01"
+                        min="0.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="label block mb-1">Preço loteria premium (USD)</label>
+                      <input
+                        value={mysticLotteryPrice}
+                        onChange={(e) => {
+                          setMysticLotteryPrice(e.target.value);
+                          markDirty();
+                        }}
+                        className="input"
+                        type="number"
+                        step="0.01"
+                        min="0.5"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
 
               <div>
-                <label className="label block mb-1">Polygon Wallet (for USDC payments)</label>
+                <label className="label block mb-1">{T('ed_label_polygon')}</label>
                 <input value={walletAddr} onChange={e => { setWalletAddr(e.target.value); markDirty(); }}
-                  className="input font-mono text-sm" placeholder="0x..." />
+                  className="input font-mono text-sm" placeholder={T('ed_ph_polygon')} />
               </div>
 
               <div>
-                <label className="label block mb-1">Contact Email</label>
+                <label className="label block mb-1">{T('ed_label_contact_email')}</label>
                 <input value={contactEmail} onChange={e => { setContactEmail(e.target.value); markDirty(); }}
-                  className="input" type="email" placeholder="you@example.com" />
+                  className="input" type="email" placeholder={T('ed_ph_contact_email')} />
               </div>
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[var(--text)]">Mini-site ticker</p>
+                  <p className="text-sm font-semibold text-[var(--text)]">{T('ed_ticker_title')}</p>
                   <button onClick={() => { setTickerEnabled(v => !v); markDirty(); }}
                     className={`relative w-11 h-6 rounded-full transition-colors ${tickerEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${tickerEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
-                <p className="text-xs text-[var(--text2)]">Add custom slug and link messages for the scrolling top ticker on your mini-site.</p>
+                <p className="text-xs text-[var(--text2)]">{T('ed_ticker_hint')}</p>
                 {tickerEnabled && (
                   <div className="space-y-2">
                     {tickerItems.map((it, idx) => (
@@ -963,7 +1640,7 @@ export default function EditorPage() {
                             markDirty();
                           }}
                           className="input col-span-5 py-2 text-xs"
-                          placeholder="Label shown in ticker"
+                          placeholder={T('ed_ticker_label_ph')}
                         />
                         <input
                           value={it.url}
@@ -983,10 +1660,11 @@ export default function EditorPage() {
                       </div>
                     ))}
                     <button
-                      onClick={() => { setTickerItems(prev => [...prev, { label: '', url: 'https://' }]); markDirty(); }}
+                      type="button"
+                      onClick={() => { setTickerItems(prev => [...prev, { label: '', url: '' }]); markDirty(); }}
                       className="btn-secondary w-full justify-center text-sm"
                     >
-                      <Plus className="w-4 h-4" /> Add ticker item
+                      <Plus className="w-4 h-4" /> {T('ed_ticker_add')}
                     </button>
                   </div>
                 )}
@@ -997,7 +1675,7 @@ export default function EditorPage() {
           {/* THEME */}
           {activeTab === 'theme' && (
             <div className="card p-6 space-y-5">
-              <h2 className="font-black text-lg text-[var(--text)]">Theme</h2>
+              <h2 className="font-black text-lg text-[var(--text)]">{T('ed_theme_section_title')}</h2>
 
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {THEMES.map(t => (
@@ -1009,14 +1687,14 @@ export default function EditorPage() {
                       <div style={{ height:8, background:t.accent, opacity:0.9, borderRadius:4 }} />
                     </div>
                     <div style={{ background:t.bg, borderTop:`1px solid ${t.text}15`, padding:'3px 6px 5px' }}>
-                      <p style={{ fontSize:9, fontWeight:700, color:t.text, margin:0 }}>{t.emoji} {t.label}</p>
+                      <p style={{ fontSize:9, fontWeight:700, color:t.text, margin:0 }}>{t.emoji} {T(`ed_theme_${t.id}`)}</p>
                     </div>
                   </button>
                 ))}
               </div>
 
               <div>
-                <label className="label block mb-2">Accent Color</label>
+                <label className="label block mb-2">{T('ed_accent_color')}</label>
                 <div className="flex flex-wrap gap-2">
                   {['#818cf8','#f59e0b','#10b981','#ef4444','#06b6d4','#a855f7','#f43f5e','#0ea5e9','#84cc16','#fb923c','#ffffff','#000000'].map(c => (
                     <button key={c} onClick={() => { setAccentColor(c); markDirty(); }}
@@ -1029,38 +1707,51 @@ export default function EditorPage() {
               </div>
 
               <div>
-                <label className="label block mb-2">Photo Size</label>
+                <label className="label block mb-2">{T('ed_photo_size')}</label>
                 <div className="grid grid-cols-4 gap-2">
-                  {[['sm','Small · 72px'],['md','Medium · 96px'],['lg','Large · 128px'],['xl','XL · 160px']].map(([v,l]) => (
+                  {([
+                    ['sm', 'ed_photo_sz_sm'],
+                    ['md', 'ed_photo_sz_md'],
+                    ['lg', 'ed_photo_sz_lg'],
+                    ['xl', 'ed_photo_sz_xl'],
+                  ] as const).map(([v, key]) => (
                     <button key={v} onClick={() => { setPhotoSize(v); markDirty(); }}
-                      className={`py-2 rounded-xl text-xs font-semibold transition-all ${photoSize===v ? 'bg-brand text-white' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}>{l}</button>
+                      className={`py-2 rounded-xl text-xs font-semibold transition-all ${photoSize===v ? 'bg-brand text-white' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}>{T(key)}</button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="label block mb-2">Photo Shape</label>
+                <label className="label block mb-2">{T('ed_photo_shape')}</label>
                 <div className="flex gap-2">
-                  {[['round','● Round'],['square','■ Square'],['rounded','▢ Rounded']].map(([v,l]) => (
+                  {([
+                    ['round', 'ed_shape_round'],
+                    ['square', 'ed_shape_square'],
+                    ['rounded', 'ed_shape_rounded'],
+                  ] as const).map(([v, key]) => (
                     <button key={v} onClick={() => { setPhotoShape(v); markDirty(); }}
-                      className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${photoShape===v ? 'bg-brand text-white' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}>{l}</button>
+                      className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${photoShape===v ? 'bg-brand text-white' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}>{T(key)}</button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="label block mb-2">Font Style</label>
+                <label className="label block mb-2">{T('ed_font_style')}</label>
                 <div className="flex gap-2">
-                  {[['sans','Modern'],['serif','Elegant'],['mono','Code']].map(([v,l]) => (
+                  {([
+                    ['sans', 'ed_font_modern'],
+                    ['serif', 'ed_font_elegant'],
+                    ['mono', 'ed_font_code'],
+                  ] as const).map(([v, key]) => (
                     <button key={v} onClick={() => { setFontStyle(v); markDirty(); }}
                       className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${fontStyle===v ? 'bg-brand text-white' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}
-                      style={{ fontFamily: v==='serif'?'Georgia,serif':v==='mono'?'monospace':'system-ui' }}>{l}</button>
+                      style={{ fontFamily: v==='serif'?'Georgia,serif':v==='mono'?'monospace':'system-ui' }}>{T(key)}</button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="label block mb-2">Text Color Override <span className="text-[var(--text2)] text-xs font-normal">(optional)</span></label>
+                <label className="label block mb-2">{T('ed_text_color_override')} <span className="text-[var(--text2)] text-xs font-normal">{T('ed_optional_paren')}</span></label>
                 <div className="flex flex-wrap gap-2 items-center">
                   {['','#ffffff','#000000','#e6edf3','#f3e8ff','#fef3c7','#dcfce7','#fce7f3','#e0f2fe'].map(col => (
                     <button key={col || 'auto'} onClick={() => { setTextColor(col); markDirty(); }}
@@ -1073,9 +1764,9 @@ export default function EditorPage() {
                   ))}
                   <input type="color" value={textColor || '#ffffff'} onChange={e => { setTextColor(e.target.value); markDirty(); }}
                     style={{ width:28, height:28, borderRadius:'50%', border:'2px solid hsl(var(--border))', cursor:'pointer', padding:0 }} />
-                  {textColor && <button onClick={() => { setTextColor(''); markDirty(); }} className="text-xs text-brand hover:underline">Reset</button>}
+                  {textColor && <button onClick={() => { setTextColor(''); markDirty(); }} className="text-xs text-brand hover:underline">{T('ed_reset')}</button>}
                 </div>
-                <p className="text-xs text-[var(--text2)] mt-1">Overrides theme text color on the mini site</p>
+                <p className="text-xs text-[var(--text2)] mt-1">{T('ed_text_color_override_hint')}</p>
               </div>
             </div>
           )}
@@ -1083,10 +1774,10 @@ export default function EditorPage() {
           {/* LINKS */}
           {activeTab === 'links' && (
             <div className="card p-6 space-y-5">
-              <h2 className="font-black text-lg text-[var(--text)]">Links & Social</h2>
+              <h2 className="font-black text-lg text-[var(--text)]">{T('ed_links_section_title')}</h2>
 
               <div>
-                <label className="label block mb-2">Social Network</label>
+                <label className="label block mb-2">{T('ed_social_network')}</label>
                 <div className="grid grid-cols-5 gap-2">
                   {Object.entries(BRAND_COLORS).map(([icon, color]) => (
                     <button key={icon} onClick={() => {
@@ -1108,17 +1799,17 @@ export default function EditorPage() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="label block mb-1">Link Title</label>
-                  <input value={linkTitle} onChange={e => setLinkTitle(e.target.value)} className="input" placeholder="Ex: My Instagram" />
+                  <label className="label block mb-1">{T('ed_link_title_label')}</label>
+                  <input value={linkTitle} onChange={e => setLinkTitle(e.target.value)} className="input" placeholder={T('ed_link_title_ph')} />
                 </div>
                 <div>
-                  <label className="label block mb-1">URL</label>
-                  <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} className="input" placeholder="https://..." />
+                  <label className="label block mb-1">{T('ed_url_label')}</label>
+                  <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} className="input" placeholder={T('ed_ticker_url_ph')} />
                 </div>
               </div>
 
               <div>
-                <label className="label block mb-2">Button Color <span className="text-[var(--text2)] text-xs font-normal">(optional)</span></label>
+                <label className="label block mb-2">{T('ed_button_color')} <span className="text-[var(--text2)] text-xs font-normal">{T('ed_optional_paren')}</span></label>
                 <div className="flex flex-wrap gap-2 items-center">
                   {['','#E1306C','#FF0000','#1DA1F2','#25D366','#f59e0b','#a855f7','#000000','#ffffff'].map(col => (
                     <button key={col||'auto'} onClick={() => setLinkColor(col)}
@@ -1135,12 +1826,12 @@ export default function EditorPage() {
 
               <button onClick={addLink} disabled={!linkTitle || !linkUrl}
                 className="btn-primary w-full justify-center gap-2">
-                <Plus className="w-4 h-4" /> Add Link
+                <Plus className="w-4 h-4" /> {T('ed_add_link')}
               </button>
 
               {links.length > 0 && (
                 <div className="space-y-2 border-t border-[var(--border)] pt-4">
-                  <p className="text-xs font-bold text-[var(--text2)] uppercase tracking-wide">Your Links — drag to reorder</p>
+                  <p className="text-xs font-bold text-[var(--text2)] uppercase tracking-wide">{T('ed_links_reorder_hint')}</p>
                   {links.map((link, idx) => (
                     <div key={link.id}
                       draggable
@@ -1171,14 +1862,14 @@ export default function EditorPage() {
           {/* VIDEOS */}
           {activeTab === 'videos' && (
             <div className="card p-6 space-y-4">
-              <h2 className="font-black text-lg text-[var(--text)]">YouTube Videos</h2>
+              <h2 className="font-black text-lg text-[var(--text)]">{T('ed_videos_section_title')}</h2>
               <div className="space-y-3">
-                <input value={ytUrl} onChange={e => setYtUrl(e.target.value)} className="input" placeholder="https://youtube.com/watch?v=..." />
-                <input value={ytTitle} onChange={e => setYtTitle(e.target.value)} className="input" placeholder="Video title (optional)" />
+                <input value={ytUrl} onChange={e => setYtUrl(e.target.value)} className="input" placeholder={T('ed_yt_url_ph')} />
+                <input value={ytTitle} onChange={e => setYtTitle(e.target.value)} className="input" placeholder={T('ed_yt_title_ph')} />
                 <div className="flex items-center justify-between p-3 bg-[var(--bg2)] rounded-xl">
                   <div>
-                    <p className="text-sm font-semibold text-[var(--text)]">Enable Paywall</p>
-                    <p className="text-xs text-[var(--text2)]">Fans pay USDC to watch — you get 70%</p>
+                    <p className="text-sm font-semibold text-[var(--text)]">{T('ed_paywall_title')}</p>
+                    <p className="text-xs text-[var(--text2)]">{T('ed_paywall_hint')}</p>
                   </div>
                   <button onClick={() => setPaywallEnabled(p => !p)}
                     className={`relative w-11 h-6 rounded-full transition-colors ${paywallEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}>
@@ -1187,12 +1878,12 @@ export default function EditorPage() {
                 </div>
                 {paywallEnabled && (
                   <div>
-                    <label className="label block mb-1">Price (USDC)</label>
+                    <label className="label block mb-1">{T('ed_price_usdc')}</label>
                     <input value={paywallPrice} onChange={e => setPaywallPrice(e.target.value)} className="input" type="number" step="0.01" min="0.5" />
                   </div>
                 )}
                 <button onClick={addVideo} disabled={!ytUrl} className="btn-primary w-full justify-center gap-2">
-                  <Plus className="w-4 h-4" /> Add Video
+                  <Plus className="w-4 h-4" /> {T('ed_add_video')}
                 </button>
               </div>
               {videos.length > 0 && (
@@ -1202,7 +1893,7 @@ export default function EditorPage() {
                       <img src={`https://img.youtube.com/vi/${v.youtube_video_id}/default.jpg`} className="w-14 h-10 rounded-lg object-cover flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-[var(--text)] truncate">{v.title}</p>
-                        {v.paywall_enabled && <p className="text-xs text-amber-400">🔒 ${v.paywall_price} USDC</p>}
+                        {v.paywall_enabled && <p className="text-xs text-amber-400">🔒 ${v.paywall_price} USD</p>}
                       </div>
                       <button onClick={() => deleteVideo(v.id)} className="text-red-400 hover:opacity-70"><X className="w-4 h-4" /></button>
                     </div>
@@ -1267,10 +1958,10 @@ export default function EditorPage() {
           {activeTab === 'feed' && (
             <div className="space-y-4">
               <div className="card p-5">
-                <h2 className="font-black text-base text-[var(--text)] mb-4">Feed Settings</h2>
+                <h2 className="font-black text-base text-[var(--text)] mb-4">{T('ed_feed_settings_title')}</h2>
                 <div className="flex items-center justify-between mb-4">
-                  <div><p className="text-sm font-bold text-[var(--text)]">Show Feed</p>
-                    <p className="text-xs text-[var(--text2)]">Posts appear below bio on mini site</p></div>
+                  <div><p className="text-sm font-bold text-[var(--text)]">{T('ed_feed_show_title')}</p>
+                    <p className="text-xs text-[var(--text2)]">{T('ed_feed_show_hint')}</p></div>
                   <button onClick={() => { setShowFeed(p=>!p); markDirty(); }}
                     className={`relative w-11 h-6 rounded-full transition-colors ${showFeed ? 'bg-brand' : 'bg-[var(--border)]'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${showFeed ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -1278,12 +1969,12 @@ export default function EditorPage() {
                 </div>
                 {showFeed && (
                   <div>
-                    <label className="label block mb-2">Columns</label>
+                    <label className="label block mb-2">{T('ed_feed_columns')}</label>
                     <div className="grid grid-cols-3 gap-2">
                       {([1,2,3] as const).map(n => (
                         <button key={n} onClick={() => { setFeedCols(n); markDirty(); }}
                           className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${feedCols===n ? 'border-brand bg-brand/10 text-brand' : 'border-[var(--border)] text-[var(--text2)]'}`}>
-                          {n===1?'▬ 1 column':n===2?'▬▬ 2 columns':'▬▬▬ 3 columns'}
+                          {n === 1 ? T('ed_feed_1col') : n === 2 ? T('ed_feed_2col') : T('ed_feed_3col')}
                         </button>
                       ))}
                     </div>
@@ -1292,50 +1983,32 @@ export default function EditorPage() {
               </div>
 
               <div className="card p-5">
-                <h2 className="font-black text-base text-[var(--text)] mb-1">Patrocínios & diretório</h2>
+                <h2 className="font-black text-base text-[var(--text)] mb-1">{T('ed_sponsor_dir_title')}</h2>
                 <p className="text-xs text-[var(--text2)] mb-4">
-                  Valor mínimo para aceitar anúncios (US$ / semana). Marcas veem no diretório TrustBank e no bloco &quot;Ads&quot; do teu site.
+                  {T('ed_sponsor_dir_hint')}
                 </p>
+                {site?.id && user?.id ? (
+                  <button
+                    type="button"
+                    onClick={() => setScriptsAdsDialogOpen(true)}
+                    className="mb-4 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border border-violet-500/40 text-violet-300 hover:bg-violet-500/10"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {T('ed_open_scripts_ads_dialog')}
+                  </button>
+                ) : null}
                 <div className="space-y-3 mb-4">
                   <div>
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <label className="text-xs font-bold text-[var(--text2)]">Preço mínimo (US$ / semana)</label>
+                      <label className="text-xs font-bold text-[var(--text2)]">{T('ed_min_price_week')}</label>
                       <button
                         type="button"
                         disabled={suggestingPrice || !site?.id}
-                        onClick={async () => {
-                          if (!site?.id) return;
-                          setSuggestingPrice(true);
-                          try {
-                            const res = await fetch('/api/pricing-suggest', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ siteId: site.id }),
-                              credentials: 'include',
-                            });
-                            const data = await res.json().catch(() => ({}));
-                            if (!res.ok) throw new Error(data.error || 'Falha');
-                            const v =
-                              data.ai?.min_usd_week ??
-                              data.heuristic?.base ??
-                              data.heuristic?.min;
-                            if (v != null && !Number.isNaN(Number(v))) {
-                              setAdAskingPrice(String(Math.round(Number(v))));
-                              markDirty();
-                              toast.success('Sugestão aplicada — ajusta se quiseres');
-                            } else {
-                              toast.info('Heurística aplicada. Ativa IA no Admin para refinamento opcional.');
-                            }
-                          } catch (e: unknown) {
-                            toast.error(e instanceof Error ? e.message : 'Erro');
-                          } finally {
-                            setSuggestingPrice(false);
-                          }
-                        }}
+                        onClick={() => void runSuggestAdPrice()}
                         className="text-xs font-bold px-3 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-50 inline-flex items-center gap-1.5"
                       >
                         {suggestingPrice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                        Sugerir (visitas + seguidores + IA)
+                        {T('ed_suggest_pricing')}
                       </button>
                     </div>
                     <input
@@ -1344,7 +2017,7 @@ export default function EditorPage() {
                       value={adAskingPrice}
                       onChange={e => { setAdAskingPrice(e.target.value); markDirty(); }}
                       className="input w-full mt-1"
-                      placeholder="ex: 2000"
+                      placeholder={T('ed_price_placeholder')}
                     />
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--text)]">
@@ -1353,42 +2026,42 @@ export default function EditorPage() {
                       checked={adShowPricePublic}
                       onChange={e => { setAdShowPricePublic(e.target.checked); markDirty(); }}
                     />
-                    Mostrar preço no mini-site (hover / destaque)
+                    {T('ed_show_price_public')}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-[var(--text2)]">Tipo de perfil (diretório)</label>
+                      <label className="text-xs font-bold text-[var(--text2)]">{T('ed_directory_profile_type')}</label>
                       <select
                         value={directoryProfileSlug}
                         onChange={e => { setDirectoryProfileSlug(e.target.value); markDirty(); }}
                         className="input w-full mt-1"
                       >
                         <option value="">—</option>
-                        <option value="creator">Criador de conteúdo</option>
-                        <option value="influencer">Influencer</option>
-                        <option value="actor">Ator</option>
-                        <option value="actress">Atriz</option>
-                        <option value="athlete">Jogador / Atleta</option>
-                        <option value="entrepreneur">Empresário</option>
-                        <option value="automotive">Carros / Automotivo</option>
-                        <option value="services">Serviços</option>
-                        <option value="other">Outro</option>
+                        <option value="creator">{T('sites_prof_creator')}</option>
+                        <option value="influencer">{T('sites_prof_influencer')}</option>
+                        <option value="actor">{T('sites_prof_actor')}</option>
+                        <option value="actress">{T('sites_prof_actress')}</option>
+                        <option value="athlete">{T('sites_prof_athlete')}</option>
+                        <option value="entrepreneur">{T('sites_prof_entrepreneur')}</option>
+                        <option value="automotive">{T('sites_prof_automotive')}</option>
+                        <option value="services">{T('sites_prof_services')}</option>
+                        <option value="other">{T('sites_prof_other')}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-[var(--text2)]">Categoria do site</label>
+                      <label className="text-xs font-bold text-[var(--text2)]">{T('ed_site_category_label')}</label>
                       <select
                         value={siteCategorySlug}
                         onChange={e => { setSiteCategorySlug(e.target.value); markDirty(); }}
                         className="input w-full mt-1"
                       >
                         <option value="">—</option>
-                        <option value="creator">Criador / Influencer</option>
-                        <option value="services">Serviços</option>
-                        <option value="tech">Tech &amp; Dev</option>
-                        <option value="business">Negócios</option>
-                        <option value="local">Local / Comunidade</option>
-                        <option value="other">Outros</option>
+                        <option value="creator">{T('sites_cat_creator')}</option>
+                        <option value="services">{T('sites_cat_services')}</option>
+                        <option value="tech">{T('sites_cat_tech')}</option>
+                        <option value="business">{T('sites_cat_business')}</option>
+                        <option value="local">{T('sites_cat_local')}</option>
+                        <option value="other">{T('sites_cat_other')}</option>
                       </select>
                     </div>
                   </div>
@@ -1396,8 +2069,8 @@ export default function EditorPage() {
               </div>
 
               <div className="card p-5">
-                <h2 className="font-black text-base text-[var(--text)] mb-1">Module Order</h2>
-                <p className="text-xs text-[var(--text2)] mb-4">Drag to reorder</p>
+                <h2 className="font-black text-base text-[var(--text)] mb-1">{T('ed_module_order_title')}</h2>
+                <p className="text-xs text-[var(--text2)] mb-4">{T('ed_module_order_hint')}</p>
                 <div className="space-y-2">
                   {moduleOrder.map((mod, idx) => {
                     const labels: Record<string,string> = { links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads' };
@@ -1413,7 +2086,7 @@ export default function EditorPage() {
                           const next = [...moduleOrder];
                           const [item] = next.splice(from, 1);
                           next.splice(idx, 0, item);
-                          setModuleOrder(next); setDragOverMod(null); markDirty();
+                          setModuleOrder(enforceHomeFixedModules(next)); setDragOverMod(null); markDirty();
                         }}
                         className={`flex items-center gap-3 p-3 rounded-xl border cursor-grab transition-all ${dragOverMod===mod ? 'border-brand bg-brand/5' : 'border-[var(--border)] bg-[var(--bg2)]'}`}>
                         <GripVertical className="w-4 h-4 text-[var(--text2)]" />
@@ -1425,9 +2098,9 @@ export default function EditorPage() {
                 </div>
               </div>
               <div className="card p-5">
-                <h2 className="font-black text-base text-[var(--text)] mb-3">Existing feed posts</h2>
+                <h2 className="font-black text-base text-[var(--text)] mb-3">{T('ed_feed_existing')}</h2>
                 {feedPosts.length === 0 ? (
-                  <p className="text-sm text-[var(--text2)]">No posts yet.</p>
+                  <p className="text-sm text-[var(--text2)]">{T('ed_feed_empty')}</p>
                 ) : (
                   <div className="space-y-2 max-h-72 overflow-y-auto">
                     {feedPosts.map((p: any) => (
@@ -1440,11 +2113,11 @@ export default function EditorPage() {
                           onClick={async () => {
                             await (supabase as any).from('feed_posts').delete().eq('id', p.id).eq('site_id', site?.id);
                             setFeedPosts(prev => prev.filter(x => x.id !== p.id));
-                            toast.success('Post deleted');
+                            toast.success(T('toast_post_deleted'));
                           }}
                           className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400"
                         >
-                          Delete
+                          {T('ed_feed_delete_post')}
                         </button>
                       </div>
                     ))}
@@ -1460,15 +2133,15 @@ export default function EditorPage() {
           {activeTab === 'pages' && (
             <div className="space-y-4">
               <div className="card p-5">
-                <h2 className="font-black text-base text-[var(--text)] mb-1">Site Pages</h2>
-                <p className="text-xs text-[var(--text2)] mb-4">Up to 3 pages with top menu (e.g. Home, Portfolio, Contact)</p>
+                <h2 className="font-black text-base text-[var(--text)] mb-1">{T('ed_site_pages_title')}</h2>
+                <p className="text-xs text-[var(--text2)] mb-4">{T('ed_site_pages_blurb')}</p>
                 <div className="space-y-2 mb-3">
                   {sitePages.map((page, idx) => (
                     <div key={page.id} className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-lg bg-brand/10 flex items-center justify-center text-xs font-black text-brand">{idx+1}</div>
                       <input value={page.label}
                         onChange={e => { setSitePages(prev => prev.map(p => p.id===page.id ? {...p,label:e.target.value} : p)); markDirty(); }}
-                        className="input flex-1 py-1.5 text-sm" placeholder={idx===0?'Home':`Page ${idx+1}`} />
+                        className="input flex-1 py-1.5 text-sm" placeholder={idx === 0 ? T('ed_page_name_home_ph') : T('ed_page_name_n_ph').replace('{n}', String(idx + 1))} />
                       {idx > 0 && <button onClick={() => {
                         setSitePages(prev => prev.filter(p => p.id!==page.id));
                         setPageContents(prev => {
@@ -1499,7 +2172,7 @@ export default function EditorPage() {
                 <div className="space-y-2">
                   {sitePages.map((page) => (
                     <div key={`${page.id}_template`} className="grid grid-cols-2 gap-2">
-                      <span className="text-xs text-[var(--text2)] self-center">{page.label} template</span>
+                      <span className="text-xs text-[var(--text2)] self-center">{T('ed_page_template_row').replace('{label}', page.label)}</span>
                       <select
                         className="input py-1.5 text-sm"
                         value={page.template || 'default'}
@@ -1509,9 +2182,9 @@ export default function EditorPage() {
                           markDirty();
                         }}
                       >
-                        <option value="default">Default</option>
-                        <option value="videos_3">Video wall (3 columns)</option>
-                        <option value="videos_4">Video wall (4 columns)</option>
+                        <option value="default">{T('ed_template_default')}</option>
+                        <option value="videos_3">{T('ed_template_videos_3')}</option>
+                        <option value="videos_4">{T('ed_template_videos_4')}</option>
                       </select>
                     </div>
                   ))}
@@ -1519,23 +2192,40 @@ export default function EditorPage() {
                 {sitePages.length < 3 && (
                   <button onClick={() => {
                     const newId = `p_${Date.now()}`;
-                    setSitePages(prev => [...prev, {id:newId, label:`Page ${prev.length+1}`}]);
+                    setSitePages(prev => [...prev, { id: newId, label: T('ed_page_new_label').replace('{n}', String(prev.length + 1)) }]);
                     setPageModules(prev => ({ ...prev, [newId]: [] }));
                     setPageColumns(prev => ({ ...prev, [newId]: 1 }));
                     setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 } }));
                     markDirty();
                   }}
-                    className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> Add Page</button>
+                    className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> {T('ed_add_page')}</button>
                 )}
               </div>
               {/* Page content editors */}
               {sitePages.map((page) => (
                 <div key={page.id} className="card p-5 mt-3">
-                  <h3 className="font-black text-sm text-[var(--text)] mb-3">✏️ Content: {page.label}</h3>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <h3 className="font-black text-sm text-[var(--text)]">✏️ {T('ed_content_heading').replace('{label}', page.label)}</h3>
+                    <button
+                      onClick={() => {
+                        if (!clearAllArmed[page.id]) {
+                          setClearAllArmed((prev) => ({ ...prev, [page.id]: true }));
+                          setTimeout(() => setClearAllArmed((prev) => ({ ...prev, [page.id]: false })), 4000);
+                          return;
+                        }
+                        setPageContents((prev) => ({ ...prev, [page.id]: '' }));
+                        setClearAllArmed((prev) => ({ ...prev, [page.id]: false }));
+                        markDirty();
+                      }}
+                      className={`text-xs px-3 py-1.5 rounded-lg border ${clearAllArmed[page.id] ? 'border-red-500/50 text-red-400' : 'border-[var(--border)] text-[var(--text2)]'}`}
+                    >
+                      {clearAllArmed[page.id] ? T('ed_clear_all_confirm') : T('ed_clear_all')}
+                    </button>
+                  </div>
                   <div className="mb-3">
-                    <p className="text-xs text-[var(--text2)] font-bold mb-2">Modules on this page</p>
+                    <p className="text-xs text-[var(--text2)] font-bold mb-2">{T('ed_modules_on_page')}</p>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-[var(--text2)]">Columns:</span>
+                      <span className="text-xs text-[var(--text2)]">{T('ed_columns')}</span>
                       <select
                         value={pageColumns[page.id] || 1}
                         onChange={(e) => {
@@ -1545,28 +2235,31 @@ export default function EditorPage() {
                         }}
                         className="input py-1 text-xs max-w-[140px]"
                       >
-                        <option value={1}>1 column</option>
-                        <option value={2}>2 columns</option>
-                        <option value={3}>3 columns</option>
+                        <option value={1}>{T('ed_col_option_1')}</option>
+                        <option value={2}>{T('ed_col_option_2')}</option>
+                        <option value={3}>{T('ed_col_option_3')}</option>
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {(['links','videos','cv','feed','ads'] as const).map(mod => {
-                        const enabled = (pageModules[page.id] || (page.id === 'home' ? moduleOrder : [])).includes(mod);
+                        const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
+                        const enabled = currentModules.includes(mod);
+                        const isFixedOnHome = page.id === 'home' && (mod === 'links' || mod === 'feed');
                         return (
                           <div key={mod} className="flex items-center gap-2">
                             <button
                               onClick={() => {
+                                if (isFixedOnHome) return;
                                 setPageModules(prev => {
                                   const current = prev[page.id] || (page.id === 'home' ? moduleOrder : []);
                                   const next = enabled ? current.filter(m => m !== mod) : [...current, mod];
-                                  return { ...prev, [page.id]: next };
+                                  return { ...prev, [page.id]: page.id === 'home' ? enforceHomeFixedModules(next) : next };
                                 });
                                 markDirty();
                               }}
-                              className={`flex-1 py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'}`}
+                              className={`flex-1 py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'} ${isFixedOnHome ? 'opacity-100 cursor-default' : ''}`}
                             >
-                              {mod.toUpperCase()}
+                              {modLab[mod] || mod.toUpperCase()} {isFixedOnHome ? `· ${T('ed_mod_fixed')}` : ''}
                             </button>
                             {(pageColumns[page.id] || 1) > 1 && (
                               <select
@@ -1593,69 +2286,655 @@ export default function EditorPage() {
                   </div>
                   {/* Width slider */}
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="text-xs text-[var(--text2)] font-bold whitespace-nowrap">Largura:</span>
-                    <input type="range" min={320} max={1200} value={pageWidth}
-                      onChange={e => { setPageWidth(Number(e.target.value)); markDirty(); }}
+                    <span className="text-xs text-[var(--text2)] font-bold whitespace-nowrap">{T('ed_width')}</span>
+                    <input type="range" min={320} max={1010} value={Math.min(1010, pageWidth)}
+                      onChange={e => { setPageWidth(Math.min(1010, Number(e.target.value))); markDirty(); }}
                       className="flex-1" style={{accentColor:'var(--accent)'}}/>
                     <span className="text-xs text-[var(--text2)] font-mono w-14">{pageWidth}px</span>
                   </div>
                   <RichTextEditor
+                    editorKey={page.id}
                     value={pageContents[page.id] || ''}
-                    onChange={v => { setPageContents(prev => ({...prev, [page.id]: v})); markDirty(); }}
-                    placeholder={`Write content for "${page.label}"...`}
-                    pageWidth={pageWidth}
+                    onChange={(v: string) => { setPageContents(prev => ({...prev, [page.id]: v})); markDirty(); }}
+                    placeholder={T('ed_richtext_ph').replace('{label}', page.label)}
                   />
-                  <p className="text-xs text-[var(--text2)] mt-2">This content appears when a visitor opens "{page.label}" on your mini-site.</p>
+                <p className="text-xs text-[var(--text2)] mt-2">{T('ed_page_visitor_note').replace('{label}', page.label)}</p>
                 </div>
               ))}
             </div>
           )}
 
+          {activeTab === 'copilot' && site?.id && (
+            <SiteCopilotPanel
+              siteId={site.id}
+              bio={bio}
+              cvHeadline={cvHeadline}
+              paywallEnabled={paywallEnabled}
+              paywallPrice={paywallPrice}
+              sitePages={sitePages}
+              pageContents={pageContents}
+              markDirty={markDirty}
+              onApplyBio={(s) => {
+                setBio(s);
+              }}
+              onApplyCvHeadline={(s) => {
+                setCvHeadline(s);
+              }}
+              onApplySeoTitle={(s) => {
+                setSeoTitle(s);
+              }}
+              onApplySeoDescription={(s) => {
+                setSeoDescription(s);
+              }}
+              onApplyPageHtml={(pid, html) => {
+                setPageContents((prev) => ({ ...prev, [pid]: html }));
+              }}
+              onAppendLivelyInstructions={(s) => {
+                setLivelyAgentInstructions((prev) => {
+                  const add = `\n\n— ${T('ed_copilot_lively_block')}:\n${s}`;
+                  return (prev + add).slice(0, 2000);
+                });
+              }}
+            />
+          )}
+
           {activeTab === 'seo' && (
-            <div className="card p-6 space-y-4">
-              <h2 className="font-black text-lg text-[var(--text)]">SEO por mini-site</h2>
+            <div className="card p-6 space-y-5">
               <div>
-                <label className="label block mb-1">SEO Title</label>
-                <input value={seoTitle} onChange={e => { setSeoTitle(e.target.value); markDirty(); }}
-                  className="input" maxLength={70} placeholder="Titulo para Google e redes" />
-                <p className="text-xs text-[var(--text2)] mt-1">{seoTitle.length}/70</p>
+                <h2 className="font-black text-lg text-[var(--text)]">{T('ed_seo_panel_title')}</h2>
+                <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed border-l-2 border-brand/50 pl-3 py-0.5">
+                  {T('ed_seo_pro_tip')}
+                </p>
               </div>
               <div>
-                <label className="label block mb-1">Meta Description</label>
-                <textarea value={seoDescription} onChange={e => { setSeoDescription(e.target.value); markDirty(); }}
-                  className="input resize-none" rows={3} maxLength={160} placeholder="Descricao curta para Google/preview" />
-                <p className="text-xs text-[var(--text2)] mt-1">{seoDescription.length}/160</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="label block mb-0">{T('ed_seo_meta_title')}</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSeoTitle(buildDefaultSeoTitle(slug, siteName));
+                      markDirty();
+                    }}
+                    disabled={!slug.trim()}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {T('ed_seo_suggest_slug')}
+                  </button>
+                </div>
+                <input
+                  value={seoTitle}
+                  onChange={(e) => {
+                    setSeoTitle(e.target.value.slice(0, 70));
+                    markDirty();
+                  }}
+                  className="input"
+                  maxLength={70}
+                  placeholder={T('ed_seo_ph_title')}
+                />
+                <SeoTrafficMeter length={seoTitle.length} max={70} idealMax={60} minComfort={12} />
               </div>
               <div>
-                <label className="label block mb-1">OG Image URL</label>
-                <input value={seoOgImage} onChange={e => { setSeoOgImage(e.target.value); markDirty(); }}
-                  className="input" placeholder="https://..." />
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="label block mb-0">{T('ed_seo_meta_desc')}</label>
+                  <button
+                    type="button"
+                    onClick={() => void runMagicDescription()}
+                    disabled={magicDescLoading || !site?.id}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-violet-500/50 text-violet-300 hover:bg-violet-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                  >
+                    {magicDescLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Wand2 className="w-3 h-3" />
+                    )}
+                    {magicDescLoading ? T('ed_seo_magic_write_busy') : T('ed_seo_magic_write')}
+                  </button>
+                </div>
+                <textarea
+                  value={seoDescription}
+                  onChange={(e) => {
+                    setSeoDescription(e.target.value.slice(0, 160));
+                    markDirty();
+                  }}
+                  className="input resize-none"
+                  rows={4}
+                  maxLength={160}
+                  placeholder={T('ed_seo_ph_desc')}
+                />
+                <SeoTrafficMeter length={seoDescription.length} max={160} idealMax={140} minComfort={40} />
               </div>
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="label block mb-0">{T('ed_seo_search_tags_label')}</label>
+                  <button
+                    type="button"
+                    onClick={() => void runSuggestSearchTags()}
+                    disabled={suggestTagsLoading || !site?.id}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                  >
+                    {suggestTagsLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Search className="w-3 h-3" />
+                    )}
+                    {suggestTagsLoading ? T('ed_seo_suggest_keywords_busy') : T('ed_seo_suggest_keywords')}
+                  </button>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => void runSeoPack()}
+                    disabled={seoPackLoading || !site?.id || !slug.trim()}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                  >
+                    {seoPackLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Wand2 className="w-3 h-3" />
+                    )}
+                    {seoPackLoading ? T('ed_seo_pack_busy') : T('ed_seo_pack_btn')}
+                  </button>
+                </div>
+                <p className="text-[11px] text-[var(--text2)] mb-2 leading-relaxed">{T('ed_seo_search_tags_hint')}</p>
+                <div className="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
+                  {seoSearchTags.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-lg text-[11px] font-semibold bg-[var(--bg2)] border border-[var(--border)] text-[var(--text)]"
+                    >
+                      {t}
+                      <button
+                        type="button"
+                        className="p-0.5 rounded hover:bg-white/10 text-[var(--text2)]"
+                        aria-label={T('ed_seo_remove_tag')}
+                        onClick={() => {
+                          setSeoSearchTags((prev) => prev.filter((x) => x !== t));
+                          markDirty();
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  value={seoTagDraft}
+                  onChange={(e) => setSeoTagDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    const t = seoTagDraft.trim();
+                    if (!t || seoSearchTags.includes(t) || seoSearchTags.length >= 16) return;
+                    if (t.length > 48) return;
+                    setSeoSearchTags([...seoSearchTags, t]);
+                    setSeoTagDraft('');
+                    markDirty();
+                  }}
+                  className="input"
+                  placeholder={T('ed_seo_tag_input_ph')}
+                  maxLength={48}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1">{T('ed_seo_json_ld_label')}</label>
+                <p className="text-[11px] text-[var(--text2)] mb-2 leading-relaxed">{T('ed_seo_json_ld_hint')}</p>
+                <textarea
+                  value={seoJsonLd}
+                  onChange={(e) => {
+                    setSeoJsonLd(e.target.value);
+                    markDirty();
+                  }}
+                  className="input resize-none font-mono text-xs leading-relaxed"
+                  rows={8}
+                  spellCheck={false}
+                  placeholder={T('ed_seo_json_ld_ph')}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1">{T('ed_seo_og_label')}</label>
+                <input
+                  value={seoOgImage}
+                  onChange={(e) => {
+                    setSeoOgImage(e.target.value);
+                    markDirty();
+                  }}
+                  className="input"
+                  placeholder={T('ed_seo_og_ph')}
+                />
+                <p className="text-[11px] text-[var(--text2)] mt-2 leading-relaxed">{T('ed_seo_og_auto_hint')}</p>
+                {slug.trim() ? (
+                  <div className="mt-3 rounded-xl border border-[var(--border)] overflow-hidden max-w-lg bg-[var(--bg2)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/og/site?slug=${encodeURIComponent(slug.trim())}`}
+                      alt=""
+                      className="w-full h-auto block"
+                      width={1200}
+                      height={630}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ia' && (
+            <div className="space-y-6">
+          {site?.id && user?.id ? (
+            <div className="rounded-2xl border border-violet-500/35 bg-gradient-to-br from-violet-500/10 to-transparent px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-[var(--text2)] leading-relaxed max-w-xl">
+                {T('ed_dialog_scripts_intro')}
+              </p>
+              <button
+                type="button"
+                onClick={() => setScriptsAdsDialogOpen(true)}
+                className="inline-flex items-center gap-2 shrink-0 px-4 py-2.5 rounded-xl font-bold text-sm text-white bg-brand hover:opacity-90 shadow-lg border border-white/10"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <Megaphone className="w-4 h-4 opacity-90" />
+                {T('ed_open_scripts_ads_dialog')}
+              </button>
+            </div>
+          ) : null}
+          {site?.id && user?.id ? (
+            <CreatorStudioPanel
+              avatarUrl={avatarUrl}
+              setAvatarUrl={setAvatarUrl}
+              livelyAvatarWelcome={livelyAvatarWelcome}
+              setLivelyAvatarWelcome={setLivelyAvatarWelcome}
+              livelyAgentInstructions={livelyAgentInstructions}
+              setLivelyAgentInstructions={setLivelyAgentInstructions}
+              uploadToStorage={uploadToStorage}
+              onMarkDirty={markDirty}
+              T={T}
+              previewSlug={site?.slug}
+              accentColor={accentColor}
+            />
+          ) : null}
+          {site?.id && user?.id ? (
+            <AvatarCharacterInspirationPanel
+              T={T}
+              onAppendInstructions={(line) => {
+                setLivelyAgentInstructions((prev) => `${prev.trim() ? `${prev.trim()}\n` : ''}${line}`.slice(0, 2000));
+                markDirty();
+              }}
+            />
+          ) : null}
+          {site?.id && user?.id ? (
+            <div className="card p-6 space-y-3 border border-amber-500/20 bg-amber-500/[0.04]">
+              <h3 className="font-black text-sm text-[var(--text)]">{T('ed_avatar_sponsored_title')}</h3>
+              <p className="text-xs text-[var(--text2)] leading-relaxed">{T('ed_avatar_sponsored_body')}</p>
+            </div>
+          ) : null}
+          {site?.id && user?.id && (
+            <div className="card p-6 space-y-5 border border-violet-500/25 bg-violet-500/[0.04]">
+              <h2 className="font-black text-lg text-[var(--text)] flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-violet-400" /> {T('ed_ia_profile_title')}
+              </h2>
+              <p className="text-xs text-[var(--text2)] leading-relaxed">{T('ed_ia_profile_intro')}</p>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livelyProfileAsAvatar}
+                  onChange={(e) => {
+                    setLivelyProfileAsAvatar(e.target.checked);
+                    markDirty();
+                  }}
+                  className="rounded border-[var(--border)] w-4 h-4"
+                />
+                <span className="text-sm font-semibold text-[var(--text)]">{T('ed_ia_as_avatar')}</span>
+              </label>
+              <p className="text-[11px] text-[var(--text2)] pl-7 -mt-2">{T('ed_ia_photo_hint')}</p>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livelyProfileSpeakOnEntry}
+                  onChange={(e) => {
+                    setLivelyProfileSpeakOnEntry(e.target.checked);
+                    markDirty();
+                  }}
+                  disabled={!livelyProfileAsAvatar}
+                  className="rounded border-[var(--border)] w-4 h-4 disabled:opacity-40"
+                />
+                <span className="text-sm font-semibold text-[var(--text)]">{T('ed_ia_speak_entry')}</span>
+              </label>
+              <div>
+                <label className="label block mb-1">{T('ed_ia_speech_tap')}</label>
+                <textarea
+                  value={livelyProfileSpeechTap}
+                  onChange={(e) => {
+                    setLivelyProfileSpeechTap(e.target.value.slice(0, 400));
+                    markDirty();
+                  }}
+                  disabled={!livelyProfileAsAvatar}
+                  className="input resize-none text-sm disabled:opacity-40"
+                  rows={2}
+                  placeholder={T('ed_ia_speech_tap_ph')}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1">{T('ed_ia_speech_before_reply')}</label>
+                <textarea
+                  value={livelyProfileSpeechBeforeReply}
+                  onChange={(e) => {
+                    setLivelyProfileSpeechBeforeReply(e.target.value.slice(0, 400));
+                    markDirty();
+                  }}
+                  className="input resize-none text-sm"
+                  rows={2}
+                  placeholder={T('ed_ia_speech_before_reply_ph')}
+                />
+              </div>
+            </div>
+          )}
+
+            <div className="card p-6 space-y-5">
+              <div>
+                <h2 className="font-black text-lg text-[var(--text)]">{T('ed_lively_title')}</h2>
+                <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed border-l-2 border-violet-500/40 pl-3 py-0.5">
+                  {T('ed_lively_intro')}
+                </p>
+              </div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livelyAvatarEnabled}
+                  onChange={(e) => {
+                    setLivelyAvatarEnabled(e.target.checked);
+                    markDirty();
+                  }}
+                  className="rounded border-[var(--border)] w-4 h-4"
+                />
+                <span className="text-sm font-semibold text-[var(--text)]">{T('ed_lively_enable')}</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livelyCentralMagic}
+                  onChange={(e) => {
+                    setLivelyCentralMagic(e.target.checked);
+                    markDirty();
+                  }}
+                  className="rounded border-[var(--border)] w-4 h-4"
+                />
+                <span className="text-sm font-semibold text-[var(--text)]">{T('ed_lively_central_magic')}</span>
+              </label>
+              <div>
+                <label className="label block mb-1">{T('ed_lively_floating')}</label>
+                <select
+                  value={livelyFloatingPreset}
+                  onChange={(e) => {
+                    setLivelyFloatingPreset(e.target.value);
+                    markDirty();
+                  }}
+                  className="input"
+                >
+                  {FLOATING_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {T(p.labelKey)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_lively_floating_hint')}</p>
+              </div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livelyFloatingExpressive}
+                  onChange={(e) => {
+                    setLivelyFloatingExpressive(e.target.checked);
+                    markDirty();
+                  }}
+                  className="rounded border-[var(--border)] w-4 h-4"
+                />
+                <span className="text-sm font-semibold text-[var(--text)]">{T('ed_lively_expressive_gestures')}</span>
+              </label>
+              <p className="text-[10px] text-[var(--text2)] pl-7 -mt-2 mb-1">{T('ed_lively_expressive_gestures_hint')}</p>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={livelyDualAgent}
+                  onChange={(e) => {
+                    setLivelyDualAgent(e.target.checked);
+                    markDirty();
+                  }}
+                  className="rounded border-[var(--border)] w-4 h-4"
+                />
+                <span className="text-sm font-semibold text-[var(--text)]">{T('ed_lively_dual')}</span>
+              </label>
+              <div>
+                <label className="label block mb-1">{T('ed_lively_model')}</label>
+                <select
+                  value={livelyAvatarModel}
+                  onChange={(e) => {
+                    setLivelyAvatarModel(e.target.value);
+                    markDirty();
+                  }}
+                  className="input"
+                >
+                  {LIVELY_AVATAR_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {String(lang).startsWith('en') ? m.label.en : m.label.pt}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_lively_model_hint')}</p>
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="label block mb-0">{T('ed_lively_welcome')}</label>
+                  <button
+                    type="button"
+                    disabled={livelySuggestWelcomeBusy || !site?.slug}
+                    onClick={() => void runSuggestLivelyWelcome()}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg2)] hover:bg-[var(--bg3)] disabled:opacity-40"
+                  >
+                    {livelySuggestWelcomeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    {T('ed_lively_suggest_welcome')}
+                  </button>
+                </div>
+                <textarea
+                  value={livelyAvatarWelcome}
+                  onChange={(e) => {
+                    setLivelyAvatarWelcome(e.target.value.slice(0, 500));
+                    markDirty();
+                  }}
+                  className="input resize-none"
+                  rows={3}
+                  placeholder={T('ed_lively_welcome_ph')}
+                />
+                <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_lively_suggest_hint')}</p>
+              </div>
+              <div>
+                <label className="label block mb-1">{T('ed_lively_instructions')}</label>
+                <textarea
+                  value={livelyAgentInstructions}
+                  onChange={(e) => {
+                    setLivelyAgentInstructions(e.target.value.slice(0, 2000));
+                    markDirty();
+                  }}
+                  className="input resize-none font-mono text-xs"
+                  rows={4}
+                  placeholder={T('ed_lively_instructions_ph')}
+                />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label block mb-1">{T('ed_lively_eleven_owner')}</label>
+                  <input
+                    value={livelyElevenOwner}
+                    onChange={(e) => {
+                      setLivelyElevenOwner(e.target.value);
+                      markDirty();
+                    }}
+                    className="input font-mono text-xs"
+                    placeholder="voice_id"
+                  />
+                </div>
+                <div>
+                  <label className="label block mb-1">{T('ed_lively_eleven_agent')}</label>
+                  <input
+                    value={livelyElevenAgent}
+                    onChange={(e) => {
+                      setLivelyElevenAgent(e.target.value);
+                      markDirty();
+                    }}
+                    className="input font-mono text-xs"
+                    placeholder="voice_id"
+                  />
+                </div>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] p-4 space-y-2 bg-[var(--bg2)]/40">
+                <p className="text-sm font-bold text-[var(--text)]">{T('ed_lively_credits_title')}</p>
+                <p className="text-xs text-[var(--text2)] leading-relaxed">{T('ed_lively_credits_hint')}</p>
+                <p className="text-lg font-black text-brand tabular-nums flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span>
+                    US${iaBudget.freeUsd.toFixed(2)}{' '}
+                    <span className="text-xs font-semibold text-[var(--text2)]">{T('ed_identity_ia_free_label')}</span>
+                  </span>
+                  <span className="text-[var(--text2)] text-sm">·</span>
+                  <span>
+                    US${iaBudget.paidUsd.toFixed(2)}{' '}
+                    <span className="text-xs font-semibold text-[var(--text2)]">{T('ed_identity_ia_paid_label')}</span>
+                  </span>
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] p-4 space-y-3 bg-[var(--bg2)]/50">
+                <p className="text-sm font-bold text-[var(--text)]">{T('ed_lively_nft_title')}</p>
+                <p className="text-xs text-[var(--text2)] leading-relaxed">{T('ed_lively_nft_body')}</p>
+                {(site as any)?.lively_avatar_nft_verified_at ? (
+                  <p className="text-xs font-bold text-green-400">{T('ed_lively_nft_verified_at')}</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void runVerifyLivelyNft()}
+                    disabled={livelyNftVerifyLoading}
+                    className="btn-primary gap-2 text-sm"
+                  >
+                    {livelyNftVerifyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {T('ed_lively_verify')}
+                  </button>
+                )}
+              </div>
+              <div className="rounded-xl border border-violet-500/30 p-4 space-y-3 bg-violet-500/5">
+                <p className="text-sm font-bold text-[var(--text)]">{T('ed_lively_premium_title')}</p>
+                <p className="text-xs text-[var(--text2)] leading-relaxed">{T('ed_lively_premium_body')}</p>
+                {(site as any)?.lively_premium_nft_verified_at ? (
+                  <p className="text-xs font-bold text-green-400">{T('ed_lively_premium_ok_label')}</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void runVerifyPremiumNft()}
+                    disabled={livelyPremiumVerifyLoading}
+                    className="btn-primary gap-2 text-sm border-violet-500/50"
+                  >
+                    {livelyPremiumVerifyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {T('ed_lively_premium_verify')}
+                  </button>
+                )}
+              </div>
+            </div>
+
+          {site?.id && user?.id && (
+            <div className="space-y-4">
+              <IdentityLabPanel
+                siteId={site.id}
+                slug={slug.trim()}
+                aiFreeUsd={iaBudget.freeUsd}
+                aiPaidUsd={iaBudget.paidUsd}
+                identityPortraitUrl={identityPortraitUrl}
+                setIdentityPortraitUrl={setIdentityPortraitUrl}
+                identityStylePreset={identityStylePreset}
+                setIdentityStylePreset={setIdentityStylePreset}
+                identityVoiceEffect={identityVoiceEffect}
+                setIdentityVoiceEffect={setIdentityVoiceEffect}
+                identityCloneVoiceId={typeof (site as any)?.identity_clone_voice_id === 'string' ? (site as any).identity_clone_voice_id : ''}
+                setAvatarUrl={setAvatarUrl}
+                uploadToStorage={uploadToStorage}
+                onMarkDirty={markDirty}
+                onReload={reload}
+                T={T}
+              />
+              <div className="card p-4 border border-amber-500/25 bg-amber-500/5">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={magicPortraitEnabled}
+                    onChange={(e) => {
+                      setMagicPortraitEnabled(e.target.checked);
+                      markDirty();
+                    }}
+                    className="rounded border-[var(--border)] w-4 h-4"
+                  />
+                  <span className="text-sm font-semibold text-[var(--text)]">{T('ed_magic_portrait_enable')}</span>
+                </label>
+                <p className="text-[11px] text-[var(--text2)] mt-2 pl-7 leading-relaxed">{T('ed_magic_portrait_hint')}</p>
+              </div>
+            </div>
+          )}
             </div>
           )}
 
           {/* VERIFY */}
           {activeTab === 'verify' && (
             <div className="card p-6 space-y-4">
-              <h2 className="font-black text-lg text-[var(--text)]">Verify YouTube Channel</h2>
-              <p className="text-sm text-[var(--text2)]">Add a link to <code className="text-brand">{siteUrl || 'your mini site URL'}</code> in your YouTube channel description, then verify here to get the ✓ badge.</p>
-              <input value={ytVerifyUrl} onChange={e => setYtVerifyUrl(e.target.value)} className="input" placeholder="https://youtube.com/@yourchannel" />
+              <h2 className="font-black text-lg text-[var(--text)]">{T('ed_verify_yt_title')}</h2>
+              <p className="text-sm text-[var(--text2)]">
+                {T('ed_verify_yt_intro_before')}{' '}
+                <code className="text-brand">{siteUrl || T('ed_mini_site_url_placeholder')}</code>{' '}
+                {T('ed_verify_yt_intro_after')}
+              </p>
+              <input value={ytVerifyUrl} onChange={e => setYtVerifyUrl(e.target.value)} className="input" placeholder={T('ed_verify_yt_ph')} />
               <button onClick={verifyYouTube} disabled={verifying || !ytVerifyUrl} className="btn-primary gap-2">
-                {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : '🔍'} Verify Channel
+                {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : '🔍'} {T('ed_verify_channel_btn')}
               </button>
               {site && (site as any).is_verified && (
                 <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
-                  <span>✓</span><span>Verified!</span>
+                  <span>✓</span><span>{T('ed_verified_badge')}</span>
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* ── Sidebar: Live Preview ── */}
+        {/* ── Sidebar: Live Preview (mini-site | Google) ── */}
         <div>
           <div className="card p-4 sticky top-36">
-            <p className="text-xs text-[var(--text2)] font-semibold uppercase tracking-wider mb-3">Live Preview</p>
+            <p className="text-xs text-[var(--text2)] font-semibold uppercase tracking-wider mb-2">{T('ed_preview')}</p>
+            <div className="flex rounded-xl border border-[var(--border)] p-1 mb-3 gap-0.5 bg-[var(--bg2)]">
+              <button
+                type="button"
+                onClick={() => setLivePreviewTab('minisite')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[11px] font-bold transition-all ${
+                  livePreviewTab === 'minisite' ? 'bg-brand text-white shadow-sm' : 'text-[var(--text2)] hover:text-[var(--text)]'
+                }`}
+              >
+                <LayoutTemplate className="w-3.5 h-3.5 opacity-90 flex-shrink-0" />
+                {T('ed_preview_minisite')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLivePreviewTab('google')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[11px] font-bold transition-all ${
+                  livePreviewTab === 'google' ? 'bg-brand text-white shadow-sm' : 'text-[var(--text2)] hover:text-[var(--text)]'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5 opacity-90 flex-shrink-0" />
+                {T('ed_preview_google')}
+              </button>
+            </div>
+
+            {livePreviewTab === 'google' ? (
+              <GoogleSerpPreview
+                slug={slug}
+                siteName={siteName}
+                seoTitle={seoTitle}
+                seoDescription={seoDescription}
+                bio={bio}
+                cvHeadline={cvHeadline}
+                avatarUrl={avatarUrl}
+              />
+            ) : (
             <div className="rounded-2xl overflow-hidden border border-[var(--border)]" style={{ background: currentTheme.bg }}>
               {/* Banner preview */}
               {bannerUrl && (
@@ -1683,7 +2962,8 @@ export default function EditorPage() {
                     : <div style={{ width:avatarPx, height:avatarPx, borderRadius:'50%', background:accentColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.round(avatarPx*0.4), fontWeight:900, color:'#fff' }}>{siteName?.[0] || '?'}</div>}
                 </div>
                 <p style={{ fontSize:15, fontWeight:900, color:textColor||currentTheme.text, margin:'0 0 3px',
-                  fontFamily: fontStyle==='serif'?'Georgia,serif':fontStyle==='mono'?'monospace':'system-ui' }}>{siteName||'My Site'}</p>
+                  fontFamily: fontStyle==='serif'?'Georgia,serif':fontStyle==='mono'?'monospace':'system-ui',
+                  opacity: siteName ? 1 : 0.35 }}>{siteName || T('ed_preview_name_placeholder')}</p>
                 {bio && <p style={{ fontSize:11, color:textColor||currentTheme.text, opacity:0.6, margin:'0 0 10px' }}>{bio.slice(0,60)}{bio.length>60?'...':''}</p>}
                 {/* Link preview */}
                 {links.slice(0,3).map(link => (
@@ -1696,22 +2976,52 @@ export default function EditorPage() {
                   </div>
                 ))}
                 {links.length === 0 && (
-                  <div style={{ width:'100%', padding:'7px 10px', borderRadius:10, background:`${accentColor}20`, border:`1px solid ${accentColor}40`, fontSize:11, fontWeight:700, color:currentTheme.text, textAlign:'left' }}>🔗 Sample Link</div>
+                  <div style={{ width:'100%', padding:'7px 10px', borderRadius:10, border:`1px dashed ${accentColor}55`, fontSize:10, fontWeight:600, color:currentTheme.text, textAlign:'center', opacity:0.45 }}>
+                    {T('ed_preview_links_hint')}
+                  </div>
                 )}
               </div>
               {site?.slug && <p style={{ textAlign:'center', fontSize:9, color:currentTheme.text, opacity:0.35, padding:'0 0 8px', fontFamily:'monospace' }}>{site.slug}.trustbank.xyz</p>}
             </div>
+            )}
 
             {user && <div className="mt-3"><EarningsWidget userId={user.id} accentColor={accentColor} compact /></div>}
 
             {siteUrl && (
               <a href={siteUrl} target="_blank" rel="noopener" className="btn-secondary w-full justify-center mt-3 text-sm py-2 gap-1">
-                <ExternalLink className="w-3.5 h-3.5" /> Open full site
+                <ExternalLink className="w-3.5 h-3.5" /> {T('ed_open_full_site')}
               </a>
             )}
           </div>
         </div>
       </div>
+
+      {site?.id && user?.id ? (
+        <EditorScriptsAndAdsDialog
+          open={scriptsAdsDialogOpen}
+          onOpenChange={setScriptsAdsDialogOpen}
+          T={T}
+          lang={lang}
+          siteName={siteName}
+          livelyProfileAsAvatar={livelyProfileAsAvatar}
+          livelyAvatarWelcome={livelyAvatarWelcome}
+          setLivelyAvatarWelcome={setLivelyAvatarWelcome}
+          livelyProfileSpeechTap={livelyProfileSpeechTap}
+          setLivelyProfileSpeechTap={setLivelyProfileSpeechTap}
+          livelyProfileSpeechBeforeReply={livelyProfileSpeechBeforeReply}
+          setLivelyProfileSpeechBeforeReply={setLivelyProfileSpeechBeforeReply}
+          runSuggestLivelyWelcome={() => void runSuggestLivelyWelcome()}
+          livelySuggestWelcomeBusy={livelySuggestWelcomeBusy}
+          siteSlug={site.slug}
+          adAskingPrice={adAskingPrice}
+          setAdAskingPrice={setAdAskingPrice}
+          adShowPricePublic={adShowPricePublic}
+          setAdShowPricePublic={setAdShowPricePublic}
+          onSuggestAdPrice={() => void runSuggestAdPrice()}
+          suggestingPrice={suggestingPrice}
+          markDirty={markDirty}
+        />
+      ) : null}
     </div>
   );
 }

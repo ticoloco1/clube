@@ -4,8 +4,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 import {
-  Shield, Users, Trophy, Globe, Crown, BarChart3, Settings, Megaphone,
+  Shield, Users, Globe, Crown, BarChart3, Settings, Megaphone,
   Ban, CheckCircle, Trash2, Plus, Search, RefreshCw, Tag,
   Gavel, Bell, Eye, Flag, TrendingUp, DollarSign, Activity,
   Upload, Mail, X, ChevronDown, ChevronUp, Lock, Unlock,
@@ -19,6 +20,7 @@ type Tab = 'overview'|'sites'|'slugs'|'users'|'reports'|'broadcast'|'analytics'|
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const T = useT();
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<Tab>('overview');
@@ -118,12 +120,12 @@ export default function AdminPage() {
   const togglePublish = async (id: string, current: boolean) => {
     await supabase.from('mini_sites').update({ published: !current }).eq('id', id);
     setSites(s => s.map(x => x.id === id ? { ...x, published: !current } : x));
-    toast.success(!current ? 'Site published' : 'Site unpublished');
+    toast.success(!current ? T('gov_toast_site_published') : T('gov_toast_site_unpublished'));
   };
   const toggleBlock = async (id: string, current: boolean) => {
     await supabase.from('mini_sites').update({ blocked: !current } as any).eq('id', id);
     setSites(s => s.map(x => x.id === id ? { ...x, blocked: !current } : x));
-    toast.success(!current ? 'Site blocked' : 'Site unblocked');
+    toast.success(!current ? T('gov_toast_site_blocked') : T('gov_toast_site_unblocked'));
   };
   const freePlan = async (userId: string) => {
     await supabase.from('subscriptions' as any).upsert({
@@ -131,18 +133,19 @@ export default function AdminPage() {
       expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
     });
     await supabase.from('mini_sites').update({ published: true }).eq('user_id', userId);
-    toast.success('Pro plan granted for free!');
+    toast.success(T('toast_pro_granted'));
   };
 
   // Slug actions
   const addSingleSlug = async () => {
     if (!newSlug || !newSlugPrice) return;
+    const slugAdded = newSlug.trim();
     setAddingSlug(true);
     await supabase.from('premium_slugs' as any).upsert({ slug: newSlug, keyword: newSlug, price: parseFloat(newSlugPrice), active: true });
     setNewSlug(''); setNewSlugPrice('');
     const { data } = await supabase.from('premium_slugs' as any).select('*').order('created_at', { ascending: false });
     setPremiumSlugs(data || []);
-    toast.success(`/${newSlug} added to marketplace`);
+    toast.success(T('gov_toast_marketplace_slug').replace('{slug}', slugAdded));
     setAddingSlug(false);
   };
 
@@ -166,7 +169,8 @@ export default function AdminPage() {
     }
     setBulkSlugs(''); setBulkPrice('');
     loadAll();
-    toast.success(`${count} adicionados${skipped > 0 ? `, ${skipped} já existiam (ignorados)` : ''}`);
+    const suffix = skipped > 0 ? T('gov_scan_skipped_suffix').replace('{n}', String(skipped)) : '';
+    toast.success(T('gov_scan_added').replace('{count}', String(count)).replace('{suffix}', suffix));
   };
 
   const toggleSlugActive = async (id: string, current: boolean) => {
@@ -176,6 +180,7 @@ export default function AdminPage() {
 
   const createAuction = async () => {
     if (!auctionSlug || !auctionStart) return;
+    const aSlug = auctionSlug.trim();
     await supabase.from('premium_slugs' as any).upsert({
       slug: auctionSlug, keyword: auctionSlug,
       price: parseFloat(auctionStart), active: true,
@@ -183,7 +188,7 @@ export default function AdminPage() {
     });
     setAuctionSlug(''); setAuctionStart(''); setAuctionEnd('');
     loadAll();
-    toast.success(`Auction created for /${auctionSlug}`);
+    toast.success(T('gov_toast_auction_created').replace('{slug}', aSlug));
   };
 
   // Broadcast
@@ -202,7 +207,7 @@ export default function AdminPage() {
     }
     setBroadcastMsg(''); setBroadcastTitle('');
     setSending(false);
-    toast.success(`Broadcast sent to ${userIds.length} users!`);
+    toast.success(T('gov_toast_broadcast_users').replace('{count}', String(userIds.length)));
   };
 
   // Settings save
@@ -214,7 +219,7 @@ export default function AdminPage() {
       ticker_text: tickerText, updated_at: new Date().toISOString(),
     });
     setSavingSettings(false);
-    toast.success('Settings saved!');
+    toast.success(T('toast_settings_saved'));
   };
 
   const uploadFavicon = async (file: File) => {
@@ -223,7 +228,7 @@ export default function AdminPage() {
     if (error) { toast.error(error.message); return; }
     const url = supabase.storage.from('platform-assets').getPublicUrl(path).data.publicUrl;
     setFaviconUrl(url);
-    toast.success('Favicon uploaded!');
+    toast.success(T('gov_toast_favicon'));
   };
 
   const saveApiKeys = async () => {
@@ -236,7 +241,7 @@ export default function AdminPage() {
       updated_at: new Date().toISOString(),
     });
     setSavingKeys(false);
-    toast.success('API keys saved!');
+    toast.success(T('gov_toast_api_keys_saved'));
   };
 
   const createAdminSite = async () => {
@@ -253,7 +258,7 @@ export default function AdminPage() {
         user_id: userId, slug: newSiteSlug, site_name: newSiteName, published: true,
       });
       if (error) throw error;
-      toast.success(`Site /${newSiteSlug} created and published!`);
+      toast.success(T('gov_toast_site_created').replace('{slug}', newSiteSlug));
       setNewSiteName(''); setNewSiteSlug(''); setNewSiteEmail('');
       loadAll();
     } catch (e: any) { toast.error(e.message); }
@@ -466,19 +471,19 @@ export default function AdminPage() {
 
               {/* Bulk add */}
               <div className="card p-5">
-                <h2 className="font-semibold text-[var(--text)] mb-3 flex items-center gap-2"><Database className="w-4 h-4" /> Cadastro em Massa</h2>
-                <p className="text-xs text-[var(--text2)] mb-3">Um slug por linha. Formato: <code className="bg-[var(--bg3)] px-1 rounded">slug:preco</code> ou só <code className="bg-[var(--bg3)] px-1 rounded">slug</code> (usa o preço padrão)</p>
+                <h2 className="font-semibold text-[var(--text)] mb-3 flex items-center gap-2"><Database className="w-4 h-4" /> {T('gov_bulk_register_title')}</h2>
+                <p className="text-xs text-[var(--text2)] mb-3">{T('gov_bulk_slug_format_help')}</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <textarea value={bulkSlugs} onChange={e => setBulkSlugs(e.target.value)}
                     className="input resize-none font-mono text-sm" rows={10}
                     placeholder={"ceo:5000\nboss:1500\nartist:500\ndev:500\nfit\nshop\ncars"} />
                   <div className="space-y-3">
                     <div>
-                      <label className="label block mb-1">Preço padrão para linhas sem preço ($)</label>
+                      <label className="label block mb-1">{T('gov_bulk_default_price_lbl')}</label>
                       <input value={bulkPrice} onChange={e => setBulkPrice(e.target.value)}
                         className="input" placeholder="ex: 12" type="number" />
                     </div>
-                    <p className="text-xs text-[var(--text2)]">{bulkSlugs.split('\n').filter(s => s.trim()).length} slugs prontos</p>
+                    <p className="text-xs text-[var(--text2)]">{T('gov_bulk_slugs_count').replace('{n}', String(bulkSlugs.split('\n').filter(s => s.trim()).length))}</p>
                     <button onClick={addBulkSlugs} disabled={!bulkSlugs || !bulkPrice} className="btn-primary w-full justify-center">
                       <Zap className="w-4 h-4" /> Add All Slugs
                     </button>
@@ -624,10 +629,10 @@ export default function AdminPage() {
                 <h2 className="font-semibold text-[var(--text)] mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Quick Actions</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { label: 'Remove all expired posts', action: () => toast.info('Cleaning expired posts...'), icon: Trash2 },
-                    { label: 'Scan for spam', action: () => toast.info('Scanning...'), icon: Search },
-                    { label: 'Export site list', action: () => toast.info('Exporting...'), icon: FileText },
-                    { label: 'Clear notifications', action: () => toast.info('Clearing...'), icon: Bell },
+                    { label: 'Remove all expired posts', action: () => toast.info(T('gov_clean_expired_posts')), icon: Trash2 },
+                    { label: 'Scan for spam', action: () => toast.info(T('gov_scan_spam')), icon: Search },
+                    { label: 'Export site list', action: () => toast.info(T('gov_export_sites')), icon: FileText },
+                    { label: 'Clear notifications', action: () => toast.info(T('gov_clear_notifications')), icon: Bell },
                   ].map(({ label, action, icon: Icon }) => (
                     <button key={label} onClick={action}
                       className="p-4 rounded-xl border border-[var(--border)] hover:border-brand hover:bg-brand/5 transition-all text-left">
@@ -761,7 +766,7 @@ export default function AdminPage() {
                 <div>
                   <label className="label block mb-1">Platform Wallet (Polygon/USDC receiver)</label>
                   <input value={platformWallet} onChange={e => setPlatformWallet(e.target.value)} className="input font-mono text-xs" placeholder="0x..." />
-                  <p className="text-xs text-[var(--text2)] mt-1">This is where USDC payments are sent</p>
+                  <p className="text-xs text-[var(--text2)] mt-1">Legacy Polygon receiver (e.g. credits); main checkout uses Stripe</p>
                 </div>
                 <div className="bg-[var(--bg2)] rounded-xl p-3 text-xs text-[var(--text2)]">
                   <p className="font-semibold mb-1">Coinbase Webhook URL:</p>
@@ -825,47 +830,20 @@ export default function AdminPage() {
             <div className="space-y-6">
               <h1 className="text-2xl font-black text-[var(--text)]">Platform Settings</h1>
 
-              {/* Jackpot toggle */}
-              <div className="card p-5 mb-4">
-                <h2 className="font-semibold text-[var(--text)] mb-3 flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-400" /> Jackpot</h2>
-                <div className="flex items-center justify-between p-4 bg-[var(--bg2)] rounded-xl mb-3">
-                  <div>
-                    <p className="font-semibold text-sm text-[var(--text)]">Jackpot ativo</p>
-                    <p className="text-xs text-[var(--text2)]">Liga/desliga o acúmulo e exibição do jackpot</p>
-                  </div>
-                  <button onClick={async()=>{
-                    const {data:curr} = await (supabase as any).from('jackpot_pool').select('enabled').maybeSingle();
-                    await (supabase as any).from('jackpot_pool').update({enabled:!curr?.enabled}).eq('id','00000000-0000-0000-0000-000000000001');
-                    toast.success(`Jackpot ${!curr?.enabled?'ativado':'desativado'}`);
-                  }} className="btn-primary text-xs px-4">Alternar</button>
-                </div>
-                <button onClick={async()=>{
-                  const {data:pool} = await (supabase as any).from('jackpot_pool').select('balance_usdc,total_entries').maybeSingle();
-                  if(!pool?.balance_usdc || pool.balance_usdc < 100){toast.error('Mínimo $100 USDC para sortear');return;}
-                  if(!confirm(`Sortear jackpot de $${pool.balance_usdc.toFixed(2)} USDC agora? Esta ação não pode ser desfeita.`))return;
-                  const {data,error} = await (supabase as any).rpc('run_jackpot_draw',{admin_id:user!.id});
-                  if(error){toast.error('Erro: '+error.message);return;}
-                  toast.success(`🎰 Sorteio concluído! ${data.winners?.length||0} ganhadores · Pool: $${data.prize_pool?.toFixed(2)} USDC`);
-                  loadAll();
-                }} className="btn-secondary w-full justify-center text-sm flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-400"/> Realizar Sorteio Agora
-                </button>
-              </div>
-
               {/* Feed global toggle */}
               <div className="card p-5">
                 <h2 className="font-semibold text-[var(--text)] mb-3 flex items-center gap-2"><Radio className="w-4 h-4 text-brand" /> Feed Global 400x448</h2>
                 <div className="flex items-center justify-between p-4 bg-[var(--bg2)] rounded-xl">
                   <div>
-                    <p className="font-semibold text-sm text-[var(--text)]">Janela de feed na homepage</p>
-                    <p className="text-xs text-[var(--text2)] mt-0.5">Quando desligado, o feed some de todas as páginas do site</p>
+                    <p className="font-semibold text-sm text-[var(--text)]">{T('gov_feed_window_title')}</p>
+                    <p className="text-xs text-[var(--text2)] mt-0.5">{T('gov_feed_when_off_desc')}</p>
                   </div>
                   <button onClick={async()=>{
                     const {data:curr} = await (supabase as any).from('platform_settings').select('value').eq('key','feed_enabled_global').maybeSingle();
                     const next = curr?.value !== 'true' ? 'true' : 'false';
                     await (supabase as any).from('platform_settings').upsert({key:'feed_enabled_global',value:next,updated_at:new Date().toISOString()},{onConflict:'key'});
-                    toast.success(`Feed global ${next==='true'?'✅ ativado':'❌ desativado'}`);
-                  }} className="btn-primary text-xs px-4">Alternar On/Off</button>
+                    toast.success(next === 'true' ? T('gov_toast_feed_global_on') : T('gov_toast_feed_global_off'));
+                  }} className="btn-primary text-xs px-4">{T('gov_feed_toggle_btn')}</button>
                 </div>
               </div>
 

@@ -4,7 +4,7 @@ import { BoostButton } from '@/components/ui/BoostButton';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
-import { useT } from '@/lib/i18n';
+import { useT, useI18n } from '@/lib/i18n';
 import {
   Car, Search, SlidersHorizontal, ChevronLeft, ChevronRight,
   Heart, MapPin, Gauge, Fuel, Settings, X, ExternalLink, Shield, Zap
@@ -34,6 +34,7 @@ interface Listing {
 
 // ─── Photo Carousel ─────────────────────────────────────────────────────────
 function PhotoCarousel({ images, title }: { images: string[]; title: string }) {
+  const T = useT();
   const [idx, setIdx] = useState(0);
   const [liked, setLiked] = useState(false);
 
@@ -73,7 +74,7 @@ function PhotoCarousel({ images, title }: { images: string[]; title: string }) {
             ))}
           </div>
           <div className="absolute top-2 right-10 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full z-10">
-            {idx + 1}/{images.length} fotos
+            {T('carros_photos_count').replace('{cur}', String(idx + 1)).replace('{total}', String(images.length))}
           </div>
         </>
       )}
@@ -82,7 +83,6 @@ function PhotoCarousel({ images, title }: { images: string[]; title: string }) {
         className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 shadow flex items-center justify-center z-10 hover:scale-110 transition-all">
         <Heart className={`w-4 h-4 transition-colors ${liked ? 'fill-red-500 text-red-500' : 'text-zinc-500'}`} />
       </button>
-    <Footer />
     </div>
   );
 }
@@ -129,7 +129,19 @@ function Lightbox({ images, startIdx, onClose }: { images: string[]; startIdx: n
 }
 
 // ─── Car Card (horizontal list style like Cars.com) ───────────────────────────
-function CarCard({ item, onClick, detailsLabel }: { item: Listing; onClick: () => void; detailsLabel: string }) {
+function CarCard({
+  item,
+  onClick,
+  detailsLabel,
+  nLocale,
+  priceInquire,
+}: {
+  item: Listing;
+  onClick: () => void;
+  detailsLabel: string;
+  nLocale: string;
+  priceInquire: string;
+}) {
   return (
     <article className="group bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg border border-zinc-100 dark:border-zinc-800 transition-all duration-300 cursor-pointer flex flex-col sm:flex-row"
       onClick={onClick}>
@@ -158,7 +170,7 @@ function CarCard({ item, onClick, detailsLabel }: { item: Listing; onClick: () =
             {item.extra?.km != null && (
               <div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg">
                 <Gauge className="w-3.5 h-3.5 text-zinc-400" />
-                <span>{Number(item.extra.km).toLocaleString('pt-BR')} km</span>
+                <span>{Number(item.extra.km).toLocaleString(nLocale)} km</span>
               </div>
             )}
             {item.extra?.combustivel && (
@@ -201,7 +213,7 @@ function CarCard({ item, onClick, detailsLabel }: { item: Listing; onClick: () =
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-2xl font-black text-zinc-900 dark:text-white">
-              {item.price ? `R$ ${Number(item.price).toLocaleString('pt-BR')}` : 'Consultar'}
+              {item.price ? `R$ ${Number(item.price).toLocaleString(nLocale)}` : priceInquire}
             </p>
             {item.mini_sites && (
               <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
@@ -222,8 +234,14 @@ function CarCard({ item, onClick, detailsLabel }: { item: Listing; onClick: () =
 
 // ─── Detail Modal ────────────────────────────────────────────────────────────
 function DetailModal({ item, onClose }: { item: Listing; onClose: () => void }) {
+  const T = useT();
+  const { lang } = useI18n();
+  const nLocale = lang === 'pt' ? 'pt-BR' : 'en-US';
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const images = item.images || [];
+  const priceFmt = item.price
+    ? `R$ ${Number(item.price).toLocaleString(nLocale)}`
+    : T('carros_price_inquire');
 
   return (
     <>
@@ -265,18 +283,18 @@ function DetailModal({ item, onClose }: { item: Listing; onClose: () => void }) 
                 <h2 className="text-2xl font-black text-zinc-900 dark:text-white">{item.title}</h2>
                 {item.location && <p className="text-zinc-500 flex items-center gap-1 mt-1 text-sm"><MapPin className="w-4 h-4" />{item.location}</p>}
               </div>
-              <p className="text-3xl font-black text-blue-600 flex-shrink-0">{item.price ? `R$ ${Number(item.price).toLocaleString('pt-BR')}` : 'Consultar'}</p>
+              <p className="text-3xl font-black text-blue-600 flex-shrink-0">{priceFmt}</p>
             </div>
 
             {/* Specs */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
               {[
-                { icon: <Gauge className="w-4 h-4" />, label: 'Quilometragem', value: item.extra?.km ? `${Number(item.extra.km).toLocaleString('pt-BR')} km` : null },
-                { icon: <Fuel className="w-4 h-4" />, label: 'Combustível', value: item.extra?.combustivel },
-                { icon: <Settings className="w-4 h-4" />, label: 'Câmbio', value: item.extra?.cambio },
-                { icon: <Zap className="w-4 h-4" />, label: 'Motor', value: item.extra?.motor },
-                { icon: <span className="text-sm">🎨</span>, label: 'Cor', value: item.extra?.cor },
-                { icon: <span className="text-sm">🚗</span>, label: 'Portas', value: item.extra?.portas ? `${item.extra.portas} portas` : null },
+                { icon: <Gauge className="w-4 h-4" />, label: T('carros_spec_mileage'), value: item.extra?.km ? `${Number(item.extra.km).toLocaleString(nLocale)} km` : null },
+                { icon: <Fuel className="w-4 h-4" />, label: T('carros_spec_fuel'), value: item.extra?.combustivel },
+                { icon: <Settings className="w-4 h-4" />, label: T('carros_spec_transmission'), value: item.extra?.cambio },
+                { icon: <Zap className="w-4 h-4" />, label: T('carros_spec_engine'), value: item.extra?.motor },
+                { icon: <span className="text-sm">🎨</span>, label: T('carros_spec_color'), value: item.extra?.cor },
+                { icon: <span className="text-sm">🚗</span>, label: T('carros_label_doors'), value: item.extra?.portas != null ? T('carros_spec_doors').replace('{n}', String(item.extra.portas)) : null },
               ].filter(s => s.value).map((s, i) => (
                 <div key={i} className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-3">
                   <div className="flex items-center gap-1.5 text-zinc-400 mb-1">{s.icon}<span className="text-xs">{s.label}</span></div>
@@ -288,7 +306,7 @@ function DetailModal({ item, onClose }: { item: Listing; onClose: () => void }) 
             {/* Opcionais */}
             {item.extra?.opcionais && item.extra.opcionais.length > 0 && (
               <div className="mb-6">
-                <h3 className="font-bold text-zinc-800 dark:text-zinc-200 mb-3">Opcionais</h3>
+                <h3 className="font-bold text-zinc-800 dark:text-zinc-200 mb-3">{T('carros_options_title')}</h3>
                 <div className="flex flex-wrap gap-2">
                   {item.extra.opcionais.map((op, i) => (
                     <span key={i} className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950 px-3 py-1 rounded-full border border-green-100 dark:border-green-900 flex items-center gap-1">
@@ -302,7 +320,7 @@ function DetailModal({ item, onClose }: { item: Listing; onClose: () => void }) 
             {/* Description */}
             {item.extra?.descricao && (
               <div className="mb-6">
-                <h3 className="font-bold text-zinc-800 dark:text-zinc-200 mb-2">Descrição</h3>
+                <h3 className="font-bold text-zinc-800 dark:text-zinc-200 mb-2">{T('imoveis_detail_description')}</h3>
                 <p className="text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed whitespace-pre-line">{item.extra.descricao}</p>
               </div>
             )}
@@ -316,17 +334,17 @@ function DetailModal({ item, onClose }: { item: Listing; onClose: () => void }) 
                     {item.mini_sites.site_name}
                     {item.mini_sites.is_verified && <Shield className="w-4 h-4 text-blue-500" />}
                   </p>
-                  <p className="text-xs text-zinc-500">Vendedor verificado</p>
+                  <p className="text-xs text-zinc-500">{T('carros_seller_verified')}</p>
                 </div>
                 <a href={`https://${item.mini_sites.slug}.trustbank.xyz`} target="_blank"
                   className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors flex-shrink-0">
-                  Contato <ExternalLink className="w-3.5 h-3.5" />
+                  {T('carros_contact')} <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
             )}
             {/* Boost button — anyone can boost */}
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-              <p className="text-xs text-zinc-500">Ajude este anúncio a subir nas listagens</p>
+              <p className="text-xs text-zinc-500">{T('carros_boost_hint')}</p>
               <BoostButton targetType="classified" targetId={item.id} targetName={item.title} compact />
             </div>
           </div>
@@ -342,6 +360,8 @@ const PAGE_SIZE = 10;
 
 export default function CarrosPage() {
   const T = useT();
+  const { lang } = useI18n();
+  const nLocale = lang === 'pt' ? 'pt-BR' : 'en-US';
   const [items, setItems] = useState<Listing[]>([]);
   const [search, setSearch] = useState('');
   const [brand, setBrand] = useState('Todos');
@@ -395,7 +415,7 @@ export default function CarrosPage() {
             {BRANDS.map(b => (
               <button key={b} onClick={() => setBrand(b)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${brand === b ? 'bg-blue-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
-                {b}
+                {b === 'Todos' ? T('cv_filter_all') : b}
               </button>
             ))}
           </div>
@@ -414,7 +434,14 @@ export default function CarrosPage() {
         {/* List */}
         <div className="space-y-4">
           {items.map(item => (
-            <CarCard key={item.id} item={item} onClick={() => setSelected(item)} detailsLabel={T('carros_details')} />
+            <CarCard
+              key={item.id}
+              item={item}
+              onClick={() => setSelected(item)}
+              detailsLabel={T('carros_details')}
+              nLocale={nLocale}
+              priceInquire={T('carros_price_inquire')}
+            />
           ))}
           {loading && [...Array(3)].map((_, i) => (
             <div key={i} className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-sm border border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row animate-pulse">
@@ -443,6 +470,7 @@ export default function CarrosPage() {
         <div ref={observerRef} className="h-10" />
       </div>
 
+      <Footer />
       {selected && <DetailModal item={selected} onClose={() => setSelected(null)} />}
     </div>
   );
