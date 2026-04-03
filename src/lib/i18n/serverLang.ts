@@ -1,3 +1,7 @@
+/**
+ * Apenas em Server Components / rotas `app/`.
+ * Não importar via `@/lib/i18n` (barrel) — usa `next/headers` e falha no bundle cliente.
+ */
 import { cookies } from 'next/headers';
 import type { Lang } from './types';
 import { LOCALE_CODES } from './types';

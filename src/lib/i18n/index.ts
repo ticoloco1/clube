@@ -11,5 +11,5 @@ export {
   isMachineTranslatedLang,
 } from './constants';
 export { getLang, setLang, applyDocumentLang, tCurated } from './core';
-export { getServerLang } from './serverLang';
+/** Servidor apenas: importar de `@/lib/i18n/serverLang` — não reexportar aqui (quebra client + `next/headers`). */
 export { I18nProvider, useI18n, useT } from './I18nContext';
