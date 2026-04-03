@@ -38,13 +38,13 @@ export function LanguageSwitcher() {
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={() => setOpen(o => !o)} style={{
         display: 'flex', alignItems: 'center', gap: 4,
-        padding: '6px 10px', borderRadius: 8,
+        padding: '8px 12px', borderRadius: 8,
         background: 'var(--bg2)', border: '1px solid var(--border)',
-        color: 'var(--text)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+        color: 'var(--text)', cursor: 'pointer', fontSize: 15, fontWeight: 600,
       }}>
         <span>{currentLang.flag}</span>
         <span>{currentLang.code.toUpperCase()}</span>
-        <ChevronDown size={12} />
+        <ChevronDown size={14} />
       </button>
 
       {open && (
@@ -57,11 +57,11 @@ export function LanguageSwitcher() {
           {LANGS.map(lang => (
             <button key={lang.code} onClick={() => change(lang.code)} style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              width: '100%', padding: '8px 12px', borderRadius: 8,
+              width: '100%', padding: '10px 12px', borderRadius: 8,
               background: current === lang.code ? 'rgba(129,140,248,0.1)' : 'transparent',
               border: 'none', cursor: 'pointer',
               color: current === lang.code ? 'var(--accent)' : 'var(--text)',
-              fontSize: 13, fontWeight: current === lang.code ? 700 : 400,
+              fontSize: 15, fontWeight: current === lang.code ? 700 : 400,
               textAlign: 'left',
             }}>
               <span style={{ fontSize: 16 }}>{lang.flag}</span>

@@ -108,22 +108,42 @@ export interface MiniSite {
   mystic_lottery_premium_price_usd?: number | string | null;
 }
 
-export function useMySite() {
+export type UseMySiteOptions = {
+  /** UUID do mini-site (`/editor?site=`). */
+  siteId?: string | null;
+  /** `/editor?new=1` — novo site; primeiro save faz INSERT sem reutilizar a linha “mais recente”. */
+  preferNew?: boolean;
+};
+
+export function useMySite(options?: UseMySiteOptions) {
+  const siteIdFilter = options?.siteId?.trim() || null;
+  const preferNew = options?.preferNew === true;
+
   const { user } = useAuth();
   const [site, setSite] = useState<MiniSite | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
+    if (!user) {
+      setSite(null);
+      setLoading(false);
+      return;
+    }
+    if (preferNew && !siteIdFilter) {
+      setSite(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('mini_sites')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
+      let q = supabase.from('mini_sites').select('*').eq('user_id', user.id);
+      if (siteIdFilter) {
+        q = q.eq('id', siteIdFilter);
+      } else {
+        q = q.order('updated_at', { ascending: false }).limit(1);
+      }
+      const { data, error } = await q.maybeSingle();
+
       if (error) {
         console.error('Error loading site:', error);
         setSite(null);
@@ -136,11 +156,14 @@ export function useMySite() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, siteIdFilter, preferNew]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const save = async (values: Partial<MiniSite>) => {
+  /** Após criar site novo, devolve a linha para o editor redirecionar `?site=id`. */
+  const save = async (values: Partial<MiniSite>): Promise<MiniSite | null> => {
     if (!user) throw new Error('Not authenticated');
 
     const { user_id: _, ...cleanValues } = values as any;
@@ -156,53 +179,77 @@ export function useMySite() {
           console.error('Save error:', error);
           throw new Error(`Failed to save: ${error.message}`);
         }
-      } else {
-        let slug = String(cleanValues.slug || '')
-          .trim()
+        await load();
+        return null;
+      }
+
+      let slug = String(cleanValues.slug || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '');
+      if (!slug || slug.length < 2) {
+        slug = (user.email?.split('@')[0] || 'site')
+          .replace(/[^a-z0-9]/gi, '')
           .toLowerCase()
-          .replace(/[^a-z0-9-]/g, '');
-        if (!slug || slug.length < 2) {
-          slug = (user.email?.split('@')[0] || 'site')
-            .replace(/[^a-z0-9]/gi, '')
-            .toLowerCase()
-            .slice(0, 30) || 'site';
-        }
+          .slice(0, 30) || 'site';
+      }
 
-        /** Já existe mini-site na BD mas o estado React perdeu `site` → atualiza em vez de INSERT (evita 2+ linhas por user). */
-        const { data: existingRow } = await supabase
-          .from('mini_sites')
-          .select('id')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const now = new Date().toISOString();
+      const payload = { ...cleanValues, slug, updated_at: now };
 
-        const now = new Date().toISOString();
-        const payload = { ...cleanValues, slug, updated_at: now };
-
-        if (existingRow?.id) {
-          const { error } = await supabase
+      if (preferNew) {
+        const uniqueSlug = `${slug}-${Date.now().toString(36)}`.slice(0, 80);
+        const trySlug = async (s: string) => {
+          const { data: inserted, error } = await supabase
             .from('mini_sites')
-            .update(payload)
-            .eq('id', existingRow.id)
-            .eq('user_id', user.id);
-          if (error) {
-            console.error('Save error (existing mini_site):', error);
-            throw new Error(`Failed to save: ${error.message}`);
-          }
-        } else {
-          const { error } = await supabase
-            .from('mini_sites')
-            .insert({ ...cleanValues, user_id: user.id, slug, updated_at: now })
+            .insert({ ...cleanValues, user_id: user.id, slug: s, updated_at: now })
             .select('*')
             .single();
-          if (error) {
-            console.error('Insert error:', error);
-            throw new Error(`Failed to create: ${error.message}`);
-          }
+          return { inserted: inserted as MiniSite | null, error };
+        };
+        let { inserted, error } = await trySlug(slug);
+        if (error?.code === '23505' || /unique|duplicate/i.test(String(error?.message || ''))) {
+          ({ inserted, error } = await trySlug(uniqueSlug));
+        }
+        if (error) {
+          console.error('Insert error (new site):', error);
+          throw new Error(`Failed to create: ${error.message}`);
+        }
+        setSite(inserted);
+        return inserted;
+      }
+
+      const { data: existingRow } = await supabase
+        .from('mini_sites')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingRow?.id) {
+        const { error } = await supabase
+          .from('mini_sites')
+          .update(payload)
+          .eq('id', existingRow.id)
+          .eq('user_id', user.id);
+        if (error) {
+          console.error('Save error (existing mini_site):', error);
+          throw new Error(`Failed to save: ${error.message}`);
+        }
+      } else {
+        const { error } = await supabase
+          .from('mini_sites')
+          .insert({ ...cleanValues, user_id: user.id, slug, updated_at: now })
+          .select('*')
+          .single();
+        if (error) {
+          console.error('Insert error:', error);
+          throw new Error(`Failed to create: ${error.message}`);
         }
       }
       await load();
+      return null;
     } catch (err) {
       console.error('Save operation failed:', err);
       throw err;

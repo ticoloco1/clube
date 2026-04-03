@@ -197,7 +197,9 @@ create table if not exists mini_sites (
   updated_at                timestamptz default now()
 );
 
-create unique index if not exists uq_mini_sites_one_per_user on mini_sites (user_id);
+-- Removido em instalações que precisam de vários mini_sites por utilizador (admin):
+-- ver supabase-mini-sites-multi-per-user.sql (drop index uq_mini_sites_one_per_user).
+-- create unique index if not exists uq_mini_sites_one_per_user on mini_sites (user_id);
 create index if not exists idx_mini_sites_stripe_connect_account on mini_sites (stripe_connect_account_id) where stripe_connect_account_id is not null;
 
 -- ─────────────────────────────────────────────────────────────────────────────

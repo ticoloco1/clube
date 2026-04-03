@@ -10,8 +10,9 @@ import {
   isSlugReservedAdminOnly,
   SLUG_EXTRA_REGISTRATION_USD,
 } from '@/lib/slugPolicy';
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useRef, useCallback, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { useT, useI18n } from '@/lib/i18n';
 import {
@@ -88,9 +89,15 @@ const SOCIAL_URL_TEMPLATES: Record<string, string> = {
   link: 'https://',
 };
 
-export default function EditorPage() {
+function EditorPageInner() {
+  const searchParams = useSearchParams();
+  const editorSiteId = searchParams.get('site');
+  const editorPreferNew = searchParams.get('new') === '1';
   const { user, loading: authLoading } = useAuth();
-  const { site, loading: siteLoading, save, reload } = useMySite();
+  const { site, loading: siteLoading, save, reload } = useMySite({
+    siteId: editorSiteId,
+    preferNew: editorPreferNew,
+  });
   const { add: addToCart, open: openCart } = useCart();
   const router = useRouter();
   const T = useT();
@@ -103,6 +110,7 @@ export default function EditorPage() {
       cv: T('ed_mod_cv'),
       feed: T('ed_mod_feed'),
       ads: T('ed_mod_ads'),
+      mystic: T('ed_mod_mystic'),
     }),
     [T, lang],
   );
@@ -189,13 +197,15 @@ export default function EditorPage() {
   // ── Feed state ───────────────────────────────────────────────────────────
   const [showFeed,    setShowFeed]    = useState(true);
   const [feedCols,    setFeedCols]    = useState<1|2|3>(1);
-  const [moduleOrder, setModuleOrder] = useState(['links','videos','cv','feed']);
+  const [moduleOrder, setModuleOrder] = useState<string[]>(['links', 'feed', 'videos', 'cv', 'ads', 'mystic']);
   const [pageWidth, setPageWidth] = useState<number>(600);
   const [sitePages,   setSitePages]   = useState<{id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[]>([{id:'home',label:'Home',template:'default'}]);
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
-  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links','videos','cv','feed'] });
+  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links', 'feed', 'videos', 'cv', 'ads', 'mystic'] });
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
-  const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({ home: { links: 1, videos: 1, cv: 1, feed: 1 } });
+  const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({
+    home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 },
+  });
   const [clearAllArmed, setClearAllArmed] = useState<Record<string, boolean>>({});
   const [adAskingPrice, setAdAskingPrice] = useState('');
   const [adShowPricePublic, setAdShowPricePublic] = useState(true);
@@ -416,7 +426,7 @@ export default function EditorPage() {
             if (Array.isArray(raw)) {
               pm[pageId] = raw;
               pc[pageId] = 1;
-              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 };
+              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 };
               return;
             }
             const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
@@ -429,6 +439,7 @@ export default function EditorPage() {
               cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
               feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
               ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
+              mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
             };
           });
         }
@@ -791,7 +802,7 @@ export default function EditorPage() {
         combinedPageModules[p.id] = {
           modules,
           columns: pageColumns[p.id] || 1,
-          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 },
+          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 },
         };
       });
 
@@ -1049,6 +1060,23 @@ export default function EditorPage() {
     </div>
   );
   if (!user) { router.push('/auth'); return null; }
+  if (editorSiteId && !site) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)]">
+        <Header />
+        <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4 card p-8">
+          <h1 className="font-black text-xl text-[var(--text)]">{T('ed_site_not_found_title')}</h1>
+          <p className="text-sm text-[var(--text2)]">{T('ed_site_not_found_body')}</p>
+          <div className="flex flex-wrap gap-2 justify-center pt-2">
+            <Link href="/editor" className="btn-primary text-sm">{T('ed_open_default_editor')}</Link>
+            {(user?.email || '').toLowerCase() === 'arytcf@gmail.com' && (
+              <Link href="/admin" className="btn-secondary text-sm">{T('ed_back_admin_sites')}</Link>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!site) {
     const slugPreview = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || '(slug)';
     return (
@@ -1103,14 +1131,16 @@ export default function EditorPage() {
                   }
                   setCreatingSite(true);
                   try {
-                    await save({
+                    const created = await save({
                       site_name: nameTrim,
                       slug: clean,
                       bio: '',
                       published: false,
                     } as any);
                     toast.success(T('toast_mini_site_created'));
-                    /* Sem reload: evita corrida com sessão/Supabase e o hook já faz load() após gravar */
+                    if (created?.id) {
+                      router.replace(`/editor?site=${created.id}`);
+                    }
                   } catch (e: unknown) {
                     const msg = e instanceof Error ? e.message : T('err_create_failed');
                     const isSchemaColumnIssue =
@@ -1557,12 +1587,27 @@ export default function EditorPage() {
                   Visitantes pagam <span className="font-semibold text-[var(--text)]">directamente na tua conta Stripe</span> (Checkout
                   Connect — sem passar pelo saldo da plataforma). O site só confirma o pagamento e gera o resultado (IA no servidor).
                 </p>
+                <p className="text-xs text-amber-200/90 border border-amber-500/25 rounded-lg px-3 py-2 bg-amber-500/5">
+                  {T('ed_mystic_place_hint')}
+                </p>
                 <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg)]/80">
-                  <span className="text-sm font-semibold text-[var(--text)]">Mostrar bloco no perfil público</span>
+                  <span className="text-sm font-semibold text-[var(--text)]">Activar venda (tarô + loteria premium)</span>
                   <button
                     type="button"
                     onClick={() => {
-                      setMysticPublicEnabled((v) => !v);
+                      const next = !mysticPublicEnabled;
+                      setMysticPublicEnabled(next);
+                      if (next) {
+                        setModuleOrder((prev) =>
+                          prev.includes('mystic') ? prev : enforceHomeFixedModules([...prev, 'mystic']),
+                        );
+                        setPageModules((prev) => {
+                          if (prev.home?.includes('mystic')) return prev;
+                          const seed =
+                            prev.home?.length ? prev.home : ['links', 'feed', 'videos', 'cv', 'ads'];
+                          return { ...prev, home: enforceHomeFixedModules([...seed, 'mystic']) };
+                        });
+                      }
                       markDirty();
                     }}
                     className={`relative w-11 h-6 rounded-full transition-colors ${mysticPublicEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}
@@ -2073,7 +2118,9 @@ export default function EditorPage() {
                 <p className="text-xs text-[var(--text2)] mb-4">{T('ed_module_order_hint')}</p>
                 <div className="space-y-2">
                   {moduleOrder.map((mod, idx) => {
-                    const labels: Record<string,string> = { links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads' };
+                    const labels: Record<string,string> = {
+                      links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads', mystic:'🔮 Mystic',
+                    };
                     return (
                       <div key={mod} draggable
                         onDragStart={e => e.dataTransfer.setData('text/plain', String(idx))}
@@ -2195,7 +2242,7 @@ export default function EditorPage() {
                     setSitePages(prev => [...prev, { id: newId, label: T('ed_page_new_label').replace('{n}', String(prev.length + 1)) }]);
                     setPageModules(prev => ({ ...prev, [newId]: [] }));
                     setPageColumns(prev => ({ ...prev, [newId]: 1 }));
-                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 } }));
+                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 } }));
                     markDirty();
                   }}
                     className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> {T('ed_add_page')}</button>
@@ -2241,7 +2288,7 @@ export default function EditorPage() {
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {(['links','videos','cv','feed','ads'] as const).map(mod => {
+                      {(['links','videos','cv','feed','ads','mystic'] as const).map(mod => {
                         const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
                         const enabled = currentModules.includes(mod);
                         const isFixedOnHome = page.id === 'home' && (mod === 'links' || mod === 'feed');
@@ -2268,7 +2315,7 @@ export default function EditorPage() {
                                   const col = Number(e.target.value) as 1|2|3;
                                   setModuleColumns(prev => ({
                                     ...prev,
-                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1, ads:1 }), [mod]: col },
+                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1, ads:1, mystic:1 }), [mod]: col },
                                   }));
                                   markDirty();
                                 }}
@@ -3023,5 +3070,19 @@ export default function EditorPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-brand" />
+        </div>
+      }
+    >
+      <EditorPageInner />
+    </Suspense>
   );
 }

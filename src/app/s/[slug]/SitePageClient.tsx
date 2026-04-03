@@ -151,8 +151,8 @@ export default function SitePageClient({
   const bannerPlaceholderEnabled = (site as any)?.banner_placeholder_enabled !== false;
   const bannerPlaceholderColor = (site as any)?.banner_placeholder_color || '#1f2937';
   const moduleOrder: string[] = (() => {
-    try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed","ads"]'); }
-    catch { return ['links','videos','cv','feed','ads']; }
+    try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed","ads","mystic"]'); }
+    catch { return ['links','videos','cv','feed','ads','mystic']; }
   })();
   const pageModulesMap: Record<string, string[]> = (() => {
     try {
@@ -194,6 +194,7 @@ export default function SitePageClient({
             cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
             feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
             ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
+            mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
           };
         });
         return out;
@@ -209,7 +210,7 @@ export default function SitePageClient({
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
   const activeModules = pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : []);
   const activeColumns = pageColumnsMap[activePage] || 1;
-  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 };
+  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 };
   const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
   const [subActive, setSubActive] = useState(false);
   const [trialCountdown, setTrialCountdown] = useState('');
@@ -698,13 +699,17 @@ export default function SitePageClient({
             </div>
           )}
 
-          <SiteMysticSales
-            site={site}
-            isOwner={isOwner}
-            accentColor={accent}
-            textColor={t.text}
-            textMuted={textSub}
-          />
+          {activePage === 'home' &&
+            (site as any).mystic_public_enabled === true &&
+            !activeModules.includes('mystic') && (
+            <SiteMysticSales
+              site={site}
+              isOwner={isOwner}
+              accentColor={accent}
+              textColor={t.text}
+              textMuted={textSub}
+            />
+          )}
 
           <MagicPortraitOutOfFrame
             slug={slug}
@@ -975,6 +980,20 @@ export default function SitePageClient({
               )}
             </div>
           );
+          if (mod === 'mystic') {
+            if ((site as any).mystic_public_enabled !== true) return null;
+            return (
+              <div key="mystic" style={{ marginBottom: 32 }}>
+                <SiteMysticSales
+                  site={site}
+                  isOwner={isOwner}
+                  accentColor={accent}
+                  textColor={t.text}
+                  textMuted={textSub}
+                />
+              </div>
+            );
+          }
           if (mod === 'ads') {
             const ps = (site as any).directory_profile_slug as string | undefined;
             const profileLabel = ps

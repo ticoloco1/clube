@@ -10,10 +10,9 @@ import { Header } from '@/components/layout/Header';
 import { WindowFeed } from '@/components/layout/WindowFeed';
 import { FeedSection } from '@/components/site/FeedSection';
 import {
-  Globe, Edit3, ExternalLink, Key, TrendingUp, DollarSign,
-  Tag, Gavel, ArrowRightLeft, Trash2, Plus, Loader2,
-  Home, Car, Video, FileText, X, AlertTriangle,
-  CheckCircle, RefreshCw, Sparkles, Clock, Shield, Send
+  Edit3, ExternalLink, Key, TrendingUp,
+  Trash2, Plus, Loader2,
+  Home, Car, Video, FileText, AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
@@ -31,14 +30,13 @@ function daysLeft(d?: string) {
   return Math.floor((new Date(d).getTime() - Date.now()) / 86400000);
 }
 
-function rarity(slug: string, T: (k: string) => string) {
-  const l = slug.length;
-  if (l <= 2) return { label: T('dash_rarity_legendary'), color: '#f59e0b', icon: '👑' };
-  if (l <= 3) return { label: T('dash_rarity_ultra'), color: '#a855f7', icon: '💎' };
-  if (l <= 4) return { label: T('dash_rarity_premium'), color: '#818cf8', icon: '🔷' };
-  if (l <= 5) return { label: T('dash_rarity_popular'), color: '#38bdf8', icon: '🔹' };
-  if (l <= 6) return { label: T('dash_rarity_standard'), color: '#4ade80', icon: '🔑' };
-  return { label: T('dash_rarity_free'), color: '#94a3b8', icon: '🔓' };
+type SlugMarkerKey = 'slug_marker_auction' | 'slug_marker_sale' | 'slug_marker_live' | 'slug_marker_held';
+
+function slugDashMarker(s: SlugRow, siteSlug: string): { bg: string; titleKey: SlugMarkerKey } {
+  if (s.status === 'auction') return { bg: '#f59e0b', titleKey: 'slug_marker_auction' };
+  if (s.for_sale) return { bg: '#22c55e', titleKey: 'slug_marker_sale' };
+  if (s.slug === siteSlug) return { bg: '#818cf8', titleKey: 'slug_marker_live' };
+  return { bg: '#64748b', titleKey: 'slug_marker_held' };
 }
 
 function getPostMedia(post: any): string[] {
@@ -50,136 +48,6 @@ function getPostMedia(post: any): string[] {
     } catch {}
   }
   return post?.image_url ? [post.image_url] : [];
-}
-
-function SlugCard({ s, onUpdate, siteSlug }: { s: SlugRow; onUpdate: () => void; siteSlug: string }) {
-  const T = useT();
-  const { add, open } = useCart();
-  const { user } = useAuth();
-  const [mode, setMode] = useState<'idle' | 'sell' | 'auction' | 'transfer'>('idle');
-  const [price, setPrice] = useState(String(s.sale_price || ''));
-  const [email, setEmail] = useState('');
-  const [busy, setBusy] = useState(false);
-  const days = daysLeft(s.expires_at);
-  const r = rarity(s.slug, T);
-  const isActive = s.slug === siteSlug;
-  const warn = days <= 30;
-
-  const upd = async (patch: any) => {
-    setBusy(true);
-    const { error } = await (supabase as any).from('slug_registrations').update(patch).eq('id', s.id);
-    if (error) toast.error(error.message);
-    else { toast.success(T('toast_done')); onUpdate(); setMode('idle'); }
-    setBusy(false);
-  };
-
-  const applyToSite = async () => {
-    const { data: site } = await (supabase as any).from('mini_sites').select('id').eq('user_id', user?.id).maybeSingle();
-    if (!site) { toast.error(T('err_mini_site_required')); return; }
-    const { error } = await (supabase as any).from('mini_sites').update({ slug: s.slug }).eq('id', site.id);
-    if (error) toast.error(error.message);
-    else { toast.success(T('toast_slug_active').replace('{slug}', s.slug)); onUpdate(); }
-  };
-
-  return (
-    <div className={`rounded-2xl border overflow-hidden transition-all ${warn ? 'border-amber-500/40' : s.for_sale ? 'border-green-500/30' : 'border-[var(--border)]'} bg-[var(--bg2)]`}>
-      <div className="p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: r.color + '20', border: `1px solid ${r.color}40` }}>{r.icon}</div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-black text-[var(--text)] font-mono">{s.slug}.trustbank.xyz</span>
-            {isActive && <span className="text-xs bg-brand/10 text-brand px-2 py-0.5 rounded-full font-bold">{T('dash_active_badge')}</span>}
-            {s.for_sale && <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full font-bold">🏷️ ${s.sale_price?.toLocaleString()}</span>}
-            {s.status === 'auction' && <span className="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-bold">{T('dash_auction_badge')}</span>}
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs font-bold" style={{ color: r.color }}>{r.label}</span>
-            <span className="text-xs text-[var(--text2)]">·</span>
-            {warn
-              ? <span className="text-xs text-amber-400 flex items-center gap-1"><Clock className="w-3 h-3" />{T('dash_expires_days').replace('{n}', String(days))}</span>
-              : <span className="text-xs text-[var(--text2)]">{T('dash_valid_days').replace('{n}', String(days))}</span>}
-            <span className="text-xs text-[var(--text2)] ml-auto">{T('dash_per_year')}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-[var(--border)] p-3 bg-[var(--bg)]">
-        {mode === 'idle' && (
-          <div className="flex flex-wrap gap-1.5">
-            {!isActive && <button onClick={applyToSite} className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-brand/10 border border-brand/30 text-xs font-bold text-brand"><Globe className="w-3 h-3" />{T('dash_use_site')}</button>}
-            {warn && <button onClick={() => { add({ id: `slug_renewal_${s.slug}`, label: T('slug_cart_renew_label').replace('{slug}', s.slug), price: 7, type: 'slug' }); open(); }} className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/30 text-xs font-bold text-green-400"><RefreshCw className="w-3 h-3" />{T('dash_renew_7')}</button>}
-            <button onClick={() => setMode('sell')} className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text)]"><Tag className="w-3 h-3" />{T('dash_sell')}</button>
-            <button onClick={() => setMode('auction')} className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text)]"><Gavel className="w-3 h-3" />{T('dash_auction')}</button>
-            <button onClick={() => setMode('transfer')} className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text)]"><ArrowRightLeft className="w-3 h-3" />{T('dash_transfer')}</button>
-            {s.for_sale && <button onClick={() => upd({ for_sale: false, sale_price: null, status: 'active' })} className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-bold text-amber-400"><X className="w-3 h-3" />{T('dash_remove_listing')}</button>}
-            <a href={`https://${s.slug}.trustbank.xyz`} target="_blank" rel="noopener" className="flex items-center gap-1 px-2 py-1.5 rounded-xl border border-[var(--border)] text-xs text-[var(--text2)] hover:text-brand ml-auto"><ExternalLink className="w-3 h-3" /></a>
-          </div>
-        )}
-        {mode === 'sell' && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--text2)]">$</span>
-            <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="input flex-1 py-1.5 text-sm" placeholder={T('dash_price_placeholder')} />
-            <button onClick={() => {
-              const p = parseFloat(price);
-              if (!Number.isFinite(p) || p <= 0) { toast.error(T('slug_err_sale_price')); return; }
-              void upd({ for_sale: true, sale_price: p, status: 'active' });
-            }} disabled={busy || !price} className="btn-primary px-4 py-1.5 text-xs">{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : T('dash_ok')}</button>
-            <button onClick={() => setMode('idle')} className="text-[var(--text2)]"><X className="w-4 h-4" /></button>
-          </div>
-        )}
-        {mode === 'auction' && (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="input flex-1 py-1.5 text-sm" placeholder={T('dash_opening_bid_placeholder')} />
-              <button onClick={async () => {
-                if (!user || !price) return;
-                setBusy(true);
-                const ends = new Date(Date.now() + 7 * 86400000).toISOString();
-                const minBid = parseFloat(price);
-                const { error: e1 } = await (supabase as any).from('slug_auctions').insert({
-                  slug: s.slug,
-                  slug_registration_id: s.id,
-                  seller_id: user.id,
-                  min_bid: minBid,
-                  current_bid: 0,
-                  min_increment: 5,
-                  bid_count: 0,
-                  ends_at: ends,
-                  status: 'active',
-                });
-                if (e1) { toast.error(e1.message); setBusy(false); return; }
-                const { error } = await (supabase as any).from('slug_registrations').update({
-                  for_sale: true, sale_price: minBid, status: 'auction',
-                }).eq('id', s.id);
-                if (error) toast.error(error.message);
-                else { toast.success(T('toast_auction_created')); onUpdate(); setMode('idle'); }
-                setBusy(false);
-              }} disabled={busy || !price} className="btn-primary px-4 py-1.5 text-xs">{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : T('dash_start_auction')}</button>
-              <button onClick={() => setMode('idle')} className="text-[var(--text2)]"><X className="w-4 h-4" /></button>
-            </div>
-            <p className="text-xs text-amber-400">{T('dash_auction_hint')}</p>
-          </div>
-        )}
-        {mode === 'transfer' && (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <input value={email} onChange={e => setEmail(e.target.value)} className="input flex-1 py-1.5 text-sm" placeholder={T('dash_recipient_email')} type="email" />
-              <button onClick={async () => {
-                if (!email) return; setBusy(true);
-                // Find user by email via mini_sites contact_email
-                const { data: target } = await (supabase as any).from('mini_sites').select('user_id').eq('contact_email', email).maybeSingle();
-                if (!target) { toast.error(T('err_user_not_found')); setBusy(false); return; }
-                await upd({ user_id: target.user_id, status: 'active', for_sale: false, sale_price: null });
-                setBusy(false);
-              }} disabled={busy || !email} className="btn-primary px-4 py-1.5 text-xs">{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : T('dash_send')}</button>
-              <button onClick={() => setMode('idle')} className="text-[var(--text2)]"><X className="w-4 h-4" /></button>
-            </div>
-            <p className="text-xs text-red-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{T('dash_irreversible')}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 export default function DashboardPage() {
@@ -269,7 +137,7 @@ export default function DashboardPage() {
 
   const TABS = [
     { id: 'overview', label: T('dashboard_overview'), icon: TrendingUp },
-    { id: 'slugs', label: `🔐 ${T('dashboard_slug_vault')} (${slugs.length})`, icon: Key },
+    { id: 'slugs', label: `${T('dashboard_slug_vault')} (${slugs.length})`, icon: Key },
     { id: 'feed', label: `📝 ${T('dashboard_feed')}`, icon: FileText },
     { id: 'listings', label: `🏠 ${T('dashboard_listings')} (${listings.length})`, icon: Home },
   ];
@@ -399,32 +267,32 @@ export default function DashboardPage() {
                   <p className="font-bold text-amber-400 text-sm">{T('dash_expiring_title').replace('{n}', String(expiring))}</p>
                   <p className="text-xs text-[var(--text2)]">{T('dash_expiring_sub')}</p>
                 </div>
-                <button onClick={() => setTab('slugs')} className="btn-secondary text-xs py-1.5">{T('dash_view')}</button>
+                <Link href="/slugs" className="btn-secondary text-xs py-1.5">{T('dash_view')}</Link>
               </div>
             )}
           </div>
         )}
 
-        {/* SLUG VAULT */}
+        {/* Slug market (resumo — gestão completa em /slugs) */}
         {tab === 'slugs' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-black text-[var(--text)]">{T('dash_vault_title')}</p>
-                <p className="text-xs text-[var(--text2)]">{T('dash_vault_sub')}</p>
+                <p className="font-black text-lg text-[var(--text)]">{T('dash_vault_title')}</p>
+                <p className="text-sm text-[var(--text2)] mt-1">{T('dash_vault_sub')}</p>
               </div>
-              <Link href="/slugs" className="btn-primary gap-2 text-sm py-2"><Plus className="w-4 h-4" />{T('dash_register_slug')}</Link>
+              <Link href="/slugs" className="btn-primary gap-2 text-base py-2.5 px-4"><Plus className="w-4 h-4" />{T('dash_open_slug_market')}</Link>
             </div>
 
             {auctionWinsPending.length > 0 && (
               <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 space-y-3">
                 <p className="font-bold text-amber-200">{T('dash_auction_wins_title')}</p>
-                <p className="text-xs text-amber-100/90">{T('dash_auction_wins_sub')}</p>
+                <p className="text-sm text-amber-100/90">{T('dash_auction_wins_sub')}</p>
                 <ul className="space-y-2">
                   {auctionWinsPending.map((a) => {
                     const bid = Number(a.current_bid || 0);
                     return (
-                      <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 text-base">
                         <span className="font-mono text-[var(--text)]">{a.slug}.trustbank.xyz</span>
                         <span className="text-[var(--text2)]">${bid.toFixed(2)} USD</span>
                         <button
@@ -438,7 +306,7 @@ export default function DashboardPage() {
                             });
                             openCart();
                           }}
-                          className="btn-primary text-xs py-1.5 px-3"
+                          className="btn-primary text-sm py-1.5 px-3"
                         >
                           {T('dash_auction_pay_btn')}
                         </button>
@@ -465,12 +333,58 @@ export default function DashboardPage() {
                     { label: T('dash_stat_expiring'), value: expiring, color: expiring > 0 ? 'text-red-400' : 'text-[var(--text2)]' },
                   ].map(s => (
                     <div key={s.label} className="card p-3 text-center">
-                      <p className="text-xs text-[var(--text2)]">{s.label}</p>
+                      <p className="text-sm text-[var(--text2)]">{s.label}</p>
                       <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
                     </div>
                   ))}
                 </div>
-                {slugs.map(s => <SlugCard key={s.id} s={s} onUpdate={loadSlugs} siteSlug={site?.slug || ''} />)}
+                <p className="text-sm text-[var(--text2)]">{T('dash_slug_list_hint')}</p>
+                <ul className="space-y-2">
+                  {slugs.slice(0, 18).map((s) => {
+                    const m = slugDashMarker(s, site?.slug || '');
+                    const d = daysLeft(s.expires_at);
+                    return (
+                      <li key={s.id} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg2)] border border-[var(--border)]">
+                        <span
+                          className="w-3.5 h-3.5 rounded-sm flex-shrink-0 ring-1 ring-white/15 shadow-sm"
+                          style={{ backgroundColor: m.bg }}
+                          title={T(m.titleKey)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <Link href="/slugs" className="font-mono font-bold text-base text-brand hover:underline">
+                            {s.slug}.trustbank.xyz
+                          </Link>
+                          <div className="text-sm text-[var(--text2)] mt-0.5">
+                            {d <= 30
+                              ? <span className="text-amber-400 font-semibold">{T('dash_expires_days').replace('{n}', String(d))}</span>
+                              : T('dash_valid_days').replace('{n}', String(d))}
+                            {s.for_sale && (
+                              <span className="text-green-400 font-semibold ml-2">
+                                · {s.status === 'auction' ? T('dash_auction_badge') : `$${Number(s.sale_price || 0).toLocaleString()}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <a
+                          href={`https://${s.slug}.trustbank.xyz`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[var(--text2)] hover:text-brand p-2 rounded-lg border border-[var(--border)]"
+                          aria-label={T('dash_view_site')}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {slugs.length > 18 && (
+                  <div className="text-center pt-1">
+                    <Link href="/slugs" className="text-brand font-bold text-base hover:underline">
+                      {T('dash_slug_see_all').replace('{n}', String(slugs.length - 18))}
+                    </Link>
+                  </div>
+                )}
               </>
             )}
           </div>

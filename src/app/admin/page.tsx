@@ -8,8 +8,9 @@ import {
   Key, Wallet, BarChart3, Settings, Save, Users, Globe,
   ToggleLeft, ToggleRight, DollarSign, Loader2, Plus, Trash2,
   Send, Bell, Shield, Tag, Gavel, ArrowRightLeft, RefreshCw, Sparkles,
-  CheckCircle, XCircle, Eye, Copy, X
+  CheckCircle, XCircle, Eye, Copy, X, LayoutGrid, ExternalLink,
 } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { attachMiniSitesToSlugRows } from '@/lib/slugRegistrationMiniSite';
@@ -46,7 +47,7 @@ export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const T = useT();
-  const [tab, setTab] = useState<'analytics'|'accounts'|'mystic'|'slugs'|'broadcast'|'features'|'pricing'|'wallet'|'apis'|'code'|'plans'>('analytics');
+  const [tab, setTab] = useState<'analytics'|'accounts'|'minisites'|'mystic'|'slugs'|'broadcast'|'features'|'pricing'|'wallet'|'apis'|'code'|'plans'>('analytics');
   const [saving, setSaving] = useState(false);
 
   // Stats
@@ -154,6 +155,49 @@ export default function AdminPage() {
   const [accountsTotal, setAccountsTotal] = useState<number | null>(null);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountsTogglingId, setAccountsTogglingId] = useState<string | null>(null);
+
+  const MINI_SITES_PER_PAGE = 30;
+  const [miniSitesPage, setMiniSitesPage] = useState(1);
+  const [miniSitesList, setMiniSitesList] = useState<
+    { id: string; slug: string; site_name: string; avatar_url: string | null; published: boolean; updated_at: string }[]
+  >([]);
+  const [miniSitesTotal, setMiniSitesTotal] = useState(0);
+  const [miniSitesLoading, setMiniSitesLoading] = useState(false);
+
+  const loadMyMiniSites = useCallback(
+    async (page: number) => {
+      if (!user?.id) return;
+      setMiniSitesLoading(true);
+      try {
+        const from = (page - 1) * MINI_SITES_PER_PAGE;
+        const to = from + MINI_SITES_PER_PAGE - 1;
+        const { data, error, count } = await supabase
+          .from('mini_sites')
+          .select('id, slug, site_name, avatar_url, published, updated_at', { count: 'exact' })
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .range(from, to);
+        if (error) throw error;
+        setMiniSitesList(
+          (data || []) as {
+            id: string;
+            slug: string;
+            site_name: string;
+            avatar_url: string | null;
+            published: boolean;
+            updated_at: string;
+          }[],
+        );
+        setMiniSitesTotal(typeof count === 'number' ? count : 0);
+        setMiniSitesPage(page);
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : String(e));
+      } finally {
+        setMiniSitesLoading(false);
+      }
+    },
+    [user?.id],
+  );
 
   /** DeepSeek / OpenAI-compatible: sugestão de preços (opcional). Chave também pode ir só em DEEPSEEK_API_KEY na Vercel. */
   const [aiConfig, setAiConfig] = useState({
@@ -358,6 +402,12 @@ export default function AdminPage() {
       });
   }, [user]);
 
+  useEffect(() => {
+    if (user?.email !== OWNER_EMAIL) return;
+    if (tab !== 'minisites') return;
+    void loadMyMiniSites(miniSitesPage);
+  }, [user?.email, tab, miniSitesPage, loadMyMiniSites]);
+
   const loadAllSlugs = async (search = '') => {
     setAllSlugsLoading(true);
     let q = (supabase as any).from('slug_registrations').select('*').order('created_at', { ascending: false }).limit(100);
@@ -503,6 +553,7 @@ export default function AdminPage() {
     () => [
       { id: 'analytics' as const, label: T('admin_tab_analytics'), icon: BarChart3 },
       { id: 'accounts' as const, label: T('admin_tab_accounts'), icon: Users },
+      { id: 'minisites' as const, label: T('admin_tab_minisites'), icon: LayoutGrid },
       { id: 'mystic' as const, label: T('admin_tab_mystic'), icon: Sparkles },
       { id: 'slugs' as const, label: T('admin_tab_slugs'), icon: Key },
       { id: 'pricing' as const, label: T('admin_tab_pricing'), icon: DollarSign },
@@ -665,6 +716,120 @@ export default function AdminPage() {
                 </div>
                 {accounts.length === 0 && !accountsLoading && (
                   <p className="text-sm text-[var(--text2)] text-center py-8">{T('admin_accounts_none')}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'minisites' && (
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div>
+                <h3 className="font-black text-[var(--text)] text-lg">{T('admin_minisites_title')}</h3>
+                <p className="text-xs text-[var(--text2)] mt-1 max-w-3xl">{T('admin_minisites_sub')}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void loadMyMiniSites(miniSitesPage)}
+                  disabled={miniSitesLoading}
+                  className="btn-secondary text-sm px-4 gap-2"
+                >
+                  {miniSitesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {T('admin_accounts_refresh')}
+                </button>
+                <Link href="/editor?new=1" className="btn-primary text-sm px-4 gap-2 inline-flex items-center">
+                  <Plus className="w-4 h-4" />
+                  {T('admin_minisites_create')}
+                </Link>
+              </div>
+            </div>
+
+            <p className="text-xs text-[var(--text2)]">
+              {T('admin_minisites_page').replace('{page}', String(miniSitesPage)).replace('{total}', String(miniSitesTotal))}
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={miniSitesLoading || miniSitesPage <= 1}
+                onClick={() => setMiniSitesPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm font-semibold disabled:opacity-40"
+              >
+                {T('admin_accounts_prev')}
+              </button>
+              <button
+                type="button"
+                disabled={miniSitesLoading || miniSitesPage * MINI_SITES_PER_PAGE >= miniSitesTotal}
+                onClick={() => setMiniSitesPage((p) => p + 1)}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm font-semibold disabled:opacity-40"
+              >
+                {T('admin_accounts_next')}
+              </button>
+            </div>
+
+            {miniSitesLoading && miniSitesList.length === 0 ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-brand" />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
+                {miniSitesList.map((row) => (
+                  <div
+                    key={row.id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-3 bg-[var(--bg2)]/50 hover:bg-[var(--bg2)]"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      {row.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={row.avatar_url}
+                          alt=""
+                          className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-[var(--border)]"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-brand/20 flex items-center justify-center text-lg font-black text-brand flex-shrink-0">
+                          {(row.site_name || row.slug || '?')[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-bold text-[var(--text)] truncate">{row.site_name || '—'}</p>
+                        <p className="text-xs font-mono text-brand truncate">{row.slug}.trustbank.xyz</p>
+                        <p className="text-[10px] text-[var(--text2)] mt-0.5">
+                          {T('admin_minisites_updated')}: {row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          row.published ? 'bg-green-500/15 text-green-400' : 'bg-[var(--border)] text-[var(--text2)]'
+                        }`}
+                      >
+                        {row.published ? T('admin_minisites_live') : T('admin_minisites_draft')}
+                      </span>
+                      <Link
+                        href={`/editor?site=${row.id}`}
+                        className="text-xs font-bold px-3 py-2 rounded-lg bg-brand text-white hover:opacity-90 inline-flex items-center gap-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        {T('admin_minisites_open')}
+                      </Link>
+                      <a
+                        href={`https://${row.slug}.trustbank.xyz`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--text)] hover:border-brand/50 inline-flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        {T('admin_minisites_view')}
+                      </a>
+                    </div>
+                  </div>
+                ))}
+                {miniSitesList.length === 0 && !miniSitesLoading && (
+                  <p className="text-sm text-[var(--text2)] text-center py-10">{T('admin_minisites_none')}</p>
                 )}
               </div>
             )}

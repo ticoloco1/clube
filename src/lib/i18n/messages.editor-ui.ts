@@ -100,7 +100,12 @@ export const EDITOR_UI_MESSAGES: Record<string, MessageRow> = {
   ed_mod_cv: { en: 'CV', pt: 'CV' },
   ed_mod_feed: { en: 'FEED', pt: 'FEED' },
   ed_mod_ads: { en: 'ADS', pt: 'ANÚNCIOS' },
+  ed_mod_mystic: { en: 'MYSTIC & LOTTERY', pt: 'MÍSTICO & LOTERIA' },
   ed_mod_fixed: { en: 'FIXED', pt: 'FIXO' },
+  ed_mystic_place_hint: {
+    en: 'Turn on below, set prices, complete Stripe Connect — then add “Mystic & lottery” on the Pages tab (or reorder it here) so visitors see it where you want.',
+    pt: 'Activea abaixo, define preços e o Stripe Connect — depois adiciona «Místico & loteria» no separador Páginas (ou reordena aqui) para os visitantes verem onde quiseres.',
+  },
   ed_richtext_ph: { en: 'Write content for "{label}"…', pt: 'Escreve conteúdo para «{label}»…' },
   ed_page_visitor_note: {
     en: 'This content appears when a visitor opens "{label}" on your mini-site.',

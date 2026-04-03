@@ -152,7 +152,7 @@ export function SlugTicker({ siteUserId, customItems = [], enabled = true }: Slu
   return (
     <div
       className="overflow-hidden border-b border-[var(--border)]"
-      style={{ background: 'linear-gradient(90deg,#0a0a0f,#0f1020,#0a0a0f)', height: 36 }}
+      style={{ background: 'linear-gradient(90deg,#0a0a0f,#0f1020,#0a0a0f)', height: 42 }}
     >
       <div
         className="flex items-center h-full"
@@ -172,21 +172,21 @@ export function SlugTicker({ siteUserId, customItems = [], enabled = true }: Slu
             >
               {item.parts ? (
                 <>
-                  <span className="font-mono font-black text-sm" style={{ color, textShadow: `0 0 8px ${color}50` }}>
+                  <span className="font-mono font-black text-base" style={{ color, textShadow: `0 0 8px ${color}50` }}>
                     {item.parts.host}
                   </span>
-                  <span className="text-white/25 text-xs font-bold px-0.5" aria-hidden>
+                  <span className="text-white/25 text-sm font-bold px-0.5" aria-hidden>
                     {item.parts.sep}
                   </span>
-                  <span className="font-mono font-black text-sm tabular-nums" style={{ color, textShadow: `0 0 8px ${color}50` }}>
+                  <span className="font-mono font-black text-base tabular-nums" style={{ color, textShadow: `0 0 8px ${color}50` }}>
                     $ {item.parts.price}
                     {item.parts.suffix ? (
-                      <span className="text-white/70 font-bold text-xs ml-1.5">{item.parts.suffix}</span>
+                      <span className="text-white/70 font-bold text-sm ml-1.5">{item.parts.suffix}</span>
                     ) : null}
                   </span>
                 </>
               ) : (
-                <span className="font-mono font-black text-sm" style={{ color, textShadow: `0 0 8px ${color}50` }}>
+                <span className="font-mono font-black text-base" style={{ color, textShadow: `0 0 8px ${color}50` }}>
                   {item.label}
                 </span>
               )}

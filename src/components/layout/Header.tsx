@@ -32,7 +32,7 @@ export function Header() {
       background: 'rgba(13,17,23,0.95)',
       backdropFilter: 'blur(12px)',
       borderBottom: '1px solid var(--border)',
-      minHeight: 64,
+      minHeight: 72,
     }}>
       <div style={{
         maxWidth: 1200, margin: '0 auto', padding: '0 20px',
@@ -41,23 +41,22 @@ export function Header() {
         {/* Logo */}
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
           <div style={{
-            width: 36, height: 36, borderRadius: 10,
+            width: 40, height: 40, borderRadius: 10,
             background: 'linear-gradient(135deg, #818cf8, #6366f1)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <TrendingUp size={18} color="#fff" />
+            <TrendingUp size={20} color="#fff" />
           </div>
           <div>
-            <p style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', margin: 0, lineHeight: 1.1 }}>TrustBank</p>
-            <p style={{ fontSize: 9, color: 'var(--text2)', margin: 0, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{T('header_tagline')}</p>
+            <p style={{ fontSize: 18, fontWeight: 900, color: 'var(--text)', margin: 0, lineHeight: 1.1 }}>TrustBank</p>
+            <p style={{ fontSize: 10, color: 'var(--text2)', margin: 0, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{T('header_tagline')}</p>
           </div>
         </Link>
 
         {/* Nav */}
-        <nav style={{ display: 'flex', gap: 4, flex: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <nav style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
           {[
             { href: '/slugs', label: T('nav_slug_market') },
-            { href: '/vault', label: T('nav_vault') },
             { href: '/sites', label: T('nav_sites') },
             { href: '/videos', label: T('nav_videos') },
             { href: '/cv', label: T('nav_cvs') },
@@ -65,7 +64,7 @@ export function Header() {
             { href: '/mistico', label: T('nav_mistico') },
           ].map(nav => (
             <Link key={`${nav.href}-${nav.label}`} href={nav.href} style={{
-              padding: '8px 13px', borderRadius: 8, fontSize: 14, fontWeight: 700,
+              padding: '10px 14px', borderRadius: 10, fontSize: 15, fontWeight: 700,
               color: 'var(--text2)', textDecoration: 'none', transition: 'all 0.15s',
             }}
             onMouseEnter={e => { (e.target as HTMLElement).style.color = 'var(--text)'; (e.target as HTMLElement).style.background = 'var(--bg2)'; }}
@@ -83,7 +82,7 @@ export function Header() {
             position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--text2)', padding: 8, borderRadius: 8,
           }}>
-            <ShoppingCart size={18} />
+            <ShoppingCart size={20} />
             {items.length > 0 && (
               <span style={{
                 position: 'absolute', top: 2, right: 2, width: 16, height: 16,
@@ -99,12 +98,12 @@ export function Header() {
                 onClick={() => setOpenMenu(p => !p)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 14px', borderRadius: 8,
+                  padding: '8px 14px', borderRadius: 8,
                   background: 'var(--bg2)', border: '1px solid var(--border)',
-                  color: 'var(--text)', textDecoration: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                  color: 'var(--text)', textDecoration: 'none', fontSize: 15, fontWeight: 800, cursor: 'pointer',
                 }}
               >
-                <User size={14} />
+                <User size={16} />
                 {user.email?.split('@')[0]}
               </button>
 
@@ -148,9 +147,9 @@ export function Header() {
             </div>
           ) : (
             <Link href="/auth" style={{
-              padding: '8px 16px', borderRadius: 8,
+              padding: '10px 18px', borderRadius: 8,
               background: 'var(--accent)', color: '#fff',
-              textDecoration: 'none', fontSize: 14, fontWeight: 800,
+              textDecoration: 'none', fontSize: 15, fontWeight: 800,
             }}>
               {T('nav_signin')}
             </Link>
