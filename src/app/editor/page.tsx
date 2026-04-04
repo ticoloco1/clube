@@ -1254,6 +1254,26 @@ function EditorPageInner() {
     showFeed,
   ]);
 
+  /** Tem de ficar antes de qualquer return antecipado (Rules of Hooks). */
+  const TABS = useMemo(() => {
+    const all = [
+      { id: 'profile' as const, label: T('ed_profile'), icon: Globe },
+      { id: 'theme' as const, label: T('ed_theme'), icon: ImageIcon },
+      { id: 'links' as const, label: T('ed_links'), icon: Link2 },
+      { id: 'videos' as const, label: T('ed_videos'), icon: Video },
+      { id: 'cv' as const, label: T('ed_cv'), icon: FileText },
+      { id: 'feed' as const, label: T('ed_feed'), icon: ChevronDown },
+      { id: 'pages' as const, label: T('ed_pages'), icon: FileText },
+      { id: 'seo' as const, label: T('ed_seo'), icon: Globe },
+      { id: 'copilot' as const, label: T('ed_copilot_tab'), icon: Wand2 },
+      { id: 'ia' as const, label: T('ed_ia_tab'), icon: Cpu },
+      { id: 'booking' as const, label: T('ed_tab_booking'), icon: CalendarClock },
+      { id: 'verify' as const, label: T('ed_verify'), icon: Shield },
+    ];
+    if (!editorIaApiEnabled) return all.filter((tab) => tab.id !== 'copilot');
+    return all;
+  }, [T, editorIaApiEnabled]);
+
   // ── Guards ────────────────────────────────────────────────────────────────
   if (authLoading || siteLoading) return (
     <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
@@ -1377,25 +1397,6 @@ function EditorPageInner() {
   const photoSizePx: Record<string, number> = { sm: 72, md: 96, lg: 128, xl: 192 };
   const previewContentW = Math.min(1010, Math.max(320, pageWidth));
   const avatarPx = photoSizePx[photoSize] || 96;
-
-  const TABS = useMemo(() => {
-    const all = [
-      { id: 'profile' as const, label: T('ed_profile'), icon: Globe },
-      { id: 'theme' as const, label: T('ed_theme'), icon: ImageIcon },
-      { id: 'links' as const, label: T('ed_links'), icon: Link2 },
-      { id: 'videos' as const, label: T('ed_videos'), icon: Video },
-      { id: 'cv' as const, label: T('ed_cv'), icon: FileText },
-      { id: 'feed' as const, label: T('ed_feed'), icon: ChevronDown },
-      { id: 'pages' as const, label: T('ed_pages'), icon: FileText },
-      { id: 'seo' as const, label: T('ed_seo'), icon: Globe },
-      { id: 'copilot' as const, label: T('ed_copilot_tab'), icon: Wand2 },
-      { id: 'ia' as const, label: T('ed_ia_tab'), icon: Cpu },
-      { id: 'booking' as const, label: T('ed_tab_booking'), icon: CalendarClock },
-      { id: 'verify' as const, label: T('ed_verify'), icon: Shield },
-    ];
-    if (!editorIaApiEnabled) return all.filter((tab) => tab.id !== 'copilot');
-    return all;
-  }, [T, editorIaApiEnabled]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
