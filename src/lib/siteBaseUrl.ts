@@ -18,8 +18,22 @@ function isVercelDeployHost(hostname: string): boolean {
 /**
  * Base URL pública para sitemap, robots e metadados quando o pedido chega ao domínio real.
  * Evita listar `*.vercel.app` no XML se `NEXT_PUBLIC_SITE_URL` estiver errado em produção.
+ *
+ * Ordem: `SITE_CANONICAL_URL` (só servidor, Vercel) → `NEXT_PUBLIC_SITE_URL` válido → cabeçalhos do pedido.
  */
 export async function getCanonicalSiteBaseUrl(): Promise<string> {
+  const serverCanonical = stripTrailingSlash((process.env.SITE_CANONICAL_URL || '').trim());
+  if (serverCanonical) {
+    try {
+      const host = new URL(serverCanonical).hostname;
+      if (!isVercelDeployHost(host) && host !== 'localhost' && !host.startsWith('127.')) {
+        return serverCanonical;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   const envRaw = stripTrailingSlash((process.env.NEXT_PUBLIC_SITE_URL || '').trim());
   if (envRaw) {
     try {

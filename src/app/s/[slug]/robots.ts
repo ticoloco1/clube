@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { MetadataRoute } from 'next';
-import { getRootHostname } from '@/lib/siteBaseUrl';
+import { getProductRootDomain } from '@/lib/siteBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,7 @@ export default async function robots({ params }: { params: { slug: string } }): 
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '');
-  const host = getRootHostname();
+  const host = getProductRootDomain();
   const origin = `https://${slug}.${host}`;
 
   if (!slug) {
@@ -38,6 +38,5 @@ export default async function robots({ params }: { params: { slug: string } }): 
   return {
     rules: [{ userAgent: '*', allow: '/', disallow: ['/api'] }],
     sitemap: `${origin}/sitemap.xml`,
-    host: origin,
   };
 }
