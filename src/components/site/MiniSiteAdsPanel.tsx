@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { Megaphone, ExternalLink } from 'lucide-react';
 import { useI18n, useT } from '@/lib/i18n';
+import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
 
-const TB_ORIGIN =
-  typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL
-    ? process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')
-    : 'https://trustbank.xyz';
+const TB_ORIGIN = normalizePublicSiteUrl(
+  typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_SITE_URL : undefined,
+);
 
 interface MiniSiteAdsPanelProps {
   siteSlug: string;

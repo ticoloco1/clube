@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Metadata } from 'next';
+import { getSiteBaseUrl, getProductRootDomain } from '@/lib/siteBaseUrl';
 
 function getDb() {
   return createClient(
@@ -8,15 +9,10 @@ function getDb() {
   );
 }
 
-const SITE_BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').replace(/\/+$/, '');
+const SITE_BASE = getSiteBaseUrl();
 
 function miniSiteUrl(slug: string): string {
-  try {
-    const host = new URL(SITE_BASE).hostname.replace(/^www\./i, '');
-    return `https://${slug}.${host}`;
-  } catch {
-    return `https://${slug}.trustbank.xyz`;
-  }
+  return `https://${slug}.${getProductRootDomain()}`;
 }
 
 function buildJsonLd(

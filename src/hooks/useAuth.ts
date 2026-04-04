@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -25,7 +26,7 @@ export function useAuth() {
 
   const signInWithGoogle = () => supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
+    options: { redirectTo: `${normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)}/auth/callback` },
   });
 
   const signInWithEmail = (email: string, password: string) =>

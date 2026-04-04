@@ -1,12 +1,11 @@
 import { headers } from 'next/headers';
+import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
+
+export { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
 
 /** URL canónica do site (apex), sem barra final. */
 export function getSiteBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').replace(/\/+$/, '');
-}
-
-function stripTrailingSlash(u: string): string {
-  return u.replace(/\/+$/, '');
+  return normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 }
 
 /** Host de deploy Vercel (*.vercel.app) — não usar em sitemap/robots como domínio público. */
@@ -22,8 +21,8 @@ function isVercelDeployHost(hostname: string): boolean {
  * Ordem: `SITE_CANONICAL_URL` (só servidor, Vercel) → `NEXT_PUBLIC_SITE_URL` válido → cabeçalhos do pedido.
  */
 export async function getCanonicalSiteBaseUrl(): Promise<string> {
-  const serverCanonical = stripTrailingSlash((process.env.SITE_CANONICAL_URL || '').trim());
-  if (serverCanonical) {
+  const serverCanonical = normalizePublicSiteUrl(process.env.SITE_CANONICAL_URL || undefined);
+  if (process.env.SITE_CANONICAL_URL?.trim()) {
     try {
       const host = new URL(serverCanonical).hostname;
       if (!isVercelDeployHost(host) && host !== 'localhost' && !host.startsWith('127.')) {
@@ -34,8 +33,8 @@ export async function getCanonicalSiteBaseUrl(): Promise<string> {
     }
   }
 
-  const envRaw = stripTrailingSlash((process.env.NEXT_PUBLIC_SITE_URL || '').trim());
-  if (envRaw) {
+  const envRaw = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL || undefined);
+  if (process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
     try {
       const host = new URL(envRaw).hostname;
       if (!isVercelDeployHost(host) && host !== 'localhost' && !host.startsWith('127.')) {

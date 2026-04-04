@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
 
 /**
  * Apex usado para reconhecer `slug.apex` no middleware.
@@ -11,7 +12,7 @@ function resolveRootDomain(): string {
   const raw = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim();
   if (raw) return raw.replace(/^www\./i, '');
   try {
-    const host = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').hostname.replace(/^www\./i, '');
+    const host = new URL(normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)).hostname.replace(/^www\./i, '');
     if (host.endsWith('.vercel.app')) return 'trustbank.xyz';
     return host;
   } catch {

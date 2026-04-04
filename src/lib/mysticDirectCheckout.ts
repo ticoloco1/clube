@@ -1,6 +1,7 @@
 import type { FulfillmentLine } from '@/lib/paymentFulfillment';
+import { getSiteBaseUrl } from '@/lib/siteBaseUrl';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trustbank.xyz').replace(/\/+$/, '');
+const SITE_URL = getSiteBaseUrl();
 
 function rootDomain(): string {
   const raw = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim();

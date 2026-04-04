@@ -5,6 +5,7 @@ import { X, Coins, Check, Loader2, ShoppingCart, ExternalLink, Zap } from 'lucid
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
 
 export function CartModal() {
   const T = useT();
@@ -12,7 +13,7 @@ export function CartModal() {
   const { user } = useAuth();
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<'cart' | 'paying' | 'done'>('cart');
-  const CHECKOUT_FALLBACK_BASE = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/+$/, '');
+  const CHECKOUT_FALLBACK_BASE = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
   const isAdminBypass = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
 
   if (!isOpen) return null;
