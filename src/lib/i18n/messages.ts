@@ -251,10 +251,14 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     pt: "O texto foi acrescentado às instruções do Lively; revê, ajusta marcas legais e grava. Não afirmes patrocínios reais sem contrato.",
   },
   ed_copilot_lively_block: { en: "Suggested script (Copilot)", pt: "Script sugerido (Copiloto)" },
-  ed_ia_master_title: { en: "Editor AI API calls", pt: "Pedidos de IA no editor" },
+  ed_ia_master_title: { en: "AI assistance (optional)", pt: "Assistência IA (opcional)" },
   ed_ia_master_sub: {
-    en: "Off = no automatic assistant sync, no paid API calls from Genesis, Copilot, SEO assist, Identity lab, etc. (avoids budget toasts). Preference is saved in this browser.",
-    pt: "Desligado = sem sincronização automática do assistente, sem chamadas pagas (Génesis, Copiloto, SEO, laboratório de identidade, etc.). Evita avisos de orçamento. A preferência fica guardada neste browser.",
+    en: "Off by default. Turn on only if you want Genesis, Copilot, SEO magic, Identity lab APIs, etc. Saved in this browser.",
+    pt: "Desligado por defeito. Liga só se quiseres Génesis, Copiloto, SEO mágico, APIs do laboratório de identidade, etc. Fica guardado neste browser.",
+  },
+  ed_ia_genesis_hidden_note: {
+    en: "Genesis Hub stays hidden while AI is off — use the toggle above if you need it.",
+    pt: "O Génesis Hub fica oculto com a IA desligada — usa o interruptor acima se precisares.",
   },
   ed_ia_master_off_hint: {
     en: "Turn on “Editor AI API calls” above to use this (uses your AI budget).",

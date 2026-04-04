@@ -271,11 +271,11 @@ function EditorPageInner() {
   const editorHydratedForSiteId = useRef<string | null>(null);
   const stripeReturnHandled = useRef(false);
 
-  /** Desliga pedidos às APIs de IA (Génesis, Copilot, SEO assist, etc.) — evita toasts de orçamento. */
-  const [editorIaApiEnabled, setEditorIaApiEnabled] = useState(true);
+  /** IA desligada por defeito; só liga com opt-in explícito (localStorage = "1"). */
+  const [editorIaApiEnabled, setEditorIaApiEnabled] = useState(false);
   useEffect(() => {
     try {
-      if (localStorage.getItem(LS_EDITOR_IA_API) === '0') setEditorIaApiEnabled(false);
+      setEditorIaApiEnabled(localStorage.getItem(LS_EDITOR_IA_API) === '1');
     } catch {
       /* ignore */
     }
@@ -300,6 +300,10 @@ function EditorPageInner() {
     const withoutFixed = unique.filter((m) => m !== 'links' && m !== 'feed');
     return ['links', 'feed', ...withoutFixed];
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'copilot' && !editorIaApiEnabled) setActiveTab('profile');
+  }, [activeTab, editorIaApiEnabled]);
 
   const trialGraceEndsAt = (site as any)?.trial_grace_until ? new Date((site as any).trial_grace_until) : null;
   const inGraceWindow = !published && !isAdminBypass && !!trialGraceEndsAt && trialGraceEndsAt > new Date();
@@ -1374,25 +1378,33 @@ function EditorPageInner() {
   const previewContentW = Math.min(1010, Math.max(320, pageWidth));
   const avatarPx = photoSizePx[photoSize] || 96;
 
-  const TABS = [
-    { id:'profile', label:T('ed_profile'), icon:Globe },
-    { id:'theme',   label:T('ed_theme'),   icon:ImageIcon },
-    { id:'links',   label:T('ed_links'),   icon:Link2 },
-    { id:'videos',  label:T('ed_videos'),  icon:Video },
-    { id:'cv',      label:T('ed_cv'),      icon:FileText },
-    { id:'feed',    label:T('ed_feed'),    icon:ChevronDown },
-    { id:'pages',   label:T('ed_pages'),   icon:FileText },
-    { id:'seo',     label:T('ed_seo'),     icon:Globe },
-    { id:'copilot', label:T('ed_copilot_tab'), icon:Wand2 },
-    { id:'ia',     label:T('ed_ia_tab'),     icon:Cpu },
-    { id:'booking', label:T('ed_tab_booking'), icon:CalendarClock },
-    { id:'verify',  label:T('ed_verify'),  icon:Shield },
-  ];
+  const TABS = useMemo(() => {
+    const all = [
+      { id: 'profile' as const, label: T('ed_profile'), icon: Globe },
+      { id: 'theme' as const, label: T('ed_theme'), icon: ImageIcon },
+      { id: 'links' as const, label: T('ed_links'), icon: Link2 },
+      { id: 'videos' as const, label: T('ed_videos'), icon: Video },
+      { id: 'cv' as const, label: T('ed_cv'), icon: FileText },
+      { id: 'feed' as const, label: T('ed_feed'), icon: ChevronDown },
+      { id: 'pages' as const, label: T('ed_pages'), icon: FileText },
+      { id: 'seo' as const, label: T('ed_seo'), icon: Globe },
+      { id: 'copilot' as const, label: T('ed_copilot_tab'), icon: Wand2 },
+      { id: 'ia' as const, label: T('ed_ia_tab'), icon: Cpu },
+      { id: 'booking' as const, label: T('ed_tab_booking'), icon: CalendarClock },
+      { id: 'verify' as const, label: T('ed_verify'), icon: Shield },
+    ];
+    if (!editorIaApiEnabled) return all.filter((tab) => tab.id !== 'copilot');
+    return all;
+  }, [T, editorIaApiEnabled]);
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <Header />
-      <EditorGuidePanel activeTab={activeTab} onGoToTab={setActiveTab} />
+      <EditorGuidePanel
+        activeTab={activeTab}
+        onGoToTab={setActiveTab}
+        showCopilotInGuide={editorIaApiEnabled}
+      />
 
       {/* Top bar — mais espaço vertical e quebra de linha para caberem todos os separadores */}
       <div className="sticky top-16 z-40 bg-[var(--bg)]/95 backdrop-blur border-b border-[var(--border)]">
@@ -1502,26 +1514,30 @@ function EditorPageInner() {
               />
             </button>
           </div>
-          <TrustGenesisHub
-            siteId={site.id}
-            snapshot={coachSnapshot}
-            markDirty={markDirty}
-            setBio={setBio}
-            setCvHeadline={setCvHeadline}
-            setCvContent={setCvContent}
-            setSeoTitle={setSeoTitle}
-            setSeoDescription={setSeoDescription}
-            setShowCv={setShowCv}
-            onPrefillLink={(title, url) => {
-              setLinkTitle(title);
-              setLinkUrl(url);
-            }}
-            onNavigateTab={setActiveTab}
-            onAppendLivelyInstructions={(s) => {
-              setLivelyAgentInstructions((prev) => (prev + `\n\n${s}`).slice(0, 2000));
-            }}
-            iaApiEnabled={editorIaApiEnabled}
-          />
+          {!editorIaApiEnabled ? (
+            <p className="text-xs text-[var(--text2)] px-1">{T('ed_ia_genesis_hidden_note')}</p>
+          ) : (
+            <TrustGenesisHub
+              siteId={site.id}
+              snapshot={coachSnapshot}
+              markDirty={markDirty}
+              setBio={setBio}
+              setCvHeadline={setCvHeadline}
+              setCvContent={setCvContent}
+              setSeoTitle={setSeoTitle}
+              setSeoDescription={setSeoDescription}
+              setShowCv={setShowCv}
+              onPrefillLink={(title, url) => {
+                setLinkTitle(title);
+                setLinkUrl(url);
+              }}
+              onNavigateTab={setActiveTab}
+              onAppendLivelyInstructions={(s) => {
+                setLivelyAgentInstructions((prev) => (prev + `\n\n${s}`).slice(0, 2000));
+              }}
+              iaApiEnabled={editorIaApiEnabled}
+            />
+          )}
         </div>
       )}
 
@@ -2213,15 +2229,17 @@ function EditorPageInner() {
                   <div>
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <label className="text-xs font-bold text-[var(--text2)]">{T('ed_min_price_week')}</label>
-                      <button
-                        type="button"
-                        disabled={suggestingPrice || !site?.id}
-                        onClick={() => void runSuggestAdPrice()}
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-50 inline-flex items-center gap-1.5"
-                      >
-                        {suggestingPrice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                        {T('ed_suggest_pricing')}
-                      </button>
+                      {editorIaApiEnabled ? (
+                        <button
+                          type="button"
+                          disabled={suggestingPrice || !site?.id}
+                          onClick={() => void runSuggestAdPrice()}
+                          className="text-xs font-bold px-3 py-1.5 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-50 inline-flex items-center gap-1.5"
+                        >
+                          {suggestingPrice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                          {T('ed_suggest_pricing')}
+                        </button>
+                      ) : null}
                     </div>
                     <input
                       type="text"
@@ -2592,19 +2610,21 @@ function EditorPageInner() {
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                   <label className="label block mb-0">{T('ed_seo_meta_desc')}</label>
-                  <button
-                    type="button"
-                    onClick={() => void runMagicDescription()}
-                    disabled={magicDescLoading || !site?.id}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-violet-500/50 text-violet-300 hover:bg-violet-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
-                  >
-                    {magicDescLoading ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Wand2 className="w-3 h-3" />
-                    )}
-                    {magicDescLoading ? T('ed_seo_magic_write_busy') : T('ed_seo_magic_write')}
-                  </button>
+                  {editorIaApiEnabled ? (
+                    <button
+                      type="button"
+                      onClick={() => void runMagicDescription()}
+                      disabled={magicDescLoading || !site?.id}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-violet-500/50 text-violet-300 hover:bg-violet-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                    >
+                      {magicDescLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Wand2 className="w-3 h-3" />
+                      )}
+                      {magicDescLoading ? T('ed_seo_magic_write_busy') : T('ed_seo_magic_write')}
+                    </button>
+                  ) : null}
                 </div>
                 <textarea
                   value={seoDescription}
@@ -2622,35 +2642,39 @@ function EditorPageInner() {
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                   <label className="label block mb-0">{T('ed_seo_search_tags_label')}</label>
-                  <button
-                    type="button"
-                    onClick={() => void runSuggestSearchTags()}
-                    disabled={suggestTagsLoading || !site?.id}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
-                  >
-                    {suggestTagsLoading ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Search className="w-3 h-3" />
-                    )}
-                    {suggestTagsLoading ? T('ed_seo_suggest_keywords_busy') : T('ed_seo_suggest_keywords')}
-                  </button>
+                  {editorIaApiEnabled ? (
+                    <button
+                      type="button"
+                      onClick={() => void runSuggestSearchTags()}
+                      disabled={suggestTagsLoading || !site?.id}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                    >
+                      {suggestTagsLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Search className="w-3 h-3" />
+                      )}
+                      {suggestTagsLoading ? T('ed_seo_suggest_keywords_busy') : T('ed_seo_suggest_keywords')}
+                    </button>
+                  ) : null}
                 </div>
-                <div className="flex flex-wrap justify-end gap-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => void runSeoPack()}
-                    disabled={seoPackLoading || !site?.id || !slug.trim()}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
-                  >
-                    {seoPackLoading ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Wand2 className="w-3 h-3" />
-                    )}
-                    {seoPackLoading ? T('ed_seo_pack_busy') : T('ed_seo_pack_btn')}
-                  </button>
-                </div>
+                {editorIaApiEnabled ? (
+                  <div className="flex flex-wrap justify-end gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => void runSeoPack()}
+                      disabled={seoPackLoading || !site?.id || !slug.trim()}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                    >
+                      {seoPackLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Wand2 className="w-3 h-3" />
+                      )}
+                      {seoPackLoading ? T('ed_seo_pack_busy') : T('ed_seo_pack_btn')}
+                    </button>
+                  </div>
+                ) : null}
                 <p className="text-[11px] text-[var(--text2)] mb-2 leading-relaxed">{T('ed_seo_search_tags_hint')}</p>
                 <div className="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
                   {seoSearchTags.map((t) => (
@@ -2924,15 +2948,17 @@ function EditorPageInner() {
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                   <label className="label block mb-0">{T('ed_lively_welcome')}</label>
-                  <button
-                    type="button"
-                    disabled={livelySuggestWelcomeBusy || !site?.slug}
-                    onClick={() => void runSuggestLivelyWelcome()}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg2)] hover:bg-[var(--bg3)] disabled:opacity-40"
-                  >
-                    {livelySuggestWelcomeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                    {T('ed_lively_suggest_welcome')}
-                  </button>
+                  {editorIaApiEnabled ? (
+                    <button
+                      type="button"
+                      disabled={livelySuggestWelcomeBusy || !site?.slug}
+                      onClick={() => void runSuggestLivelyWelcome()}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--bg2)] hover:bg-[var(--bg3)] disabled:opacity-40"
+                    >
+                      {livelySuggestWelcomeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                      {T('ed_lively_suggest_welcome')}
+                    </button>
+                  ) : null}
                 </div>
                 <textarea
                   value={livelyAvatarWelcome}
@@ -3434,6 +3460,7 @@ function EditorPageInner() {
           onSuggestAdPrice={() => void runSuggestAdPrice()}
           suggestingPrice={suggestingPrice}
           markDirty={markDirty}
+          showIaSuggestButtons={editorIaApiEnabled}
         />
       ) : null}
     </div>

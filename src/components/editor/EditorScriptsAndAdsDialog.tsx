@@ -25,6 +25,8 @@ export type EditorScriptsAndAdsDialogProps = {
   onSuggestAdPrice: () => void | Promise<void>;
   suggestingPrice: boolean;
   markDirty: () => void;
+  /** false = esconde botões que chamam API de IA (sugestão welcome / preço). */
+  showIaSuggestButtons?: boolean;
 };
 
 function ExampleBlock({
@@ -77,6 +79,7 @@ export function EditorScriptsAndAdsDialog(props: EditorScriptsAndAdsDialogProps)
     onSuggestAdPrice,
     suggestingPrice,
     markDirty,
+    showIaSuggestButtons = true,
   } = props;
 
   const en = lang.startsWith('en');
@@ -236,15 +239,17 @@ export function EditorScriptsAndAdsDialog(props: EditorScriptsAndAdsDialogProps)
             <div>
               <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
                 <label className="label block mb-0">{T('ed_min_price_week')}</label>
-                <button
-                  type="button"
-                  disabled={suggestingPrice}
-                  onClick={() => void onSuggestAdPrice()}
-                  className="text-xs font-bold px-2.5 py-1 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-50 inline-flex items-center gap-1.5"
-                >
-                  {suggestingPrice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  {T('ed_suggest_pricing')}
-                </button>
+                {showIaSuggestButtons ? (
+                  <button
+                    type="button"
+                    disabled={suggestingPrice}
+                    onClick={() => void onSuggestAdPrice()}
+                    className="text-xs font-bold px-2.5 py-1 rounded-lg border border-brand/40 text-brand hover:bg-brand/10 disabled:opacity-50 inline-flex items-center gap-1.5"
+                  >
+                    {suggestingPrice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    {T('ed_suggest_pricing')}
+                  </button>
+                ) : null}
               </div>
               <input
                 type="text"

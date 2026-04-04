@@ -37,9 +37,15 @@ const STEPS: GuideStep[] = [
 export type EditorGuidePanelProps = {
   activeTab: string;
   onGoToTab: (tabId: string) => void;
+  /** false = esconde o passo do Copiloto (IA desligada no editor). */
+  showCopilotInGuide?: boolean;
 };
 
-export function EditorGuidePanel({ activeTab, onGoToTab }: EditorGuidePanelProps) {
+export function EditorGuidePanel({
+  activeTab,
+  onGoToTab,
+  showCopilotInGuide = true,
+}: EditorGuidePanelProps) {
   const { t, lang } = useI18n();
   const [mounted, setMounted] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -97,10 +103,15 @@ export function EditorGuidePanel({ activeTab, onGoToTab }: EditorGuidePanelProps
     [onGoToTab],
   );
 
+  const visibleSteps = useMemo(
+    () => STEPS.filter((s) => showCopilotInGuide || s.id !== 'copilot'),
+    [showCopilotInGuide],
+  );
+
   const stepsBlock = useMemo(
     () => (
       <div className="flex-1 overflow-y-auto overscroll-contain py-1 space-y-3 pr-1 -mr-1 min-h-0">
-        {STEPS.map((step) => {
+        {visibleSteps.map((step) => {
           const here = step.tab != null && step.tab === activeTab;
           return (
             <div
@@ -133,7 +144,7 @@ export function EditorGuidePanel({ activeTab, onGoToTab }: EditorGuidePanelProps
         })}
       </div>
     ),
-    [t, lang, activeTab, goTab],
+    [t, lang, activeTab, goTab, visibleSteps],
   );
 
   const footerBlock = useMemo(
