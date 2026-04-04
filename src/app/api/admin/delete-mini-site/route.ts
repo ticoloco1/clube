@@ -3,8 +3,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-
-const ADMIN_EMAIL = (process.env.ADMIN_OWNER_EMAIL || 'arytcf@gmail.com').toLowerCase();
+import { isAdminOwnerEmail } from '@/lib/adminOwnerEmail';
 
 function getDb() {
   return createClient(
@@ -36,7 +35,7 @@ async function getSessionUser() {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user?.email || user.email.toLowerCase() !== ADMIN_EMAIL) {
+    if (!isAdminOwnerEmail(user?.email)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

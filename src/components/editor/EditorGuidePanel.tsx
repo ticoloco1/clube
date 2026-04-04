@@ -39,12 +39,18 @@ export type EditorGuidePanelProps = {
   onGoToTab: (tabId: string) => void;
   /** false = esconde o passo do Copiloto (IA desligada no editor). */
   showCopilotInGuide?: boolean;
+  /**
+   * true = guia em coluna à esquerda (fluxo do documento), não cobre o preview.
+   * false = painel fixo à direita (legado).
+   */
+  dockLeftColumn?: boolean;
 };
 
 export function EditorGuidePanel({
   activeTab,
   onGoToTab,
   showCopilotInGuide = true,
+  dockLeftColumn = false,
 }: EditorGuidePanelProps) {
   const { t, lang } = useI18n();
   const [mounted, setMounted] = useState(false);
@@ -165,13 +171,72 @@ export function EditorGuidePanel({
 
   if (!mounted) return null;
 
+  const desktopDockInner = (
+    <div key={lang} className="flex flex-col h-full min-h-0 max-h-[calc(100dvh-4rem)] w-full px-2 pb-2 pt-2">
+      <div className="flex items-start justify-between gap-2 pb-3 border-b border-[var(--border)] flex-shrink-0">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-brand">{t('ed_guide_kicker')}</p>
+          <h2 className="text-base font-black text-[var(--text)] leading-tight mt-0.5">{t('ed_guide_title')}</h2>
+          <p className="text-[11px] text-[var(--text2)] mt-1">{t('ed_guide_subtitle')}</p>
+        </div>
+      </div>
+      {stepsBlock}
+      {footerBlock}
+    </div>
+  );
+
+  if (dockLeftColumn) {
+    return (
+      <>
+        <div className="hidden md:flex flex-col w-full min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label={t('ed_guide_title')}>
+          {desktopDockInner}
+        </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="md:hidden fixed bottom-20 right-4 z-[28] flex items-center gap-2 rounded-full border border-[var(--border)] bg-brand text-white px-4 py-3 text-sm font-bold shadow-lg"
+          aria-label={t('ed_guide_title')}
+        >
+          <BookOpen className="w-4 h-4" />
+          {t('ed_guide_tab_label')}
+        </button>
+        {mobileOpen && (
+          <div className="md:hidden fixed inset-0 z-[45] flex flex-col justify-end bg-black/50" role="dialog" aria-modal="true">
+            <button type="button" className="flex-1 min-h-[20vh] w-full cursor-default" aria-label="Close" onClick={() => setMobileOpen(false)} />
+            <div key={`m-${lang}`} className="max-h-[min(78dvh,560px)] rounded-t-2xl border-t border-x border-[var(--border)] bg-[var(--bg)] px-4 pt-2 pb-4 shadow-2xl flex flex-col">
+              <div className="flex justify-center pb-2">
+                <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
+              </div>
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
+                <span className="text-sm font-black text-[var(--text)]">{t('ed_guide_title')}</span>
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  className="p-2 rounded-lg text-[var(--text2)] hover:bg-[var(--bg2)]"
+                  aria-label={t('ed_guide_close_mobile')}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-[11px] text-[var(--text2)] pb-2">{t('ed_guide_subtitle')}</p>
+              <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
+                {stepsBlock}
+                {footerBlock}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
-      {/* Desktop / tablet: painel lateral */}
+      {/* Desktop / tablet: painel lateral fixo à direita */}
       {expanded ? (
         <aside
           key={lang}
-          className="hidden md:flex flex-col fixed right-0 top-[7.5rem] z-[38] w-[min(20.5rem,calc(100vw-12px))] max-h-[calc(100dvh-7.5rem)] border-l border-[var(--border)] bg-[var(--bg)]/98 backdrop-blur-md shadow-[0_0_24px_rgba(0,0,0,0.12)] px-3 pb-3 pt-3"
+          className="hidden md:flex flex-col fixed right-0 top-[7.5rem] z-[28] w-[min(20.5rem,calc(100vw-12px))] max-h-[calc(100dvh-7.5rem)] border-l border-[var(--border)] bg-[var(--bg)]/98 backdrop-blur-md shadow-[0_0_24px_rgba(0,0,0,0.12)] px-3 pb-3 pt-3"
           aria-label={t('ed_guide_title')}
         >
           <div className="flex flex-col h-full min-h-0 max-h-[calc(100dvh-7.5rem)]">
@@ -199,7 +264,7 @@ export function EditorGuidePanel({
         <button
           type="button"
           onClick={expand}
-          className="hidden md:flex fixed right-0 top-1/2 -translate-y-1/2 z-[38] flex-col items-center gap-1 py-4 px-2 rounded-l-xl border border-r-0 border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] shadow-lg hover:bg-brand hover:text-white hover:border-brand transition-colors"
+          className="hidden md:flex fixed right-0 top-1/2 -translate-y-1/2 z-[28] flex-col items-center gap-1 py-4 px-2 rounded-l-xl border border-r-0 border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] shadow-lg hover:bg-brand hover:text-white hover:border-brand transition-colors"
           aria-expanded={false}
           title={t('ed_guide_show_again')}
         >
@@ -214,7 +279,7 @@ export function EditorGuidePanel({
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed bottom-20 right-4 z-[38] flex items-center gap-2 rounded-full border border-[var(--border)] bg-brand text-white px-4 py-3 text-sm font-bold shadow-lg"
+        className="md:hidden fixed bottom-20 right-4 z-[28] flex items-center gap-2 rounded-full border border-[var(--border)] bg-brand text-white px-4 py-3 text-sm font-bold shadow-lg"
         aria-label={t('ed_guide_title')}
       >
         <BookOpen className="w-4 h-4" />

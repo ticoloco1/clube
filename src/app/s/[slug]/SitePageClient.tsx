@@ -16,7 +16,6 @@ import { LivelyAvatarWidget } from '@/components/site/LivelyAvatarWidget';
 import { AvatarTiltShell } from '@/components/site/AvatarTiltShell';
 import { CentralProfileMagicAvatar } from '@/components/site/CentralProfileMagicAvatar';
 import { MagicPortraitOutOfFrame } from '@/components/site/MagicPortraitOutOfFrame';
-import { SiteMysticSales } from '@/components/site/SiteMysticSales';
 import { SiteBookingWidget } from '@/components/site/SiteBookingWidget';
 import { resolveFloatingAgentImageUrl } from '@/lib/floatingAgentImage';
 import { resolveLivelyProfileImageUrl, livelyProfileUsesPupilOverlay } from '@/lib/livelyProfileImage';
@@ -147,8 +146,8 @@ export default function SitePageClient({
   const photoSizeKey = photoSizeRaw === 'site' ? 'xl' : photoSizeRaw;
   const photoSizeMap: Record<string, number> = { sm: 72, md: 96, lg: 128, xl: 192 };
   const avatarSize = photoSizeMap[photoSizeKey] || 96;
-  /** Hero mais baixo com fotos pequenas; cresce com XL — banner continua 100% da largura do ecrã. */
-  const heroMinHeight = Math.min(520, Math.max(210, Math.round(avatarSize * 2.45 + 104)));
+  /** Faixa do topo: altura fluida até 250px — não força strip gigante em todos os ecrãs. */
+  const BANNER_STRIP_MAX_PX = 250;
   const rawTextColor = (site as any)?.text_color;
   const textColorOverride = rawTextColor && rawTextColor !== '' && rawTextColor !== 'auto' ? rawTextColor : null;
   const textMain  = textColorOverride || t.text;
@@ -158,8 +157,8 @@ export default function SitePageClient({
   const bannerPlaceholderEnabled = (site as any)?.banner_placeholder_enabled !== false;
   const bannerPlaceholderColor = (site as any)?.banner_placeholder_color || '#1f2937';
   const moduleOrder: string[] = (() => {
-    try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed","ads","mystic","booking"]'); }
-    catch { return ['links','videos','cv','feed','ads','mystic','booking']; }
+    try { return JSON.parse((site as any)?.module_order || '["links","feed","videos","cv","ads","booking"]'); }
+    catch { return ['links','feed','videos','cv','ads','booking']; }
   })();
   const pageModulesMap: Record<string, string[]> = (() => {
     try {
@@ -216,7 +215,9 @@ export default function SitePageClient({
   })();
   const [activePage, setActivePage] = useState('home');
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
-  const activeModules = pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : []);
+  const activeModules = (pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : [])).filter(
+    (m) => m !== 'mystic',
+  );
   const activeColumns = pageColumnsMap[activePage] || 1;
   const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
   const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
@@ -448,14 +449,7 @@ export default function SitePageClient({
         ? `${Math.round(avatarSize * 0.16)}px`
         : `${Math.round(avatarSize * 0.28)}px`;
 
-  /** Fundo do hero: banner a toda a largura; senão avatar/retrato suave por baixo do gradiente. */
-  const heroBgUrl =
-    (site.banner_url as string | null) ||
-    livelyProfileImageUrl ||
-    (site.avatar_url as string | null) ||
-    null;
-  const shareAvatarUrl =
-    livelyProfileImageUrl || (site.avatar_url as string | null) || (site.banner_url as string | null) || null;
+  const shareAvatarUrl = livelyProfileImageUrl || (site.avatar_url as string | null) || null;
   const ownerWhatsappDigits = String((site as any).contact_phone || '').replace(/\D/g, '');
 
   return (
@@ -486,75 +480,65 @@ export default function SitePageClient({
         </div>
       )}
 
-      {/* Hero: banner edge-to-edge; foto de perfil só nos 4 tamanhos, centrada na largura da página (links). */}
+      {/* Banner: only uploaded image or color strip — never profile photo; max 250px tall */}
+      {site.banner_url ? (
+        <div
+          style={{
+            width: '100%',
+            maxHeight: BANNER_STRIP_MAX_PX,
+            height: `clamp(80px, 22vw, ${BANNER_STRIP_MAX_PX}px)`,
+            overflow: 'hidden',
+            position: 'relative',
+            zIndex: 1,
+            background: '#07070a',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundImage: `url(${site.banner_url})`,
+              backgroundSize: bannerFit === 'contain' ? 'contain' : 'cover',
+              backgroundRepeat: 'no-repeat',
+              backgroundColor: '#07070a',
+              backgroundPosition: `${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
+              transform: `scale(${bannerZoom / 100})`,
+              transformOrigin: `${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
+            }}
+          />
+        </div>
+      ) : bannerPlaceholderEnabled ? (
+        <div
+          style={{
+            width: '100%',
+            height: 56,
+            maxHeight: BANNER_STRIP_MAX_PX,
+            background: bannerPlaceholderColor,
+            zIndex: 1,
+            position: 'relative',
+          }}
+        />
+      ) : null}
+
+      {/* Profile block — theme background; avatar independent from banner */}
       <div
         style={{
           width: '100%',
           position: 'relative',
-          zIndex: 1,
-          minHeight: heroMinHeight,
-          overflow: 'hidden',
-          background: bannerPlaceholderColor,
+          zIndex: 2,
+          background: pageBg,
+          padding: 'clamp(16px, 4vw, 28px) clamp(16px, 4vw, 24px) 8px',
         }}
       >
-        {site.banner_url ? (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              backgroundImage: `url(${site.banner_url})`,
-              backgroundSize: bannerFit === 'contain' ? 'contain' : 'cover',
-              backgroundPosition: `${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
-              transform: `scale(${bannerZoom / 100})`,
-              transformOrigin: `${(site as any).banner_focus_x ?? 50}% ${(site as any).banner_focus_y ?? 50}%`,
-              opacity: 0.42,
-            }}
-          />
-        ) : heroBgUrl ? (
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: 0,
-              backgroundImage: `url(${heroBgUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              opacity: 0.42,
-            }}
-          />
-        ) : !bannerPlaceholderEnabled ? (
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: `linear-gradient(145deg, ${accent}44, #0f1419)`,
-            }}
-          />
-        ) : null}
         <div
           style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.72) 100%)',
-            pointerEvents: 'none',
-          }}
-        />
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 2,
-            minHeight: heroMinHeight,
-            padding: 'clamp(18px, 4vw, 32px) clamp(16px, 4vw, 24px)',
+            maxWidth: pageMaxWidth,
+            marginLeft: 'auto',
+            marginRight: 'auto',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
             textAlign: 'center',
-            maxWidth: pageMaxWidth,
-            width: '100%',
-            marginLeft: 'auto',
-            marginRight: 'auto',
             boxSizing: 'border-box',
           }}
         >
@@ -573,9 +557,9 @@ export default function SitePageClient({
                       : site.photo_shape === 'square'
                         ? Math.max(12, Math.round(avatarSize * 0.06))
                         : Math.max(16, Math.round(avatarSize * 0.12)),
-                  background: `linear-gradient(135deg,${accent},${accent}60,rgba(255,255,255,0.15))`,
+                  background: `linear-gradient(135deg,${accent},${accent}60,rgba(255,255,255,0.12))`,
                   marginBottom: 12,
-                  boxShadow: `0 12px 40px rgba(0,0,0,0.35)`,
+                  boxShadow: `0 8px 28px rgba(0,0,0,0.2)`,
                 }}
               >
                 {showProfileSpeakingAvatar ? (
@@ -590,8 +574,8 @@ export default function SitePageClient({
                     voiceAgent={typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : ''}
                     size={avatarSize}
                     borderRadius={profilePhotoRadiusCss}
-                    border="3px solid rgba(255,255,255,0.95)"
-                    pageBg="rgba(15,20,28,0.4)"
+                    border={`2px solid ${t.border}`}
+                    pageBg={pageBg}
                   />
                 ) : livelyProfileImageUrl ? (
                   <CentralProfileLivelyPhoto
@@ -600,7 +584,7 @@ export default function SitePageClient({
                     width={avatarSize}
                     height={avatarSize}
                     borderRadius={profilePhotoRadiusCss}
-                    border="3px solid rgba(255,255,255,0.95)"
+                    border={`2px solid ${t.border}`}
                     pupilOverlay={livelyProfilePupils}
                   />
                 ) : site.avatar_url ? (
@@ -618,7 +602,7 @@ export default function SitePageClient({
                             : Math.round(avatarSize * 0.28),
                       objectFit: 'cover',
                       display: 'block',
-                      border: '3px solid rgba(255,255,255,0.95)',
+                      border: `2px solid ${t.border}`,
                     }}
                   />
                 ) : (
@@ -634,7 +618,7 @@ export default function SitePageClient({
                       fontSize: Math.round(avatarSize * 0.42),
                       fontWeight: 900,
                       color: '#fff',
-                      border: '3px solid rgba(255,255,255,0.95)',
+                      border: `2px solid ${t.border}`,
                     }}
                   >
                     {site.site_name?.[0]?.toUpperCase()}
@@ -650,18 +634,17 @@ export default function SitePageClient({
                 margin: 0,
                 fontSize: 'clamp(1.35rem, 4.2vw, 1.75rem)',
                 fontWeight: 900,
-                color: '#fff',
+                color: textMain,
                 letterSpacing: '-0.02em',
                 lineHeight: 1.15,
-                textShadow: '0 2px 24px rgba(0,0,0,0.45)',
               }}
             >
               {site.site_name}
             </h1>
-            {site.is_verified && <CheckCircle style={{ width: 22, height: 22, color: '#93c5fd', flexShrink: 0 }} />}
+            {site.is_verified && <CheckCircle style={{ width: 22, height: 22, color: accent, flexShrink: 0 }} />}
           </div>
           {site.cv_headline && (
-            <p style={{ margin: '0 0 8px', fontSize: 15, color: 'rgba(255,255,255,0.88)', fontWeight: 700, maxWidth: 420 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 15, color: textSub, fontWeight: 700, maxWidth: 420 }}>
               {site.cv_headline}
             </p>
           )}
@@ -813,18 +796,6 @@ export default function SitePageClient({
                 </p>
               )}
             </div>
-          )}
-
-          {activePage === 'home' &&
-            (site as any).mystic_public_enabled === true &&
-            !activeModules.includes('mystic') && (
-            <SiteMysticSales
-              site={site}
-              isOwner={isOwner}
-              accentColor={accent}
-              textColor={t.text}
-              textMuted={textSub}
-            />
           )}
 
           <MagicPortraitOutOfFrame
@@ -1024,16 +995,16 @@ export default function SitePageClient({
               ))}
               {/* Feed window (Instagram-like) */}
               {posts.filter((p:any) => !p.pinned).length > 0 && (
-                <div style={{width:'100%',maxWidth:550,margin:'0 auto'}}>
+                <div style={{ width: '100%', maxWidth: 550, minWidth: Math.min(550, pageMaxWidth), margin: '0 auto' }}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                     <h2 style={{color:t.text,fontSize:14,fontWeight:800,margin:0}}>{T('site_posts')}</h2>
                     <span style={{fontSize:11,color:t.text2}}>{posts.filter((p:any)=>!p.pinned).length} posts</span>
                   </div>
-                  {/* Feed window 550x550 com scroll interno */}
                   <div style={{
                     width:'100%',
-                    height:550,
-                    overflowY:'scroll',
+                    minHeight: 200,
+                    maxHeight: 'min(70vh, 520px)',
+                    overflowY:'auto',
                     overflowX:'hidden',
                     display:'flex',
                     flexDirection:'column',
@@ -1096,20 +1067,6 @@ export default function SitePageClient({
               )}
             </div>
           );
-          if (mod === 'mystic') {
-            if ((site as any).mystic_public_enabled !== true) return null;
-            return (
-              <div key="mystic" style={{ marginBottom: 32 }}>
-                <SiteMysticSales
-                  site={site}
-                  isOwner={isOwner}
-                  accentColor={accent}
-                  textColor={t.text}
-                  textMuted={textSub}
-                />
-              </div>
-            );
-          }
           if (mod === 'booking') {
             if ((site as any).booking_enabled !== true) return null;
             return (

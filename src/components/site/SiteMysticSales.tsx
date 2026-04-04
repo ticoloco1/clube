@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/store/cart';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 type Props = {
   site: MiniSite;
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMuted }: Props) {
+  const T = useT();
   const { user } = useAuth();
   const { add, open } = useCart();
   const [tarotLeft, setTarotLeft] = useState(0);
@@ -74,7 +76,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
     const sp = new URLSearchParams(window.location.search);
     const cancel = sp.get('mystic_cancel');
     if (cancel === '1') {
-      toast.message('Pagamento cancelado.');
+      toast.message(T('mystic_sales_pay_cancel'));
       window.history.replaceState({}, '', window.location.pathname);
       return;
     }
@@ -96,12 +98,12 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
         window.history.replaceState({}, '', pathOnly);
         if (!res.ok) {
           mysticPaidHandled.current = null;
-          toast.error(typeof data.error === 'string' ? data.error : 'Não foi possível concluir a compra.');
+          toast.error(typeof data.error === 'string' ? data.error : T('mystic_sales_pay_fail'));
           return;
         }
         if (data.siteId && data.siteId !== site.id) {
           mysticPaidHandled.current = null;
-          toast.message('Este pagamento pertence a outro mini-site.');
+          toast.message(T('mystic_sales_pay_wrong_site'));
           return;
         }
         setLastPendingId(paid);
@@ -113,11 +115,11 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
           });
           if (data.lottery.text) setLotteryOut(String(data.lottery.text));
         }
-        toast.success('Pagamento confirmado — resultado abaixo.');
+        toast.success(T('mystic_sales_pay_ok'));
         await refreshEntitlements();
       } catch {
         mysticPaidHandled.current = null;
-        toast.error('Erro de rede ao confirmar pagamento.');
+        toast.error(T('mystic_sales_net_complete'));
       } finally {
         setCompleteBusy(false);
       }
@@ -127,7 +129,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
 
   const downloadLotteryPdf = async () => {
     if (!lastPendingId) {
-      toast.message('Sem recibo disponível.');
+      toast.message(T('mystic_sales_no_receipt'));
       return;
     }
     try {
@@ -138,19 +140,19 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        toast.error(typeof j.error === 'string' ? j.error : 'PDF indisponível.');
+        toast.error(typeof j.error === 'string' ? j.error : T('mystic_sales_pdf_fail'));
         return;
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `loteria-${site.slug || 'recibo'}.pdf`;
+      a.download = `lottery-${site.slug || 'receipt'}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('PDF descarregado.');
+      toast.success(T('mystic_sales_pdf_ok'));
     } catch {
-      toast.error('Erro ao descarregar PDF.');
+      toast.error(T('mystic_sales_pdf_err'));
     }
   };
 
@@ -158,20 +160,20 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
 
   const addTarot = () => {
     if (!user) {
-      toast.message('Inicia sessão para adicionar ao carrinho.');
+      toast.message(T('mystic_sales_login_cart'));
       return;
     }
     if (isOwner) {
-      toast.message('No teu próprio site isto é só pré-visualização para visitantes.');
+      toast.message(T('mystic_sales_owner_preview'));
       return;
     }
     if (!stripeOk) {
-      toast.error('O criador ainda não activou pagamentos Stripe neste perfil.');
+      toast.error(T('mystic_sales_stripe_visitor'));
       return;
     }
     add({
       id: `mystic_tarot_${site.id}`,
-      label: `Tarô com IA — ${site.site_name}`,
+      label: T('mystic_cart_tarot_label').replace('{name}', site.site_name || ''),
       price: tarotPrice,
       type: 'mystic_tarot',
     });
@@ -179,20 +181,20 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
 
   const addLottery = () => {
     if (!user) {
-      toast.message('Inicia sessão para adicionar ao carrinho.');
+      toast.message(T('mystic_sales_login_cart'));
       return;
     }
     if (isOwner) {
-      toast.message('No teu próprio site isto é só pré-visualização para visitantes.');
+      toast.message(T('mystic_sales_owner_preview'));
       return;
     }
     if (!stripeOk) {
-      toast.error('O criador ainda não activou pagamentos Stripe neste perfil.');
+      toast.error(T('mystic_sales_stripe_visitor'));
       return;
     }
     add({
       id: `mystic_lottery_${site.id}`,
-      label: `Loteria premium (IA) — ${site.site_name}`,
+      label: T('mystic_cart_lottery_label').replace('{name}', site.site_name || ''),
       price: lotteryPrice,
       type: 'mystic_lottery',
     });
@@ -200,7 +202,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
 
   const runRead = async (service: 'tarot' | 'lottery_premium') => {
     if (!user) {
-      toast.message('Inicia sessão para usar a leitura.');
+      toast.message(T('mystic_sales_login_use'));
       return;
     }
     setBusy(service === 'tarot' ? 'tarot' : 'lottery');
@@ -216,14 +218,14 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(typeof data.error === 'string' ? data.error : 'Pedido falhou.');
+        toast.error(typeof data.error === 'string' ? data.error : T('mystic_sales_request_fail'));
         return;
       }
       if (service === 'tarot') setTarotOut(String(data.text || ''));
       else setLotteryOut(String(data.text || ''));
       await refreshEntitlements();
     } catch {
-      toast.error('Erro de rede.');
+      toast.error(T('mystic_sales_net'));
     } finally {
       setBusy(null);
     }
@@ -246,22 +248,17 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <Sparkles style={{ width: 20, height: 20, color: accentColor }} />
-        <span style={{ fontWeight: 900, fontSize: 15, color: textColor }}>Serviços místicos (entretenimento)</span>
+        <span style={{ fontWeight: 900, fontSize: 15, color: textColor }}>{T('mystic_sales_title')}</span>
       </div>
-      <p style={{ fontSize: 12, color: textMuted, lineHeight: 1.5, margin: '0 0 14px' }}>
-        O pagamento é feito <strong style={{ color: textColor }}>directamente na conta Stripe do criador</strong> (Checkout no perfil dele).
-        O site só abre o fluxo e gera o resultado (IA no servidor, ex. DeepSeek). Entretenimento — não substitui aconselhamento profissional.
-      </p>
+      <p style={{ fontSize: 12, color: textMuted, lineHeight: 1.5, margin: '0 0 14px' }}>{T('mystic_sales_intro')}</p>
 
       {completeBusy && (
-        <p style={{ fontSize: 12, color: accentColor, fontWeight: 700, marginBottom: 10 }}>A confirmar pagamento e a gerar resultado…</p>
+        <p style={{ fontSize: 12, color: accentColor, fontWeight: 700, marginBottom: 10 }}>{T('mystic_sales_confirming')}</p>
       )}
 
       {!stripeOk && (
         <p style={{ fontSize: 12, color: '#fbbf24', marginBottom: 12 }}>
-          {isOwner
-            ? 'Liga o Stripe no editor (perfil) para activar vendas aqui.'
-            : 'Este perfil ainda não está pronto para cobrar leituras.'}
+          {isOwner ? T('mystic_sales_stripe_owner') : T('mystic_sales_stripe_visitor')}
         </p>
       )}
 
@@ -275,11 +272,11 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 800, color: textColor, fontSize: 14 }}>Tarô com IA</span>
+            <span style={{ fontWeight: 800, color: textColor, fontSize: 14 }}>{T('mystic_sales_tarot_heading')}</span>
             <span style={{ fontWeight: 900, color: accentColor }}>US$ {tarotPrice.toFixed(2)}</span>
           </div>
           {user && tarotLeft > 0 && (
-            <p style={{ fontSize: 11, color: '#86efac', marginTop: 6 }}>Tens {tarotLeft} leitura(s) disponível(is).</p>
+            <p style={{ fontSize: 11, color: '#86efac', marginTop: 6 }}>{T('mystic_sales_reads_left').replace('{n}', String(tarotLeft))}</p>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button
@@ -304,7 +301,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
                 color: '#fff',
               }}
             >
-              <ShoppingCart style={{ width: 15, height: 15 }} /> Carrinho
+              <ShoppingCart style={{ width: 15, height: 15 }} /> {T('mystic_sales_cart')}
             </button>
           </div>
           {user && !isOwner && (
@@ -312,7 +309,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
               <textarea
                 value={tarotCtx}
                 onChange={(e) => setTarotCtx(e.target.value.slice(0, 400))}
-                placeholder="Pergunta ou tema (opcional)"
+                placeholder={T('mystic_sales_tarot_ph')}
                 rows={2}
                 style={{
                   width: '100%',
@@ -343,7 +340,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
                   opacity: tarotLeft < 1 ? 0.5 : 1,
                 }}
               >
-                {busy === 'tarot' ? 'A gerar…' : 'Usar 1 leitura'}
+                {busy === 'tarot' ? T('mystic_sales_generating') : T('mystic_sales_use_reading')}
               </button>
             </>
           )}
@@ -372,11 +369,11 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 800, color: textColor, fontSize: 14 }}>Loteria premium (IA)</span>
+            <span style={{ fontWeight: 800, color: textColor, fontSize: 14 }}>{T('mystic_sales_lottery_heading')}</span>
             <span style={{ fontWeight: 900, color: accentColor }}>US$ {lotteryPrice.toFixed(2)}</span>
           </div>
           {user && lotteryLeft > 0 && (
-            <p style={{ fontSize: 11, color: '#86efac', marginTop: 6 }}>Tens {lotteryLeft} uso(s) disponível(eis).</p>
+            <p style={{ fontSize: 11, color: '#86efac', marginTop: 6 }}>{T('mystic_sales_uses_left').replace('{n}', String(lotteryLeft))}</p>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button
@@ -401,7 +398,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
                 color: '#fff',
               }}
             >
-              <ShoppingCart style={{ width: 15, height: 15 }} /> Carrinho
+              <ShoppingCart style={{ width: 15, height: 15 }} /> {T('mystic_sales_cart')}
             </button>
           </div>
           {user && !isOwner && (
@@ -409,7 +406,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
               <textarea
                 value={lotteryCtx}
                 onChange={(e) => setLotteryCtx(e.target.value.slice(0, 400))}
-                placeholder="Jogo ou preferência (opcional)"
+                placeholder={T('mystic_sales_lottery_ph')}
                 rows={2}
                 style={{
                   width: '100%',
@@ -440,7 +437,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
                   opacity: lotteryLeft < 1 ? 0.5 : 1,
                 }}
               >
-                {busy === 'lottery' ? 'A gerar…' : 'Usar 1 crédito'}
+                {busy === 'lottery' ? T('mystic_sales_generating') : T('mystic_sales_use_credit')}
               </button>
             </>
           )}
@@ -455,7 +452,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
               }}
             >
               <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 800, color: accentColor, textTransform: 'uppercase' }}>
-                A tua combinação (entretenimento)
+                {T('mystic_sales_combo_title')}
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                 {paidLotteryNums.main.map((n, i) => (
@@ -480,7 +477,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
               </div>
               {paidLotteryNums.stars.length > 0 && (
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: textColor }}>
-                  Estrela(s): {paidLotteryNums.stars.join(' · ')}
+                  {T('mystic_sales_stars')} {paidLotteryNums.stars.join(' · ')}
                 </p>
               )}
               {lastPendingId && (
@@ -502,7 +499,7 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
                     cursor: 'pointer',
                   }}
                 >
-                  <FileDown style={{ width: 16, height: 16 }} /> PDF do recibo
+                  <FileDown style={{ width: 16, height: 16 }} /> {T('mystic_sales_pdf')}
                 </button>
               )}
             </div>
@@ -526,9 +523,9 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
 
       {user && (
         <p style={{ fontSize: 11, color: textMuted, marginTop: 14, marginBottom: 0 }}>
-          Depois de pagar, voltas a este perfil: o resultado aparece automaticamente. Também podes ir ao{' '}
+          {T('mystic_sales_footer')}{' '}
           <Link href="/dashboard" style={{ color: accentColor, fontWeight: 700 }}>
-            painel
+            {T('mystic_sales_footer_dashboard')}
           </Link>
           .
         </p>

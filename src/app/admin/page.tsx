@@ -163,6 +163,9 @@ export default function AdminPage() {
   >([]);
   const [miniSitesTotal, setMiniSitesTotal] = useState(0);
   const [miniSitesLoading, setMiniSitesLoading] = useState(false);
+  const [miniSitesBulkText, setMiniSitesBulkText] = useState('');
+  const [miniSitesBulkLoading, setMiniSitesBulkLoading] = useState(false);
+  const [miniSitesBulkLog, setMiniSitesBulkLog] = useState<string[]>([]);
 
   const loadMyMiniSites = useCallback(
     async (page: number) => {
@@ -198,6 +201,48 @@ export default function AdminPage() {
     },
     [user?.id],
   );
+
+  const createMiniSitesBulk = async () => {
+    const text = miniSitesBulkText.trim();
+    if (!text) return;
+    setMiniSitesBulkLoading(true);
+    setMiniSitesBulkLog([]);
+    try {
+      const res = await fetch('/api/admin/create-mini-sites-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        ok?: boolean;
+        results?: { slug: string; ok: boolean; error?: string }[];
+        okCount?: number;
+        total?: number;
+      };
+      if (!res.ok) {
+        toast.error(j.error || 'Falha ao criar');
+        return;
+      }
+      const lines =
+        j.results?.map((r) =>
+          r.ok ? `✅ ${r.slug}` : `⛔ ${r.slug}${r.error ? `: ${r.error}` : ''}`,
+        ) || [];
+      setMiniSitesBulkLog(lines);
+      toast.success(
+        T('admin_minisites_bulk_toast')
+          .replace('{ok}', String(j.okCount ?? 0))
+          .replace('{total}', String(j.total ?? lines.length)),
+      );
+      setMiniSitesBulkText('');
+      void loadMyMiniSites(1);
+      setMiniSitesPage(1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMiniSitesBulkLoading(false);
+    }
+  };
 
   /** DeepSeek / OpenAI-compatible: sugestão de preços (opcional). Chave também pode ir só em DEEPSEEK_API_KEY na Vercel. */
   const [aiConfig, setAiConfig] = useState({
@@ -790,6 +835,34 @@ export default function AdminPage() {
             <p className="text-xs text-[var(--text2)]">
               {T('admin_minisites_page').replace('{page}', String(miniSitesPage)).replace('{total}', String(miniSitesTotal))}
             </p>
+
+            <div className="rounded-xl border border-[var(--border)] p-4 space-y-3 bg-[var(--bg2)]/30">
+              <div>
+                <h4 className="font-bold text-sm text-[var(--text)]">{T('admin_minisites_bulk_title')}</h4>
+                <p className="text-xs text-[var(--text2)] mt-1">{T('admin_minisites_bulk_hint')}</p>
+              </div>
+              <textarea
+                value={miniSitesBulkText}
+                onChange={(e) => setMiniSitesBulkText(e.target.value)}
+                className="input w-full resize-y font-mono text-sm min-h-[120px]"
+                placeholder={T('admin_minisites_bulk_placeholder')}
+                disabled={miniSitesBulkLoading}
+              />
+              <button
+                type="button"
+                onClick={() => void createMiniSitesBulk()}
+                disabled={miniSitesBulkLoading || !miniSitesBulkText.trim()}
+                className="btn-primary text-sm px-4 gap-2 inline-flex items-center"
+              >
+                {miniSitesBulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {T('admin_minisites_bulk_run')}
+              </button>
+              {miniSitesBulkLog.length > 0 && (
+                <pre className="text-xs font-mono text-[var(--text2)] whitespace-pre-wrap max-h-40 overflow-y-auto rounded-lg border border-[var(--border)] p-3 bg-[var(--bg)]">
+                  {miniSitesBulkLog.join('\n')}
+                </pre>
+              )}
+            </div>
 
             <div className="flex gap-2">
               <button

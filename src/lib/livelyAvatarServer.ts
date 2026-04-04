@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { siteOwnerHasIaTestBypass } from '@/lib/iaBillingSubscription';
 
 export function getServiceDb() {
   return createClient(
@@ -77,7 +78,8 @@ export async function getViewerUserId(): Promise<string | null> {
 export async function getLivelySiteForApi(slug: string, viewerUserId: string | null): Promise<LivelySiteRow | null> {
   const slugClean = slug.trim().toLowerCase();
   if (!slugClean) return null;
-  const { data, error } = await getServiceDb()
+  const db = getServiceDb();
+  const { data, error } = await db
     .from('mini_sites')
     .select(
       [
@@ -129,7 +131,9 @@ export async function getLivelySiteForApi(slug: string, viewerUserId: string | n
 
   const openBeta = process.env.LIVELY_AVATAR_OPEN_BETA === 'true';
   const skipNft = process.env.LIVELY_AVATAR_SKIP_NFT === 'true';
-  if (!openBeta && !skipNft && !row.lively_avatar_nft_verified_at && !isOwner) return null;
+  const bypassVisitorNft =
+    openBeta || skipNft || !!(await siteOwnerHasIaTestBypass(db, row.user_id));
+  if (!bypassVisitorNft && !row.lively_avatar_nft_verified_at && !isOwner) return null;
 
   return row;
 }

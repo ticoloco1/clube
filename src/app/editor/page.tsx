@@ -7,8 +7,11 @@ import { extractYouTubeId } from '@/lib/utils';
 import {
   slugRegistrationDueUsd,
   slugLengthTierUsd,
+  slugLengthTierByLenOnly,
   isSlugReservedAdminOnly,
   SLUG_EXTRA_REGISTRATION_USD,
+  normalizeSlugKey,
+  isWorldFirstNameSlug,
 } from '@/lib/slugPolicy';
 import { useEffect, useState, useRef, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -18,8 +21,8 @@ import { useT, useI18n } from '@/lib/i18n';
 import {
   Save, Eye, Upload, Plus, X, Loader2,
   Globe, Link2, Video, FileText, ChevronDown,
-  Image as ImageIcon, Shield, GripVertical, ExternalLink,   CreditCard, Sparkles,
-  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone, CalendarClock, Trash2,
+  Image as ImageIcon, Shield, GripVertical, ExternalLink, CreditCard,
+  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone, Trash2,
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
@@ -31,10 +34,7 @@ import { IdentityLabPanel } from '@/components/editor/IdentityLabPanel';
 import { CreatorStudioPanel } from '@/components/editor/CreatorStudioPanel';
 import { AvatarCharacterInspirationPanel } from '@/components/editor/AvatarCharacterInspirationPanel';
 import { readSiteAiBudget } from '@/lib/aiUsdBudget';
-import { SiteCopilotPanel } from '@/components/editor/SiteCopilotPanel';
-import { TrustGenesisHub } from '@/components/editor/TrustGenesisHub';
 import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
-import { EditorGuidePanel } from '@/components/editor/EditorGuidePanel';
 import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
 import { DEFAULT_BOOKING_SERVICES, DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSchedule';
 
@@ -202,11 +202,12 @@ function EditorPageInner() {
   // ── Feed state ───────────────────────────────────────────────────────────
   const [showFeed,    setShowFeed]    = useState(true);
   const [feedCols,    setFeedCols]    = useState<1|2|3>(1);
-  const [moduleOrder, setModuleOrder] = useState<string[]>(['links', 'feed', 'videos', 'cv', 'ads', 'mystic', 'booking']);
+  const [moduleOrder, setModuleOrder] = useState<string[]>(['links', 'feed']);
   const [pageWidth, setPageWidth] = useState<number>(600);
   const [sitePages,   setSitePages]   = useState<{id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[]>([{id:'home',label:'Home',template:'default'}]);
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
-  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links', 'feed', 'videos', 'cv', 'ads', 'mystic', 'booking'] });
+  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links', 'feed'] });
+  const [pagesEditorSelectedId, setPagesEditorSelectedId] = useState<string>('home');
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
   const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({
     home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
@@ -242,8 +243,6 @@ function EditorPageInner() {
     () => JSON.stringify([{ label: 'Consultation', minutes: 30 }], null, 2),
   );
   const [bookingVertical, setBookingVertical] = useState<'general' | 'medical' | 'legal' | 'business'>('general');
-  const [bookingRows, setBookingRows] = useState<any[]>([]);
-  const [bookingRowsLoading, setBookingRowsLoading] = useState(false);
   const [sectionOrder, setSectionOrder] = useState<string[]>(['summary','experience','education','skills','projects','languages','certificates','contact']);
 
   // ── UI state ─────────────────────────────────────────────────────────────
@@ -265,6 +264,10 @@ function EditorPageInner() {
   const [creatingSite, setCreatingSite] = useState(false);
   const [newSiteSlug, setNewSiteSlug] = useState('');
   const [newSiteName, setNewSiteName] = useState('');
+  const [createSlugTaken, setCreateSlugTaken] = useState(false);
+  const [createSlugOwnedByUser, setCreateSlugOwnedByUser] = useState(false);
+  const [createSlugHasMiniMine, setCreateSlugHasMiniMine] = useState(false);
+  const [createSlugChecking, setCreateSlugChecking] = useState(false);
   const [showSchemaHint, setShowSchemaHint] = useState(false);
   const [stripeOnboarding, setStripeOnboarding] = useState(false);
   /** Evita repor slug/campos a cada refresh do objeto `site` (load após save) */
@@ -302,8 +305,65 @@ function EditorPageInner() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'copilot' && !editorIaApiEnabled) setActiveTab('profile');
-  }, [activeTab, editorIaApiEnabled]);
+    if (site) {
+      setCreateSlugTaken(false);
+      setCreateSlugOwnedByUser(false);
+      setCreateSlugHasMiniMine(false);
+      setCreateSlugChecking(false);
+      return;
+    }
+    if (!user?.id) {
+      setCreateSlugTaken(false);
+      setCreateSlugOwnedByUser(false);
+      setCreateSlugHasMiniMine(false);
+      setCreateSlugChecking(false);
+      return;
+    }
+    /** Mesmo valor que ao gravar: a-z, 0-9 e hífen (o preço usa letras+números sem hífen). */
+    const clean = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const key = normalizeSlugKey(clean);
+    if (key.length < 2) {
+      setCreateSlugTaken(false);
+      setCreateSlugOwnedByUser(false);
+      setCreateSlugHasMiniMine(false);
+      setCreateSlugChecking(false);
+      return;
+    }
+    setCreateSlugChecking(true);
+    const tid = setTimeout(async () => {
+      try {
+        const { data: ms } = await supabase.from('mini_sites').select('id,user_id').eq('slug', clean).maybeSingle();
+        if (ms) {
+          const mine = (ms as { user_id?: string }).user_id === user.id;
+          setCreateSlugHasMiniMine(mine);
+          setCreateSlugTaken(true);
+          setCreateSlugOwnedByUser(false);
+          return;
+        }
+        setCreateSlugHasMiniMine(false);
+        const { data: reg } = await (supabase as any)
+          .from('slug_registrations')
+          .select('id,user_id')
+          .eq('slug', clean)
+          .maybeSingle();
+        if (!reg) {
+          setCreateSlugTaken(false);
+          setCreateSlugOwnedByUser(false);
+          return;
+        }
+        const owner = (reg as { user_id?: string }).user_id === user.id;
+        setCreateSlugOwnedByUser(owner);
+        setCreateSlugTaken(!owner);
+      } catch {
+        setCreateSlugTaken(false);
+        setCreateSlugOwnedByUser(false);
+        setCreateSlugHasMiniMine(false);
+      } finally {
+        setCreateSlugChecking(false);
+      }
+    }, 400);
+    return () => clearTimeout(tid);
+  }, [site, newSiteSlug, user?.id]);
 
   const trialGraceEndsAt = (site as any)?.trial_grace_until ? new Date((site as any).trial_grace_until) : null;
   const inGraceWindow = !published && !isAdminBypass && !!trialGraceEndsAt && trialGraceEndsAt > new Date();
@@ -536,6 +596,14 @@ function EditorPageInner() {
   }, [user?.id]);
 
   useEffect(() => {
+    if (site?.id) setPagesEditorSelectedId('home');
+  }, [site?.id]);
+
+  useEffect(() => {
+    if (!sitePages.some((p) => p.id === pagesEditorSelectedId)) setPagesEditorSelectedId('home');
+  }, [sitePages, pagesEditorSelectedId]);
+
+  useEffect(() => {
     const enforceTrialLifecycle = async () => {
       if (!site?.id || !user?.id) return;
       const { data: sub } = await supabase.from('subscriptions' as any).select('expires_at').eq('user_id', user?.id).maybeSingle();
@@ -577,31 +645,6 @@ function EditorPageInner() {
     (supabase as any).from('feed_posts').select('*').eq('site_id', site.id).order('created_at', { ascending: false }).limit(50)
       .then((r: any) => setFeedPosts(r.data || []));
   }, [site?.id]);
-
-  const refreshBookingRows = useCallback(async () => {
-    if (!site?.id) return;
-    setBookingRowsLoading(true);
-    try {
-      const { data, error } = await (supabase as any)
-        .from('site_bookings')
-        .select('*')
-        .eq('site_id', site.id)
-        .order('starts_at', { ascending: true })
-        .limit(100);
-      if (error) {
-        setBookingRows([]);
-        return;
-      }
-      setBookingRows(data || []);
-    } finally {
-      setBookingRowsLoading(false);
-    }
-  }, [site?.id]);
-
-  useEffect(() => {
-    if (activeTab !== 'booking' || !site?.id) return;
-    void refreshBookingRows();
-  }, [activeTab, site?.id, refreshBookingRows]);
 
   useEffect(() => {
     (supabase as any).from('platform_settings').select('key,value').in('key', ['trial_hours', 'grace_days']).then(({ data }: any) => {
@@ -899,7 +942,7 @@ function EditorPageInner() {
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async (silent = false) => {
     if (!user || !site) return;
-    setSaving(true);
+    if (!silent) setSaving(true);
     try {
       const combinedPageModules: Record<string, any> = {};
       sitePages.forEach((p) => {
@@ -1023,6 +1066,7 @@ function EditorPageInner() {
       if (slug !== site.slug) {
         if (!isAdminBypass && isSlugReservedAdminOnly(slug)) {
           if (!silent) toast.error(T('err_slug_reserved'));
+          if (!silent) setSaving(false);
           return;
         }
         if (isAdminBypass) {
@@ -1039,7 +1083,7 @@ function EditorPageInner() {
           }
           if (!silent) toast.success(T('toast_slug_admin_bypass').replace('{slug}', slug));
           isDirty.current = false;
-          setLastSaved(new Date());
+          if (!silent) setLastSaved(new Date());
           return;
         }
         const { count } = await (supabase as any).from('slug_registrations')
@@ -1077,7 +1121,7 @@ function EditorPageInner() {
       }
 
       isDirty.current = false;
-      setLastSaved(new Date());
+      if (!silent) setLastSaved(new Date());
       if (!silent) toast.success(T('toast_saved'));
     } catch (e: any) {
       const msg = String(e?.message || '');
@@ -1181,98 +1225,22 @@ function EditorPageInner() {
     setVerifying(false);
   };
 
-  const coachSnapshot = useMemo(() => {
-    if (!site?.id) return {};
-    return {
-      siteName: siteName.trim(),
-      slug: slug.trim(),
-      bio: bio.trim().slice(0, 1200),
-      theme,
-      accentColor,
-      photoShape,
-      paywall: {
-        anyVideoPaywall: videos.some((v: { paywall_enabled?: boolean }) => v.paywall_enabled),
-        defaultPriceHint: paywallPrice,
-      },
-      links: links.map((l) => ({
-        title: l.title,
-        url: String(l.url || '').slice(0, 220),
-        icon: l.icon,
-      })),
-      videos: videos.map((v: { title?: string; paywall_enabled?: boolean; paywall_price?: number }) => ({
-        title: v.title,
-        paywall: !!v.paywall_enabled,
-        price: v.paywall_price,
-      })),
-      cv: {
-        headline: cvHeadline.trim().slice(0, 220),
-        contentPreview: cvContent.trim().slice(0, 3500),
-        skills: cvSkills.trim().slice(0, 500),
-        location: cvLocation.trim().slice(0, 160),
-        showCv,
-      },
-      seo: {
-        title: seoTitle.trim().slice(0, 80),
-        description: seoDescription.trim().slice(0, 200),
-        tagsCount: seoSearchTags.length,
-      },
-      pages: sitePages.map((p) => ({
-        label: p.label,
-        contentChars: (pageContents[p.id] || '').length,
-        template: p.template,
-      })),
-      feed: {
-        count: feedPosts.length,
-        samples: feedPosts.slice(0, 10).map((p: { text?: string }) => String(p.text || '').slice(0, 220)),
-      },
-      moduleOrder,
-      showFeed,
-    };
-  }, [
-    site?.id,
-    siteName,
-    slug,
-    bio,
-    theme,
-    accentColor,
-    photoShape,
-    paywallPrice,
-    links,
-    videos,
-    cvHeadline,
-    cvContent,
-    cvSkills,
-    cvLocation,
-    showCv,
-    seoTitle,
-    seoDescription,
-    seoSearchTags.length,
-    sitePages,
-    pageContents,
-    feedPosts,
-    moduleOrder,
-    showFeed,
-  ]);
-
   /** Tem de ficar antes de qualquer return antecipado (Rules of Hooks). */
-  const TABS = useMemo(() => {
-    const all = [
+  const TABS = useMemo(
+    () => [
       { id: 'profile' as const, label: T('ed_profile'), icon: Globe },
       { id: 'theme' as const, label: T('ed_theme'), icon: ImageIcon },
       { id: 'links' as const, label: T('ed_links'), icon: Link2 },
       { id: 'videos' as const, label: T('ed_videos'), icon: Video },
       { id: 'cv' as const, label: T('ed_cv'), icon: FileText },
       { id: 'feed' as const, label: T('ed_feed'), icon: ChevronDown },
-      { id: 'pages' as const, label: T('ed_pages'), icon: FileText },
-      { id: 'seo' as const, label: T('ed_seo'), icon: Globe },
-      { id: 'copilot' as const, label: T('ed_copilot_tab'), icon: Wand2 },
+      { id: 'pages' as const, label: T('ed_pages'), icon: LayoutTemplate },
+      { id: 'seo' as const, label: T('ed_seo'), icon: Search },
       { id: 'ia' as const, label: T('ed_ia_tab'), icon: Cpu },
-      { id: 'booking' as const, label: T('ed_tab_booking'), icon: CalendarClock },
       { id: 'verify' as const, label: T('ed_verify'), icon: Shield },
-    ];
-    if (!editorIaApiEnabled) return all.filter((tab) => tab.id !== 'copilot');
-    return all;
-  }, [T, editorIaApiEnabled]);
+    ],
+    [T],
+  );
 
   // ── Guards ────────────────────────────────────────────────────────────────
   if (authLoading || siteLoading) return (
@@ -1299,7 +1267,40 @@ function EditorPageInner() {
     );
   }
   if (!site) {
-    const slugPreview = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || '(slug)';
+    const createSlugClean = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const slugPreview = createSlugClean || '(slug)';
+    const createSlugKey = normalizeSlugKey(createSlugClean);
+    const createSlugKeyLen = createSlugKey.length;
+    const createSlugOkLen = createSlugKeyLen >= 2;
+    const createReserved =
+      createSlugKeyLen > 0 && !isAdminBypass && isSlugReservedAdminOnly(createSlugClean);
+    const createDue =
+      createSlugOkLen && !createReserved
+        ? slugRegistrationDueUsd(createSlugClean, isAdminBypass ? 0 : userSlugRegCount)
+        : 0;
+    const createTierUsd = createSlugOkLen ? slugLengthTierUsd(createSlugClean) : 0;
+    const tierPreviewUsd =
+      createSlugKeyLen >= 1 && createSlugKeyLen <= 7 ? slugLengthTierByLenOnly(createSlugKeyLen) : 0;
+    const createIsWorldFirst = createSlugOkLen && isWorldFirstNameSlug(createSlugKey);
+    const createSlugUnavailable =
+      createSlugTaken && !createSlugOwnedByUser && !createSlugHasMiniMine;
+    const createCanOpenPay =
+      createSlugOkLen &&
+      !createReserved &&
+      !createSlugChecking &&
+      !createSlugHasMiniMine &&
+      createDue > 0 &&
+      !createSlugOwnedByUser &&
+      !createSlugUnavailable;
+    const createCanSubmitMini =
+      !!newSiteName.trim() &&
+      createSlugOkLen &&
+      !createReserved &&
+      !createSlugChecking &&
+      !createSlugHasMiniMine &&
+      !createSlugUnavailable &&
+      (isAdminBypass || createDue === 0 || createSlugOwnedByUser);
+    const tierRows = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ n, usd: slugLengthTierByLenOnly(n) }));
     return (
       <div className="min-h-screen bg-[var(--bg)]">
         <Header />
@@ -1323,10 +1324,83 @@ function EditorPageInner() {
                 onChange={e => setNewSiteSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 className="input w-full font-mono"
                 placeholder={T('ed_placeholder_slug_user')}
+                autoComplete="off"
+                spellCheck={false}
               />
               <p className="text-xs text-brand mt-1 font-mono">
                 {slugPreview}.trustbank.xyz
               </p>
+              <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_create_slug_blocked_hint')}</p>
+
+              <div className="mt-3 space-y-2 rounded-xl border border-[var(--border)] bg-[var(--bg2)]/90 p-3">
+                <p className="text-[11px] font-black uppercase tracking-wide text-brand">{T('ed_create_slug_live_title')}</p>
+                {createSlugKeyLen < 2 ? (
+                  <p className="text-xs text-[var(--text2)]">{T('ed_create_slug_need_two')}</p>
+                ) : null}
+                {createSlugKeyLen >= 1 ? (
+                  <p className="text-xs text-[var(--text)]">
+                    {T('ed_create_slug_key_len').replace('{n}', String(createSlugKeyLen))}
+                  </p>
+                ) : null}
+                {createSlugKeyLen === 1 ? (
+                  <p className="text-xs text-amber-400/95">
+                    {T('editor_slug_premium_hint')} ${tierPreviewUsd.toLocaleString()} USD ({T('slug_char_one')})
+                  </p>
+                ) : null}
+                {createSlugChecking && createSlugOkLen ? (
+                  <p className="text-xs text-[var(--text2)] flex items-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    {T('ed_create_slug_checking')}
+                  </p>
+                ) : null}
+                {createSlugHasMiniMine ? (
+                  <p className="text-xs font-semibold text-amber-400">{T('ed_create_slug_has_minisite')}</p>
+                ) : null}
+                {createSlugUnavailable ? (
+                  <p className="text-xs font-semibold text-red-400">{T('ed_create_slug_taken')}</p>
+                ) : null}
+                {createSlugOwnedByUser && !createSlugHasMiniMine ? (
+                  <p className="text-xs font-semibold text-emerald-400">{T('ed_create_slug_you_own')}</p>
+                ) : null}
+                {createReserved ? (
+                  <p className="text-xs font-semibold text-amber-500">{T('err_slug_reserved')}</p>
+                ) : null}
+                {createSlugOkLen && !createReserved ? (
+                  <>
+                    <p className="text-xs text-[var(--text)] pt-1 border-t border-[var(--border)]/60">
+                      <span className="text-[var(--text2)]">{T('ed_create_slug_price_label')} </span>
+                      <span className="font-black tabular-nums">
+                        {createDue > 0 ? `$${createDue.toLocaleString()} USD` : T('ed_create_slug_price_free')}
+                      </span>
+                    </p>
+                    {createDue > 0 ? (
+                      <p className="text-xs text-amber-400/95">
+                        ⚡{' '}
+                        {createTierUsd > 0
+                          ? `${T('editor_slug_premium_hint')} $${createTierUsd.toLocaleString()} USD`
+                          : `${T('editor_slug_extra_hint')} $${SLUG_EXTRA_REGISTRATION_USD} USD`}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-[var(--text2)]">{T('slug_tier_included_first')}</p>
+                    )}
+                    {createIsWorldFirst ? (
+                      <p className="text-[10px] text-[var(--text2)]">{T('slug_tier_names')}</p>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+
+              <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--bg)]/80 p-3">
+                <p className="text-[11px] font-bold text-[var(--text)] mb-2">{T('ed_create_slug_price_table')}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 text-[10px] font-mono text-[var(--text2)]">
+                  {tierRows.map(({ n, usd }) => (
+                    <span key={n}>
+                      {n} → ${usd.toLocaleString()}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[10px] text-[var(--text2)] mt-2">{T('slug_table_cell_8')} · {T('slug_rules_blurb')}</p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-2">
               <button
@@ -1336,12 +1410,31 @@ function EditorPageInner() {
               >
                 {T('ed_reload')}
               </button>
+              {createCanOpenPay ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const clean = createSlugClean;
+                    addToCart({
+                      id: `slug_${clean}`,
+                      label: `${clean}.trustbank.xyz`,
+                      price: createDue,
+                      type: 'slug',
+                    });
+                    openCart();
+                    toast.message(T('ed_create_pay_slug_toast'));
+                  }}
+                  className="btn-primary bg-amber-600 hover:bg-amber-500 border-0"
+                >
+                  {T('ed_create_checkout_slug_btn').replace('${price}', String(createDue))}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={async () => {
                   if (!user?.id) return;
-                  const clean = newSiteSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
-                  if (clean.length < 2) {
+                  const clean = createSlugClean;
+                  if (normalizeSlugKey(clean).length < 2) {
                     toast.error(T('err_slug_min_2'));
                     return;
                   }
@@ -1350,17 +1443,86 @@ function EditorPageInner() {
                     toast.error(T('err_site_name_required'));
                     return;
                   }
+                  if (createReserved && !isAdminBypass) {
+                    toast.error(T('err_slug_reserved'));
+                    return;
+                  }
+                  if (createSlugChecking) {
+                    toast.message(T('ed_create_slug_checking'));
+                    return;
+                  }
+                  if (createSlugHasMiniMine) {
+                    toast.error(T('ed_create_slug_has_minisite'));
+                    return;
+                  }
+                  if (createSlugUnavailable) {
+                    toast.error(T('ed_create_slug_taken'));
+                    return;
+                  }
+                  const due = slugRegistrationDueUsd(clean, isAdminBypass ? 0 : userSlugRegCount);
+                  if (!isAdminBypass && due > 0 && !createSlugOwnedByUser) {
+                    addToCart({
+                      id: `slug_${clean}`,
+                      label: `${clean}.trustbank.xyz`,
+                      price: due,
+                      type: 'slug',
+                    });
+                    openCart();
+                    toast.message(T('ed_create_pay_slug_toast'));
+                    return;
+                  }
                   setCreatingSite(true);
                   try {
-                    const created = await save({
+                    if (!isAdminBypass && due === 0) {
+                      const { data: reg } = await (supabase as any)
+                        .from('slug_registrations')
+                        .select('user_id')
+                        .eq('slug', clean)
+                        .maybeSingle();
+                      if (reg && (reg as { user_id: string }).user_id !== user.id) {
+                        toast.error(T('err_slug_taken_toast').replace('{slug}', clean));
+                        return;
+                      }
+                      if (!reg) {
+                        const { error: regErr } = await (supabase as any).from('slug_registrations').insert({
+                          user_id: user.id,
+                          slug: clean,
+                          status: 'active',
+                          for_sale: false,
+                          expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
+                        });
+                        if (regErr && !/duplicate|unique|23505/i.test(String(regErr.message || ''))) {
+                          throw new Error(regErr.message || T('err_create_failed'));
+                        }
+                        setUserSlugRegCount((c) => c + 1);
+                      }
+                    }
+                    await save({
                       site_name: nameTrim,
                       slug: clean,
                       bio: '',
                       published: false,
                     } as any);
                     toast.success(T('toast_mini_site_created'));
-                    if (created?.id) {
-                      router.replace(`/editor?site=${created.id}`);
+                    await reload();
+                    const { data: row } = await supabase
+                      .from('mini_sites')
+                      .select('id')
+                      .eq('user_id', user.id)
+                      .eq('slug', clean)
+                      .maybeSingle();
+                    if (row?.id) {
+                      router.replace(`/editor?site=${(row as { id: string }).id}`);
+                    } else {
+                      const { data: latest } = await supabase
+                        .from('mini_sites')
+                        .select('id')
+                        .eq('user_id', user.id)
+                        .order('updated_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                      if (latest?.id) router.replace(`/editor?site=${(latest as { id: string }).id}`);
+                      else router.replace('/editor');
                     }
                   } catch (e: unknown) {
                     const msg = e instanceof Error ? e.message : T('err_create_failed');
@@ -1375,10 +1537,13 @@ function EditorPageInner() {
                   }
                 }}
                 className="btn-primary"
-                disabled={creatingSite}
+                disabled={creatingSite || !createCanSubmitMini}
               >
                 {creatingSite ? T('ed_creating') : T('ed_create_site_btn')}
               </button>
+              <Link href="/slugs" className="btn-secondary inline-flex items-center justify-center text-sm">
+                {T('nav_slug_market')}
+              </Link>
             </div>
             {showSchemaHint && (
               <p className="text-xs text-amber-400/90 border border-amber-500/30 rounded-xl p-3">
@@ -1395,21 +1560,18 @@ function EditorPageInner() {
   const siteUrl = site?.slug ? `https://${site.slug}.trustbank.xyz` : null;
   const managePreviewUrl = site?.slug ? `/s/${site.slug}?manage=1` : null;
   const photoSizePx: Record<string, number> = { sm: 72, md: 96, lg: 128, xl: 192 };
-  const previewContentW = Math.min(1010, Math.max(320, pageWidth));
   const avatarPx = photoSizePx[photoSize] || 96;
+  const PREVIEW_BANNER_MAX_PX = 250;
+  const previewBannerStripH = Math.min(200, PREVIEW_BANNER_MAX_PX);
 
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
+    <div className="min-h-screen bg-[var(--bg)] flex flex-col">
       <Header />
-      <EditorGuidePanel
-        activeTab={activeTab}
-        onGoToTab={setActiveTab}
-        showCopilotInGuide={editorIaApiEnabled}
-      />
-
+      <div className="flex flex-1 w-full min-w-0 min-h-0 flex flex-col min-h-0">
       {/* Top bar — mais espaço vertical e quebra de linha para caberem todos os separadores */}
       <div className="sticky top-16 z-40 bg-[var(--bg)]/95 backdrop-blur border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-wrap gap-1.5 sm:gap-2 min-w-0 flex-1">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -1473,6 +1635,59 @@ function EditorPageInner() {
               {published ? T('ed_live') : T('ed_publish')}
             </button>
           </div>
+          </div>
+          {site?.id ? (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--border)]/60">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text2)] shrink-0">
+                {T('ed_pages_bar_label')}
+              </span>
+              <div className="flex flex-wrap gap-1.5 min-w-0 flex-1">
+                {sitePages.map((page, idx) => (
+                  <button
+                    key={page.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('pages');
+                      setPagesEditorSelectedId(page.id);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      activeTab === 'pages' && pagesEditorSelectedId === page.id
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--bg2)]'
+                    }`}
+                  >
+                    {idx === 0
+                      ? T('ed_page_name_home_ph')
+                      : page.label?.trim() || T('ed_page_new_label').replace('{n}', String(idx + 1))}
+                  </button>
+                ))}
+                {sitePages.length < 3 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newId = `p_${Date.now()}`;
+                      setSitePages((prev) => [
+                        ...prev,
+                        { id: newId, label: T('ed_page_new_label').replace('{n}', String(prev.length + 1)) },
+                      ]);
+                      setPageModules((prev) => ({ ...prev, [newId]: [] }));
+                      setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
+                      setModuleColumns((prev) => ({
+                        ...prev,
+                        [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+                      }));
+                      setPagesEditorSelectedId(newId);
+                      setActiveTab('pages');
+                      markDirty();
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold border border-dashed border-brand/50 text-brand hover:bg-brand/10"
+                  >
+                    {T('ed_pages_bar_add').replace('{n}', String(sitePages.length + 1))}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1486,59 +1701,6 @@ function EditorPageInner() {
               {T('ed_grace_cta')}
             </a>
           </div>
-        </div>
-      )}
-
-      {site?.id && (
-        <div className="max-w-6xl mx-auto px-4 pt-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg2)]/60 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-[var(--text)] flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-brand shrink-0" />
-                {T('ed_ia_master_title')}
-              </p>
-              <p className="text-xs text-[var(--text2)] mt-1 leading-relaxed">{T('ed_ia_master_sub')}</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={editorIaApiEnabled}
-              onClick={() => setEditorIaApiEnabledPersist(!editorIaApiEnabled)}
-              className={`relative w-14 h-8 rounded-full transition-colors flex-shrink-0 ${
-                editorIaApiEnabled ? 'bg-brand' : 'bg-[var(--border)]'
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
-                  editorIaApiEnabled ? 'translate-x-7' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          {!editorIaApiEnabled ? (
-            <p className="text-xs text-[var(--text2)] px-1">{T('ed_ia_genesis_hidden_note')}</p>
-          ) : (
-            <TrustGenesisHub
-              siteId={site.id}
-              snapshot={coachSnapshot}
-              markDirty={markDirty}
-              setBio={setBio}
-              setCvHeadline={setCvHeadline}
-              setCvContent={setCvContent}
-              setSeoTitle={setSeoTitle}
-              setSeoDescription={setSeoDescription}
-              setShowCv={setShowCv}
-              onPrefillLink={(title, url) => {
-                setLinkTitle(title);
-                setLinkUrl(url);
-              }}
-              onNavigateTab={setActiveTab}
-              onAppendLivelyInstructions={(s) => {
-                setLivelyAgentInstructions((prev) => (prev + `\n\n${s}`).slice(0, 2000));
-              }}
-              iaApiEnabled={editorIaApiEnabled}
-            />
-          )}
         </div>
       )}
 
@@ -1627,18 +1789,18 @@ function EditorPageInner() {
                     {bannerUrl && (
                       <>
                         <div
-                          className="w-full h-24 rounded-xl mt-2 border border-[var(--border)] overflow-hidden"
+                          className="w-full max-h-[250px] h-44 rounded-xl mt-2 border border-[var(--border)] overflow-hidden"
                           style={{ background: '#07070a' }}
                         >
                           <img
+                            alt=""
                             src={bannerUrl}
-                            className="w-full h-full rounded-xl"
+                            className="w-full h-full block"
                             style={{
                               objectFit: bannerFit,
                               objectPosition: `${bannerFocusX}% ${bannerFocusY}%`,
                               transform: `scale(${bannerZoom / 100})`,
                               transformOrigin: `${bannerFocusX}% ${bannerFocusY}%`,
-                              filter: 'none',
                             }}
                           />
                         </div>
@@ -1760,78 +1922,6 @@ function EditorPageInner() {
                   {stripeOnboarding ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                   {T('ed_stripe_btn')}
                 </button>
-              </div>
-
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                  <p className="text-sm font-bold text-[var(--text)]">{T('ed_mystic_card_title')}</p>
-                </div>
-                <p className="text-xs text-[var(--text2)]">{T('ed_mystic_card_body')}</p>
-                <p className="text-xs text-amber-200/90 border border-amber-500/25 rounded-lg px-3 py-2 bg-amber-500/5">
-                  {T('ed_mystic_place_hint')}
-                </p>
-                <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg)]/80">
-                  <span className="text-sm font-semibold text-[var(--text)]">{T('ed_mystic_enable_sales')}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !mysticPublicEnabled;
-                      setMysticPublicEnabled(next);
-                      if (next) {
-                        setModuleOrder((prev) =>
-                          prev.includes('mystic') ? prev : enforceHomeFixedModules([...prev, 'mystic']),
-                        );
-                        setPageModules((prev) => {
-                          if (prev.home?.includes('mystic')) return prev;
-                          const seed =
-                            prev.home?.length ? prev.home : ['links', 'feed', 'videos', 'cv', 'ads'];
-                          return { ...prev, home: enforceHomeFixedModules([...seed, 'mystic']) };
-                        });
-                      }
-                      markDirty();
-                    }}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${mysticPublicEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}
-                  >
-                    <div
-                      className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                        mysticPublicEnabled ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-                {mysticPublicEnabled && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="label block mb-1">{T('ed_mystic_price_tarot_label')}</label>
-                      <input
-                        value={mysticTarotPrice}
-                        onChange={(e) => {
-                          setMysticTarotPrice(e.target.value);
-                          markDirty();
-                        }}
-                        className="input"
-                        type="number"
-                        step="0.01"
-                        min="0.5"
-                      />
-                    </div>
-                    <div>
-                      <label className="label block mb-1">{T('ed_mystic_price_lottery_label')}</label>
-                      <input
-                        value={mysticLotteryPrice}
-                        onChange={(e) => {
-                          setMysticLotteryPrice(e.target.value);
-                          markDirty();
-                        }}
-                        className="input"
-                        type="number"
-                        step="0.01"
-                        min="0.5"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div>
@@ -2334,7 +2424,11 @@ function EditorPageInner() {
                           const next = [...moduleOrder];
                           const [item] = next.splice(from, 1);
                           next.splice(idx, 0, item);
-                          setModuleOrder(enforceHomeFixedModules(next)); setDragOverMod(null); markDirty();
+                          const fixed = enforceHomeFixedModules(next);
+                          setModuleOrder(fixed);
+                          setPageModules((prev) => ({ ...prev, home: fixed }));
+                          setDragOverMod(null);
+                          markDirty();
                         }}
                         className={`flex items-center gap-3 p-3 rounded-xl border cursor-grab transition-all ${dragOverMod===mod ? 'border-brand bg-brand/5' : 'border-[var(--border)] bg-[var(--bg2)]'}`}>
                         <GripVertical className="w-4 h-4 text-[var(--text2)]" />
@@ -2383,37 +2477,70 @@ function EditorPageInner() {
               <div className="card p-5">
                 <h2 className="font-black text-base text-[var(--text)] mb-1">{T('ed_site_pages_title')}</h2>
                 <p className="text-xs text-[var(--text2)] mb-4">{T('ed_site_pages_blurb')}</p>
+                <p className="text-xs font-bold text-[var(--text)] mb-2">{T('ed_pages_select_hint')}</p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {sitePages.map((page, idx) => (
+                    <button
+                      key={page.id}
+                      type="button"
+                      onClick={() => setPagesEditorSelectedId(page.id)}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                        pagesEditorSelectedId === page.id
+                          ? 'border-brand bg-brand text-white'
+                          : 'border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--bg2)]'
+                      }`}
+                    >
+                      {idx === 0 ? T('ed_page_name_home_ph') : (page.label?.trim() || T('ed_page_new_label').replace('{n}', String(idx + 1)))}
+                    </button>
+                  ))}
+                </div>
                 <div className="space-y-2 mb-3">
                   {sitePages.map((page, idx) => (
                     <div key={page.id} className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-brand/10 flex items-center justify-center text-xs font-black text-brand">{idx+1}</div>
-                      <input value={page.label}
-                        onChange={e => { setSitePages(prev => prev.map(p => p.id===page.id ? {...p,label:e.target.value} : p)); markDirty(); }}
-                        className="input flex-1 py-1.5 text-sm" placeholder={idx === 0 ? T('ed_page_name_home_ph') : T('ed_page_name_n_ph').replace('{n}', String(idx + 1))} />
-                      {idx > 0 && <button onClick={() => {
-                        setSitePages(prev => prev.filter(p => p.id!==page.id));
-                        setPageContents(prev => {
-                          const next = { ...prev };
-                          delete next[page.id];
-                          return next;
-                        });
-                        setPageModules(prev => {
-                          const next = { ...prev };
-                          delete next[page.id];
-                          return next;
-                        });
-                        setPageColumns(prev => {
-                          const next = { ...prev };
-                          delete next[page.id];
-                          return next;
-                        });
-                        setModuleColumns(prev => {
-                          const next = { ...prev };
-                          delete next[page.id];
-                          return next;
-                        });
-                        markDirty();
-                      }} className="text-red-400 hover:opacity-70"><X className="w-4 h-4" /></button>}
+                      <div className="w-6 h-6 rounded-lg bg-brand/10 flex items-center justify-center text-xs font-black text-brand">{idx + 1}</div>
+                      <input
+                        value={page.label}
+                        onChange={(e) => {
+                          setSitePages((prev) => prev.map((p) => (p.id === page.id ? { ...p, label: e.target.value } : p)));
+                          markDirty();
+                        }}
+                        className="input flex-1 py-1.5 text-sm"
+                        placeholder={idx === 0 ? T('ed_page_name_home_ph') : T('ed_page_name_n_ph').replace('{n}', String(idx + 1))}
+                      />
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const removedId = page.id;
+                            setSitePages((prev) => prev.filter((p) => p.id !== page.id));
+                            setPageContents((prev) => {
+                              const next = { ...prev };
+                              delete next[page.id];
+                              return next;
+                            });
+                            setPageModules((prev) => {
+                              const next = { ...prev };
+                              delete next[page.id];
+                              return next;
+                            });
+                            setPageColumns((prev) => {
+                              const next = { ...prev };
+                              delete next[page.id];
+                              return next;
+                            });
+                            setModuleColumns((prev) => {
+                              const next = { ...prev };
+                              delete next[page.id];
+                              return next;
+                            });
+                            if (pagesEditorSelectedId === removedId) setPagesEditorSelectedId('home');
+                            markDirty();
+                          }}
+                          className="text-red-400 hover:opacity-70"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2425,8 +2552,8 @@ function EditorPageInner() {
                         className="input py-1.5 text-sm"
                         value={page.template || 'default'}
                         onChange={(e) => {
-                          const template = e.target.value as 'default'|'videos_3'|'videos_4';
-                          setSitePages(prev => prev.map(p => p.id === page.id ? { ...p, template } : p));
+                          const template = e.target.value as 'default' | 'videos_3' | 'videos_4';
+                          setSitePages((prev) => prev.map((p) => (p.id === page.id ? { ...p, template } : p)));
                           markDirty();
                         }}
                       >
@@ -2438,153 +2565,144 @@ function EditorPageInner() {
                   ))}
                 </div>
                 {sitePages.length < 3 && (
-                  <button onClick={() => {
-                    const newId = `p_${Date.now()}`;
-                    setSitePages(prev => [...prev, { id: newId, label: T('ed_page_new_label').replace('{n}', String(prev.length + 1)) }]);
-                    setPageModules(prev => ({ ...prev, [newId]: [] }));
-                    setPageColumns(prev => ({ ...prev, [newId]: 1 }));
-                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 } }));
-                    markDirty();
-                  }}
-                    className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> {T('ed_add_page')}</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newId = `p_${Date.now()}`;
+                      setSitePages((prev) => [...prev, { id: newId, label: T('ed_page_new_label').replace('{n}', String(prev.length + 1)) }]);
+                      setPageModules((prev) => ({ ...prev, [newId]: [] }));
+                      setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
+                      setModuleColumns((prev) => ({
+                        ...prev,
+                        [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+                      }));
+                      setPagesEditorSelectedId(newId);
+                      markDirty();
+                    }}
+                    className="btn-secondary w-full justify-center text-sm mt-3"
+                  >
+                    <Plus className="w-4 h-4" /> {T('ed_add_page')}
+                  </button>
                 )}
               </div>
-              {/* Page content editors */}
-              {sitePages.map((page) => (
-                <div key={page.id} className="card p-5 mt-3">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <h3 className="font-black text-sm text-[var(--text)]">✏️ {T('ed_content_heading').replace('{label}', page.label)}</h3>
-                    <button
-                      onClick={() => {
-                        if (!clearAllArmed[page.id]) {
-                          setClearAllArmed((prev) => ({ ...prev, [page.id]: true }));
-                          setTimeout(() => setClearAllArmed((prev) => ({ ...prev, [page.id]: false })), 4000);
-                          return;
-                        }
-                        setPageContents((prev) => ({ ...prev, [page.id]: '' }));
-                        setClearAllArmed((prev) => ({ ...prev, [page.id]: false }));
-                        markDirty();
-                      }}
-                      className={`text-xs px-3 py-1.5 rounded-lg border ${clearAllArmed[page.id] ? 'border-red-500/50 text-red-400' : 'border-[var(--border)] text-[var(--text2)]'}`}
-                    >
-                      {clearAllArmed[page.id] ? T('ed_clear_all_confirm') : T('ed_clear_all')}
-                    </button>
-                  </div>
-                  <div className="mb-3">
-                    <p className="text-xs text-[var(--text2)] font-bold mb-2">{T('ed_modules_on_page')}</p>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-[var(--text2)]">{T('ed_columns')}</span>
-                      <select
-                        value={pageColumns[page.id] || 1}
-                        onChange={(e) => {
-                          const cols = Number(e.target.value) as 1|2|3;
-                          setPageColumns(prev => ({ ...prev, [page.id]: cols }));
+              {sitePages
+                .filter((p) => p.id === pagesEditorSelectedId)
+                .map((page) => (
+                  <div key={page.id} className="card p-5 mt-3">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <h3 className="font-black text-sm text-[var(--text)]">✏️ {T('ed_content_heading').replace('{label}', page.label)}</h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!clearAllArmed[page.id]) {
+                            setClearAllArmed((prev) => ({ ...prev, [page.id]: true }));
+                            setTimeout(() => setClearAllArmed((prev) => ({ ...prev, [page.id]: false })), 4000);
+                            return;
+                          }
+                          setPageContents((prev) => ({ ...prev, [page.id]: '' }));
+                          setClearAllArmed((prev) => ({ ...prev, [page.id]: false }));
                           markDirty();
                         }}
-                        className="input py-1 text-xs max-w-[140px]"
+                        className={`text-xs px-3 py-1.5 rounded-lg border ${clearAllArmed[page.id] ? 'border-red-500/50 text-red-400' : 'border-[var(--border)] text-[var(--text2)]'}`}
                       >
-                        <option value={1}>{T('ed_col_option_1')}</option>
-                        <option value={2}>{T('ed_col_option_2')}</option>
-                        <option value={3}>{T('ed_col_option_3')}</option>
-                      </select>
+                        {clearAllArmed[page.id] ? T('ed_clear_all_confirm') : T('ed_clear_all')}
+                      </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(['links','videos','cv','feed','ads','mystic','booking'] as const).map(mod => {
-                        const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
-                        const enabled = currentModules.includes(mod);
-                        const isFixedOnHome = page.id === 'home' && (mod === 'links' || mod === 'feed');
-                        return (
-                          <div key={mod} className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                if (isFixedOnHome) return;
-                                setPageModules(prev => {
-                                  const current = prev[page.id] || (page.id === 'home' ? moduleOrder : []);
-                                  const next = enabled ? current.filter(m => m !== mod) : [...current, mod];
-                                  return { ...prev, [page.id]: page.id === 'home' ? enforceHomeFixedModules(next) : next };
-                                });
-                                markDirty();
-                              }}
-                              className={`flex-1 py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'} ${isFixedOnHome ? 'opacity-100 cursor-default' : ''}`}
-                            >
-                              {modLab[mod] || mod.toUpperCase()} {isFixedOnHome ? `· ${T('ed_mod_fixed')}` : ''}
-                            </button>
-                            {(pageColumns[page.id] || 1) > 1 && (
-                              <select
-                                value={(moduleColumns[page.id]?.[mod] || 1)}
-                                onChange={(e) => {
-                                  const col = Number(e.target.value) as 1|2|3;
-                                  setModuleColumns(prev => ({
-                                    ...prev,
-                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1, ads:1, mystic:1, booking:1 }), [mod]: col },
-                                  }));
+                    <div className="mb-3">
+                      <p className="text-xs text-[var(--text2)] font-bold mb-2">{T('ed_modules_on_page')}</p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs text-[var(--text2)]">{T('ed_columns')}</span>
+                        <select
+                          value={pageColumns[page.id] || 1}
+                          onChange={(e) => {
+                            const cols = Number(e.target.value) as 1 | 2 | 3;
+                            setPageColumns((prev) => ({ ...prev, [page.id]: cols }));
+                            markDirty();
+                          }}
+                          className="input py-1 text-xs max-w-[160px]"
+                        >
+                          <option value={1}>{T('ed_col_option_1')}</option>
+                          <option value={2}>{T('ed_col_option_2')}</option>
+                          <option value={3}>{T('ed_col_option_3')}</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'booking'] as const).map((mod) => {
+                          const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
+                          const enabled = currentModules.includes(mod);
+                          const isFixedOnHome = page.id === 'home' && (mod === 'links' || mod === 'feed');
+                          return (
+                            <div key={mod} className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isFixedOnHome) return;
+                                  const current = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
+                                  const next = enabled ? current.filter((m) => m !== mod) : [...current, mod];
+                                  const final = page.id === 'home' ? enforceHomeFixedModules(next) : next;
+                                  setPageModules((prev) => ({ ...prev, [page.id]: final }));
+                                  if (page.id === 'home') setModuleOrder(final);
                                   markDirty();
                                 }}
-                                className="input py-1 text-xs w-16"
+                                className={`flex-1 py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'} ${isFixedOnHome ? 'opacity-100 cursor-default' : ''}`}
                               >
-                                <option value={1}>C1</option>
-                                <option value={2}>C2</option>
-                                <option value={3}>C3</option>
-                              </select>
-                            )}
-                          </div>
-                        );
-                      })}
+                                {modLab[mod] || mod.toUpperCase()} {isFixedOnHome ? `· ${T('ed_mod_fixed')}` : ''}
+                              </button>
+                              {(pageColumns[page.id] || 1) > 1 && (
+                                <select
+                                  value={moduleColumns[page.id]?.[mod] || 1}
+                                  onChange={(e) => {
+                                    const col = Number(e.target.value) as 1 | 2 | 3;
+                                    setModuleColumns((prev) => ({
+                                      ...prev,
+                                      [page.id]: {
+                                        ...(prev[page.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 }),
+                                        [mod]: col,
+                                      },
+                                    }));
+                                    markDirty();
+                                  }}
+                                  className="input py-1 text-xs min-w-[6.5rem]"
+                                >
+                                  <option value={1}>{T('ed_module_col_1')}</option>
+                                  <option value={2}>{T('ed_module_col_2')}</option>
+                                  <option value={3}>{T('ed_module_col_3')}</option>
+                                </select>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-xs text-[var(--text2)] font-bold whitespace-nowrap">{T('ed_width')}</span>
+                      <input
+                        type="range"
+                        min={320}
+                        max={1010}
+                        value={Math.min(1010, pageWidth)}
+                        onChange={(e) => {
+                          setPageWidth(Math.min(1010, Number(e.target.value)));
+                          markDirty();
+                        }}
+                        className="flex-1"
+                        style={{ accentColor: 'var(--accent)' }}
+                      />
+                      <span className="text-xs text-[var(--text2)] font-mono w-14">{pageWidth}px</span>
+                    </div>
+                    <RichTextEditor
+                      editorKey={page.id}
+                      value={pageContents[page.id] || ''}
+                      onChange={(v: string) => {
+                        setPageContents((prev) => ({ ...prev, [page.id]: v }));
+                        markDirty();
+                      }}
+                      placeholder={T('ed_richtext_ph').replace('{label}', page.label)}
+                    />
+                    <p className="text-xs text-[var(--text2)] mt-2">{T('ed_page_visitor_note').replace('{label}', page.label)}</p>
                   </div>
-                  {/* Width slider */}
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-xs text-[var(--text2)] font-bold whitespace-nowrap">{T('ed_width')}</span>
-                    <input type="range" min={320} max={1010} value={Math.min(1010, pageWidth)}
-                      onChange={e => { setPageWidth(Math.min(1010, Number(e.target.value))); markDirty(); }}
-                      className="flex-1" style={{accentColor:'var(--accent)'}}/>
-                    <span className="text-xs text-[var(--text2)] font-mono w-14">{pageWidth}px</span>
-                  </div>
-                  <RichTextEditor
-                    editorKey={page.id}
-                    value={pageContents[page.id] || ''}
-                    onChange={(v: string) => { setPageContents(prev => ({...prev, [page.id]: v})); markDirty(); }}
-                    placeholder={T('ed_richtext_ph').replace('{label}', page.label)}
-                  />
-                <p className="text-xs text-[var(--text2)] mt-2">{T('ed_page_visitor_note').replace('{label}', page.label)}</p>
-                </div>
-              ))}
+                ))}
             </div>
-          )}
-
-          {activeTab === 'copilot' && site?.id && (
-            <SiteCopilotPanel
-              siteId={site.id}
-              bio={bio}
-              cvHeadline={cvHeadline}
-              iaApiEnabled={editorIaApiEnabled}
-              paywallEnabled={paywallEnabled}
-              paywallPrice={paywallPrice}
-              sitePages={sitePages}
-              pageContents={pageContents}
-              markDirty={markDirty}
-              onApplyBio={(s) => {
-                setBio(s);
-              }}
-              onApplyCvHeadline={(s) => {
-                setCvHeadline(s);
-              }}
-              onApplySeoTitle={(s) => {
-                setSeoTitle(s);
-              }}
-              onApplySeoDescription={(s) => {
-                setSeoDescription(s);
-              }}
-              onApplyPageHtml={(pid, html) => {
-                setPageContents((prev) => ({ ...prev, [pid]: html }));
-              }}
-              onAppendLivelyInstructions={(s) => {
-                setLivelyAgentInstructions((prev) => {
-                  const add = `\n\n— ${T('ed_copilot_lively_block')}:\n${s}`;
-                  return (prev + add).slice(0, 2000);
-                });
-              }}
-            />
           )}
 
           {activeTab === 'seo' && (
@@ -3148,217 +3266,6 @@ function EditorPageInner() {
             </div>
           )}
 
-          {activeTab === 'booking' && (
-            <div className="space-y-5">
-              <div className="card p-6 space-y-4 border border-emerald-500/20 bg-emerald-500/[0.04]">
-                <div className="flex items-start gap-3">
-                  <CalendarClock className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h2 className="font-black text-lg text-[var(--text)]">{T('ed_booking_title')}</h2>
-                    <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed">{T('ed_booking_blurb')}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg)]/80">
-                  <span className="text-sm font-semibold text-[var(--text)]">{T('ed_booking_enable')}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !bookingEnabled;
-                      setBookingEnabled(next);
-                      if (next) {
-                        setModuleOrder((prev) =>
-                          prev.includes('booking') ? prev : enforceHomeFixedModules([...prev, 'booking']),
-                        );
-                        setPageModules((prev) => {
-                          if (prev.home?.includes('booking')) return prev;
-                          const seed =
-                            prev.home?.length ? prev.home : ['links', 'feed', 'videos', 'cv', 'ads', 'mystic'];
-                          return { ...prev, home: enforceHomeFixedModules([...seed, 'booking']) };
-                        });
-                      }
-                      markDirty();
-                    }}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${bookingEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}
-                  >
-                    <div
-                      className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                        bookingEnabled ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-                <p className="text-[11px] text-[var(--text2)]">
-                  {T('ed_ia_tab')}: {T('ed_lively_enable')} — {lang.startsWith('en') ? 'the avatar answers using your schedule when booking is on.' : 'o avatar responde com a tua agenda quando a marcação está ativa.'}
-                </p>
-              </div>
-
-              <div className="card p-6 space-y-4">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label block mb-1">{T('ed_booking_slot_min')}</label>
-                    <select
-                      value={String(Math.max(15, Math.min(180, parseInt(bookingSlotMinutes, 10) || 30)))}
-                      onChange={(e) => {
-                        setBookingSlotMinutes(e.target.value);
-                        markDirty();
-                      }}
-                      className="input w-full"
-                    >
-                      {[15, 20, 30, 45, 60, 90, 120].map((m) => (
-                        <option key={m} value={m}>
-                          {m} min
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label block mb-1">{T('ed_booking_tz')}</label>
-                    <select
-                      value={bookingTimezone}
-                      onChange={(e) => {
-                        setBookingTimezone(e.target.value);
-                        markDirty();
-                      }}
-                      className="input w-full"
-                    >
-                      <option value="America/Sao_Paulo">America/São Paulo</option>
-                      <option value="Europe/Lisbon">Europe/Lisbon</option>
-                      <option value="Europe/Madrid">Europe/Madrid</option>
-                      <option value="America/New_York">America/New York</option>
-                      <option value="America/Los_Angeles">America/Los Angeles</option>
-                      <option value="UTC">UTC</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="label block mb-1">{T('ed_booking_vertical')}</label>
-                  <select
-                    value={bookingVertical}
-                    onChange={(e) => {
-                      setBookingVertical(e.target.value as typeof bookingVertical);
-                      markDirty();
-                    }}
-                    className="input w-full"
-                  >
-                    <option value="general">{T('ed_booking_vertical_general')}</option>
-                    <option value="medical">{T('ed_booking_vertical_medical')}</option>
-                    <option value="legal">{T('ed_booking_vertical_legal')}</option>
-                    <option value="business">{T('ed_booking_vertical_business')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label block mb-1">{T('ed_booking_weekly_json')}</label>
-                  <textarea
-                    value={bookingWeeklyJson}
-                    onChange={(e) => {
-                      setBookingWeeklyJson(e.target.value);
-                      markDirty();
-                    }}
-                    className="input font-mono text-xs w-full min-h-[140px] resize-y"
-                    spellCheck={false}
-                  />
-                  <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_booking_weekly_hint')}</p>
-                </div>
-                <div>
-                  <label className="label block mb-1">{T('ed_booking_services_json')}</label>
-                  <textarea
-                    value={bookingServicesJson}
-                    onChange={(e) => {
-                      setBookingServicesJson(e.target.value);
-                      markDirty();
-                    }}
-                    className="input font-mono text-xs w-full min-h-[100px] resize-y"
-                    spellCheck={false}
-                  />
-                  <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_booking_services_hint')}</p>
-                </div>
-              </div>
-
-              {site?.id ? (
-                <div className="card p-6 space-y-3">
-                  <h3 className="font-black text-sm text-[var(--text)]">{T('ed_booking_upcoming')}</h3>
-                  {bookingRowsLoading ? (
-                    <p className="text-xs text-[var(--text2)] flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> …
-                    </p>
-                  ) : bookingRows.length === 0 ? (
-                    <p className="text-sm text-[var(--text2)]">{T('ed_booking_no_rows')}</p>
-                  ) : (
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
-                      {bookingRows.map((row: any) => (
-                        <div
-                          key={row.id}
-                          className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-3 text-xs space-y-2"
-                        >
-                          <div className="flex flex-wrap justify-between gap-2">
-                            <span className="font-bold text-[var(--text)]">
-                              {row.visitor_name || row.visitor_email || '—'}
-                            </span>
-                            <span className="text-[var(--text2)]">
-                              {T('ed_booking_status')}: <span className="text-brand font-semibold">{row.status || 'pending'}</span>
-                            </span>
-                          </div>
-                          <p className="text-[var(--text2)]">
-                            {new Date(row.starts_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                            {' — '}
-                            {new Date(row.ends_at).toLocaleTimeString(undefined, { timeStyle: 'short' })}
-                          </p>
-                          {row.visitor_email ? (
-                            <p className="text-[var(--text2)] truncate">{row.visitor_email}</p>
-                          ) : null}
-                          {row.status !== 'cancelled' ? (
-                            <div className="flex flex-wrap gap-2 pt-1">
-                              {row.status !== 'confirmed' ? (
-                                <button
-                                  type="button"
-                                  className="px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-400 text-xs font-bold"
-                                  onClick={async () => {
-                                    const { error } = await (supabase as any)
-                                      .from('site_bookings')
-                                      .update({ status: 'confirmed' })
-                                      .eq('id', row.id)
-                                      .eq('site_id', site.id);
-                                    if (error) {
-                                      toast.error(error.message || 'Erro');
-                                      return;
-                                    }
-                                    toast.success(T('ed_booking_row_updated'));
-                                    void refreshBookingRows();
-                                  }}
-                                >
-                                  {T('ed_booking_confirm')}
-                                </button>
-                              ) : null}
-                              <button
-                                type="button"
-                                className="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 text-xs font-bold"
-                                onClick={async () => {
-                                  const { error } = await (supabase as any)
-                                    .from('site_bookings')
-                                    .update({ status: 'cancelled' })
-                                    .eq('id', row.id)
-                                    .eq('site_id', site.id);
-                                  if (error) {
-                                    toast.error(error.message || 'Erro');
-                                    return;
-                                  }
-                                  toast.success(T('ed_booking_row_updated'));
-                                  void refreshBookingRows();
-                                }}
-                              >
-                                {T('ed_booking_cancel')}
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          )}
-
           {/* VERIFY */}
           {activeTab === 'verify' && (
             <div className="card p-6 space-y-4">
@@ -3422,8 +3329,15 @@ function EditorPageInner() {
             <div className="rounded-2xl overflow-hidden border border-[var(--border)]" style={{ background: currentTheme.bg }}>
               {/* Banner preview */}
               {bannerUrl && (
-                <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative', background: '#07070a' }}>
-                  <img src={bannerUrl} style={{
+                <div style={{
+                  width:'100%',
+                  maxHeight: PREVIEW_BANNER_MAX_PX,
+                  height: previewBannerStripH,
+                  overflow:'hidden',
+                  position:'relative',
+                  background: '#07070a',
+                }}>
+                  <img src={bannerUrl} alt="" style={{
                     width:'100%',
                     height:'100%',
                     objectFit: bannerFit,
@@ -3431,16 +3345,26 @@ function EditorPageInner() {
                     transform:`scale(${bannerZoom / 100})`,
                     transformOrigin:`${bannerFocusX}% ${bannerFocusY}%`,
                     display:'block',
-                    filter:'none',
                   }} />
                 </div>
               )}
               {!bannerUrl && bannerPlaceholderEnabled && (
-                <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative', background: bannerPlaceholderColor || '#1f2937' }} />
+                <div style={{
+                  width:'100%',
+                  maxHeight: PREVIEW_BANNER_MAX_PX,
+                  height: Math.min(72, previewBannerStripH),
+                  overflow:'hidden',
+                  position:'relative',
+                  background: bannerPlaceholderColor || '#1f2937',
+                }} />
               )}
-              <div style={{ padding: bannerUrl ? '0 16px 16px' : '20px 16px 16px', textAlign:'center' }}>
-                {/* Avatar */}
-                <div style={{ display:'inline-block', marginBottom:10, marginTop: bannerUrl ? -Math.round(avatarPx/3) : 0 }}>
+              <div style={{
+                padding: '16px 16px 16px',
+                textAlign:'center',
+                background: currentTheme.bg,
+              }}>
+                {/* Avatar — separado do banner; nunca sobrepõe a faixa */}
+                <div style={{ display:'inline-block', marginBottom: 10, marginTop: 0 }}>
                   {avatarUrl
                     ? <img src={avatarUrl} style={{ width:avatarPx, height:avatarPx, borderRadius: photoShape==='round'?'50%':photoShape==='square'?8:Math.round(avatarPx*0.2), objectFit:'cover', border:`2px solid ${accentColor}`, display:'block' }} />
                     : <div style={{ width:avatarPx, height:avatarPx, borderRadius:'50%', background:accentColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.round(avatarPx*0.4), fontWeight:900, color:'#fff' }}>{siteName?.[0] || '?'}</div>}
@@ -3478,6 +3402,7 @@ function EditorPageInner() {
             )}
           </div>
         </div>
+      </div>
       </div>
 
       {site?.id && user?.id ? (
