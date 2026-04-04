@@ -106,6 +106,12 @@ export interface MiniSite {
   mystic_public_enabled?: boolean | null;
   mystic_tarot_price_usd?: number | string | null;
   mystic_lottery_premium_price_usd?: number | string | null;
+  booking_enabled?: boolean | null;
+  booking_slot_minutes?: number | null;
+  booking_timezone?: string | null;
+  booking_weekly_hours?: unknown;
+  booking_services?: unknown;
+  booking_vertical?: string | null;
 }
 
 export type UseMySiteOptions = {

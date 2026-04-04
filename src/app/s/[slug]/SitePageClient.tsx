@@ -17,7 +17,8 @@ import { AvatarTiltShell } from '@/components/site/AvatarTiltShell';
 import { CentralProfileMagicAvatar } from '@/components/site/CentralProfileMagicAvatar';
 import { MagicPortraitOutOfFrame } from '@/components/site/MagicPortraitOutOfFrame';
 import { SiteMysticSales } from '@/components/site/SiteMysticSales';
-import { effectiveFloatingPreset } from '@/lib/floatingAgentPresets';
+import { SiteBookingWidget } from '@/components/site/SiteBookingWidget';
+import { resolveFloatingAgentImageUrl } from '@/lib/floatingAgentImage';
 import { resolveLivelyProfileImageUrl, livelyProfileUsesPupilOverlay } from '@/lib/livelyProfileImage';
 import { CentralProfileLivelyPhoto } from '@/components/site/CentralProfileLivelyPhoto';
 import { CentralProfileSpeakingAvatar } from '@/components/site/CentralProfileSpeakingAvatar';
@@ -140,8 +141,14 @@ export default function SitePageClient({
   const canManageFeed = isOwner || isAdminViewer || ((user?.email || '').toLowerCase() === (site?.contact_email || '').toLowerCase());
   const T = useT();
   const feedCols: 1|2|3 = (site as any)?.feed_cols || 1;
-  const photoSizeMap: Record<string,number> = { sm:72, md:96, lg:128, xl:160 };
-  const avatarSize = photoSizeMap[(site as any)?.photo_size || 'md'] || 96;
+  const pageMaxWidth = Math.min(1010, Math.max(320, Number((site as any)?.page_width || 600)));
+  const photoSizeRaw = String((site as any)?.photo_size || 'md');
+  /** Legado `site` → XL; só 4 tamanhos fixos, alinhados à coluna da página (não largura do banner). */
+  const photoSizeKey = photoSizeRaw === 'site' ? 'xl' : photoSizeRaw;
+  const photoSizeMap: Record<string, number> = { sm: 72, md: 96, lg: 128, xl: 192 };
+  const avatarSize = photoSizeMap[photoSizeKey] || 96;
+  /** Hero mais baixo com fotos pequenas; cresce com XL — banner continua 100% da largura do ecrã. */
+  const heroMinHeight = Math.min(520, Math.max(210, Math.round(avatarSize * 2.45 + 104)));
   const rawTextColor = (site as any)?.text_color;
   const textColorOverride = rawTextColor && rawTextColor !== '' && rawTextColor !== 'auto' ? rawTextColor : null;
   const textMain  = textColorOverride || t.text;
@@ -151,8 +158,8 @@ export default function SitePageClient({
   const bannerPlaceholderEnabled = (site as any)?.banner_placeholder_enabled !== false;
   const bannerPlaceholderColor = (site as any)?.banner_placeholder_color || '#1f2937';
   const moduleOrder: string[] = (() => {
-    try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed","ads","mystic"]'); }
-    catch { return ['links','videos','cv','feed','ads','mystic']; }
+    try { return JSON.parse((site as any)?.module_order || '["links","videos","cv","feed","ads","mystic","booking"]'); }
+    catch { return ['links','videos','cv','feed','ads','mystic','booking']; }
   })();
   const pageModulesMap: Record<string, string[]> = (() => {
     try {
@@ -195,12 +202,13 @@ export default function SitePageClient({
             feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
             ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
             mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
+            booking: [1,2,3].includes(Number(raw?.moduleColumns?.booking)) ? Number(raw.moduleColumns.booking) as 1|2|3 : 1,
           };
         });
         return out;
       }
     } catch {}
-    return { home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1 } };
+    return { home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 } };
   })();
   const sitePages: {id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[] = (() => {
     try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home","template":"default"}]'); }
@@ -210,7 +218,7 @@ export default function SitePageClient({
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
   const activeModules = pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : []);
   const activeColumns = pageColumnsMap[activePage] || 1;
-  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 };
+  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
   const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
   const [subActive, setSubActive] = useState(false);
   const [trialCountdown, setTrialCountdown] = useState('');
@@ -219,6 +227,8 @@ export default function SitePageClient({
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   /** Abre o painel Lively (chat IA) a partir do botão no perfil. */
   const [livelyAssistKick, setLivelyAssistKick] = useState(0);
+  /** Visitante liga a IA explicitamente (default off; persistido por slug). */
+  const [livelyAssistVisitorOn, setLivelyAssistVisitorOn] = useState(false);
   const warnedOneHour = useRef(false);
   const hostRedirectDone = useRef(false);
   useEffect(() => {
@@ -226,6 +236,15 @@ export default function SitePageClient({
     try { setPageContents(JSON.parse((site as any)?.page_contents || '{}')); }
     catch { setPageContents({}); }
   }, [site]);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !safeSlug) return;
+    try {
+      setLivelyAssistVisitorOn(localStorage.getItem(`tb_lively_assist_${safeSlug}`) === '1');
+    } catch {
+      setLivelyAssistVisitorOn(false);
+    }
+  }, [safeSlug]);
+
   useEffect(() => {
     if (!site?.slug || typeof window === 'undefined' || hostRedirectDone.current) return;
     const host = window.location.hostname;
@@ -389,20 +408,13 @@ export default function SitePageClient({
   const pageBg = t.bg;
   const r = Number(t.radius) || 16;
 
-  const pageMaxWidth = Math.min(1010, Math.max(580, Number((site as any)?.page_width || 580)));
   const activePageTemplate = sitePages.find(p => p.id === activePage)?.template || 'default';
 
   const livelyOpenBeta = process.env.NEXT_PUBLIC_LIVELY_AVATAR_OPEN_BETA === 'true';
   const livelyNftOk = !!(site as any)?.lively_avatar_nft_verified_at;
   const showLivelyAvatar =
     !!(site as any)?.lively_avatar_enabled && (livelyNftOk || livelyOpenBeta || isOwner);
-
-  const premiumNftOk = !!(site as any)?.lively_premium_nft_verified_at;
-  const effectiveFloatingPresetId = effectiveFloatingPreset((site as any)?.lively_floating_preset, {
-    premiumNftVerified: premiumNftOk,
-    openBeta: livelyOpenBeta,
-    isOwner,
-  });
+  const floatingLivelyActive = showLivelyAvatar && livelyAssistVisitorOn;
 
   const livelyCentralMagic = (site as any)?.lively_central_magic === true;
   const livelyProfileAsAvatar = (site as any)?.lively_profile_as_avatar === true;
@@ -410,18 +422,25 @@ export default function SitePageClient({
   const livelySpeechTap = typeof (site as any)?.lively_profile_speech_tap === 'string' ? (site as any).lively_profile_speech_tap : '';
   const livelySpeechBeforeReply =
     typeof (site as any)?.lively_profile_speech_before_reply === 'string' ? (site as any).lively_profile_speech_before_reply : '';
-  const showProfileSpeakingAvatar = showLivelyAvatar && livelyProfileAsAvatar;
+  const showProfileSpeakingAvatar = floatingLivelyActive && livelyProfileAsAvatar;
   const livelyProfileImageUrl = site
     ? resolveLivelyProfileImageUrl({
         livelyCentralMagic,
         livelyAvatarEnabled: !!(site as any)?.lively_avatar_enabled,
         identityPortraitUrl: (site as any)?.identity_portrait_url,
-        floatingPresetId: effectiveFloatingPresetId,
+        avatarUrl: site.avatar_url,
       })
     : null;
-  const livelyProfilePupils = livelyProfileImageUrl
-    ? livelyProfileUsesPupilOverlay((site as any)?.identity_portrait_url, effectiveFloatingPresetId)
-    : false;
+  const livelyProfilePupils = livelyProfileUsesPupilOverlay(
+    (site as any)?.identity_portrait_url,
+    site?.avatar_url,
+  );
+  const floatingAgentImageUrl = site
+    ? resolveFloatingAgentImageUrl({
+        avatarUrl: site.avatar_url,
+        identityPortraitUrl: (site as any)?.identity_portrait_url,
+      })
+    : null;
   const profilePhotoRadiusCss =
     site?.photo_shape === 'round'
       ? '50%'
@@ -429,7 +448,7 @@ export default function SitePageClient({
         ? `${Math.round(avatarSize * 0.16)}px`
         : `${Math.round(avatarSize * 0.28)}px`;
 
-  /** Fundo do hero full-bleed: banner > retrato Lively > avatar. */
+  /** Fundo do hero: banner a toda a largura; senão avatar/retrato suave por baixo do gradiente. */
   const heroBgUrl =
     (site.banner_url as string | null) ||
     livelyProfileImageUrl ||
@@ -437,6 +456,7 @@ export default function SitePageClient({
     null;
   const shareAvatarUrl =
     livelyProfileImageUrl || (site.avatar_url as string | null) || (site.banner_url as string | null) || null;
+  const ownerWhatsappDigits = String((site as any).contact_phone || '').replace(/\D/g, '');
 
   return (
     <div style={{minHeight:'100vh',background:pageBg,fontFamily:t.font,position:'relative',overflowX:'hidden'}}>
@@ -466,14 +486,13 @@ export default function SitePageClient({
         </div>
       )}
 
-      {/* Hero quadrado full-bleed — foto de fundo com opacidade (estilo Linktree) */}
+      {/* Hero: banner edge-to-edge; foto de perfil só nos 4 tamanhos, centrada na largura da página (links). */}
       <div
         style={{
           width: '100%',
           position: 'relative',
           zIndex: 1,
-          aspectRatio: '1 / 1',
-          maxHeight: 'min(100vw, 480px)',
+          minHeight: heroMinHeight,
           overflow: 'hidden',
           background: bannerPlaceholderColor,
         }}
@@ -525,25 +544,35 @@ export default function SitePageClient({
           style={{
             position: 'relative',
             zIndex: 2,
-            height: '100%',
+            minHeight: heroMinHeight,
+            padding: 'clamp(18px, 4vw, 32px) clamp(16px, 4vw, 24px)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 'clamp(16px, 4vw, 28px)',
             textAlign: 'center',
+            maxWidth: pageMaxWidth,
+            width: '100%',
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            boxSizing: 'border-box',
           }}
         >
           <CentralProfileMagicAvatar
-            enabled={showLivelyAvatar && (site as any)?.lively_central_magic === true}
+            enabled={floatingLivelyActive && (site as any)?.lively_central_magic === true}
             accent={accent}
           >
-            <AvatarTiltShell enabled={showLivelyAvatar}>
+            <AvatarTiltShell enabled={floatingLivelyActive}>
               <div
                 style={{
                   display: 'inline-block',
                   padding: 3,
-                  borderRadius: site.photo_shape === 'round' ? '50%' : site.photo_shape === 'square' ? 20 : 32,
+                  borderRadius:
+                    site.photo_shape === 'round'
+                      ? '50%'
+                      : site.photo_shape === 'square'
+                        ? Math.max(12, Math.round(avatarSize * 0.06))
+                        : Math.max(16, Math.round(avatarSize * 0.12)),
                   background: `linear-gradient(135deg,${accent},${accent}60,rgba(255,255,255,0.15))`,
                   marginBottom: 12,
                   boxShadow: `0 12px 40px rgba(0,0,0,0.35)`,
@@ -664,6 +693,28 @@ export default function SitePageClient({
               avatarUrl={shareAvatarUrl}
               isDarkSurface={isDark}
             />
+            {ownerWhatsappDigits.length >= 8 ? (
+              <a
+                href={`https://wa.me/${ownerWhatsappDigits}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 18px',
+                  borderRadius: 999,
+                  background: '#25D366',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: 14,
+                  textDecoration: 'none',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                }}
+              >
+                {T('site_whatsapp_cta')}
+              </a>
+            ) : null}
           </div>
           <div style={{marginTop:8, display:'flex', justifyContent:'center', alignItems:'center', gap:6, color:t.text2, fontSize:12, fontWeight:700}}>
             <Users style={{width:14, height:14}} />
@@ -671,31 +722,96 @@ export default function SitePageClient({
           </div>
 
           {showLivelyAvatar && (
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, maxWidth: 420, marginLeft: 'auto', marginRight: 'auto' }}>
-              <button
-                type="button"
-                onClick={() => setLivelyAssistKick((k) => k + 1)}
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, maxWidth: 420, marginLeft: 'auto', marginRight: 'auto' }}>
+              <div
                 style={{
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '10px 18px',
-                  borderRadius: 999,
-                  border: 'none',
-                  fontWeight: 800,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  color: '#fff',
-                  background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
-                  boxShadow: `0 8px 24px ${accent}44`,
+                  justifyContent: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  width: '100%',
                 }}
               >
-                <MessageCircle style={{ width: 18, height: 18, flexShrink: 0 }} />
-                {T('lively_profile_cta')}
-              </button>
-              <p style={{ margin: 0, fontSize: 11, color: textSub, lineHeight: 1.45, textAlign: 'center' }}>
-                {T('lively_profile_hint')}
-              </p>
+                <span style={{ fontSize: 13, fontWeight: 800, color: textMain, textAlign: 'center' }}>
+                  {T('lively_assist_toggle_label')}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={livelyAssistVisitorOn}
+                  aria-label={livelyAssistVisitorOn ? T('lively_assist_on') : T('lively_assist_off')}
+                  onClick={() => {
+                    const next = !livelyAssistVisitorOn;
+                    setLivelyAssistVisitorOn(next);
+                    try {
+                      localStorage.setItem(`tb_lively_assist_${safeSlug}`, next ? '1' : '0');
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  style={{
+                    position: 'relative',
+                    width: 52,
+                    height: 28,
+                    borderRadius: 999,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: livelyAssistVisitorOn ? accent : t.btn,
+                    flexShrink: 0,
+                    transition: 'background 0.2s ease',
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 3,
+                      left: livelyAssistVisitorOn ? 26 : 3,
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+                      transition: 'left 0.2s ease',
+                    }}
+                  />
+                </button>
+                <span style={{ fontSize: 11, fontWeight: 800, color: textSub }}>
+                  {livelyAssistVisitorOn ? T('lively_assist_on') : T('lively_assist_off')}
+                </span>
+              </div>
+              {livelyAssistVisitorOn ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLivelyAssistKick((k) => k + 1)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 18px',
+                      borderRadius: 999,
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: 14,
+                      cursor: 'pointer',
+                      color: '#fff',
+                      background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
+                      boxShadow: `0 8px 24px ${accent}44`,
+                    }}
+                  >
+                    <MessageCircle style={{ width: 18, height: 18, flexShrink: 0 }} />
+                    {T('lively_profile_cta')}
+                  </button>
+                  <p style={{ margin: 0, fontSize: 11, color: textSub, lineHeight: 1.45, textAlign: 'center' }}>
+                    {T('lively_profile_hint')}
+                  </p>
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: 11, color: textSub, lineHeight: 1.45, textAlign: 'center' }}>
+                  {T('lively_assist_hint_off')}
+                </p>
+              )}
             </div>
           )}
 
@@ -994,6 +1110,26 @@ export default function SitePageClient({
               </div>
             );
           }
+          if (mod === 'booking') {
+            if ((site as any).booking_enabled !== true) return null;
+            return (
+              <div key="booking" style={{ marginBottom: 32 }}>
+                <SiteBookingWidget
+                  slug={slug}
+                  accentColor={accent}
+                  textColor={t.text}
+                  borderColor={t.border}
+                  bgCard={t.btn}
+                  ownerWhatsappDigits={ownerWhatsappDigits.length >= 8 ? ownerWhatsappDigits : undefined}
+                  servicesJson={
+                    typeof (site as any).booking_services === 'string'
+                      ? (site as any).booking_services
+                      : JSON.stringify((site as any).booking_services || [])
+                  }
+                />
+              </div>
+            );
+          }
           if (mod === 'ads') {
             const ps = (site as any).directory_profile_slug as string | undefined;
             const profileLabel = ps
@@ -1130,13 +1266,13 @@ export default function SitePageClient({
             <img src={lightboxImage} style={{maxWidth:'95vw',maxHeight:'92vh',objectFit:'contain',borderRadius:10}} />
           </button>
         )}
-        {showLivelyAvatar && (
+        {floatingLivelyActive && (
           <LivelyAvatarWidget
             slug={slug}
             siteName={site.site_name}
             welcome={(site as any).lively_avatar_welcome}
             modelId={(site as any).lively_avatar_model}
-            floatingPreset={effectiveFloatingPresetId}
+            floatingImageUrl={floatingAgentImageUrl}
             dualAgent={(site as any).lively_dual_agent === true}
             isOwner={isOwner}
             openBeta={livelyOpenBeta}
@@ -1147,6 +1283,7 @@ export default function SitePageClient({
             speechBeforeReply={livelySpeechBeforeReply || null}
             elevenAgentVoiceId={(site as any).lively_elevenlabs_voice_agent || null}
             floatingExpressiveGestures={(site as any).lively_floating_expressive === true}
+            identityPortraitUrl={(site as any).identity_portrait_url ?? null}
             requestOpen={livelyAssistKick}
           />
         )}

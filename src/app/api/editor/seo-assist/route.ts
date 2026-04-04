@@ -12,6 +12,7 @@ import {
   readSiteAiBudget,
 } from '@/lib/aiUsdBudget';
 import { iaUsdBillingApplies } from '@/lib/iaBillingSubscription';
+import { outputLanguageNameForPrompt, parseUiLang } from '@/lib/aiVisitorLanguage';
 
 const OWNER_EMAIL = (process.env.ADMIN_OWNER_EMAIL || 'arytcf@gmail.com').toLowerCase();
 
@@ -102,6 +103,8 @@ export async function POST(req: NextRequest) {
           ? 'seo_pack'
           : 'magic_description';
     const payload = (body.payload || {}) as SeoPayload;
+    const uiLang = parseUiLang(body.uiLang);
+    const outLang = outputLanguageNameForPrompt(uiLang);
 
     if (!siteId) {
       return NextResponse.json({ error: 'siteId obrigatório' }, { status: 400 });
@@ -171,7 +174,7 @@ export async function POST(req: NextRequest) {
       const raw = await openAiCompatibleChat({
         ...runtime,
         system: `You are an SEO specialist for independent mini-sites on TrustBank.
-Respond ONLY with a single valid JSON object (no markdown fences, no commentary). All user-facing strings in English.
+Respond ONLY with a single valid JSON object (no markdown fences, no commentary). All user-facing strings must be in ${outLang}.
 Schema for the JSON:
 {
   "seoTitle": "string, 55-60 characters for Google",
@@ -241,9 +244,8 @@ Context (JSON): ${ctx}`,
     if (action === 'magic_description') {
       const raw = await openAiCompatibleChat({
         ...runtime,
-        system:
-          'És especialista em SEO para páginas pessoais / link-in-bio. Responde APENAS com o texto da meta descrição, sem aspas, sem markdown, sem prefixos. Português europeu ou brasileiro conforme o conteúdo. Entre 120 e 155 caracteres. Inclui call-to-action suave se couber. Uma única linha.',
-        user: `Gera a meta descrição para este mini-site:\n${ctx}`,
+        system: `You are an SEO expert for personal / link-in-bio pages. Reply ONLY with the meta description text: no quotes, no markdown, no prefixes. Language: ${outLang}. Between 120 and 155 characters. Soft call-to-action if it fits. Single line.`,
+        user: `Generate the meta description for this mini-site:\n${ctx}`,
         max_tokens: 220,
         temperature: 0.45,
       });
@@ -261,9 +263,8 @@ Context (JSON): ${ctx}`,
 
     const raw = await openAiCompatibleChat({
       ...runtime,
-      system:
-        'Respondes APENAS com JSON válido: {"tags":["frase 1","frase 2",...]}. 5 a 8 tags curtas (2 a 5 palavras) para pesquisa Google, nicho e cauda longa, em português. Sem markdown, sem texto extra.',
-      user: `Sugere tags de pesquisa (nicho profissional) para:\n${ctx}`,
+      system: `Reply ONLY with valid JSON: {"tags":["phrase 1","phrase 2",...]}. 5 to 8 short tags (2 to 5 words) for Google search, niche and long-tail, in ${outLang}. No markdown, no extra text.`,
+      user: `Suggest professional niche search tags for:\n${ctx}`,
       max_tokens: 400,
       temperature: 0.35,
     });

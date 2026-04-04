@@ -16,7 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useT } from '@/lib/i18n';
+import { useT, useI18n } from '@/lib/i18n';
 import { genesisMdToCvHtml } from '@/lib/genesisMdToHtml';
 import type { GenesisPack } from '@/lib/genesisPackTypes';
 
@@ -117,6 +117,7 @@ export function TrustGenesisHub({
   onAppendLivelyInstructions: (s: string) => void;
 }) {
   const T = useT();
+  const { lang } = useI18n();
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
     try {
@@ -246,7 +247,7 @@ export function TrustGenesisHub({
       const res = await fetch('/api/editor/genesis-pack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteId, brief, snapshot: snapRef.current }),
+        body: JSON.stringify({ siteId, brief, snapshot: snapRef.current, uiLang: lang }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -265,7 +266,7 @@ export function TrustGenesisHub({
     } finally {
       setForgeBusy(false);
     }
-  }, [siteId, forgeBusy, brief, T]);
+  }, [siteId, forgeBusy, brief, lang, T]);
 
   const applyAll = useCallback(
     (p: GenesisPack) => {

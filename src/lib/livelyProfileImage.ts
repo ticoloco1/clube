@@ -1,24 +1,23 @@
-import { resolveFloatingPresetImage } from '@/lib/floatingAgentPresets';
+import { resolveFloatingAgentImageUrl } from '@/lib/floatingAgentImage';
 
-/** Imagem a mostrar no círculo do perfil quando o modo “mágico” Lively está ativo. */
+/** Imagem no círculo do perfil quando o modo “mágico” Lively está ativo (foto de perfil ou retrato). */
 export function resolveLivelyProfileImageUrl(params: {
   livelyCentralMagic: boolean;
   livelyAvatarEnabled: boolean;
   identityPortraitUrl: string | null | undefined;
-  floatingPresetId: string;
+  avatarUrl: string | null | undefined;
 }): string | null {
   if (!params.livelyAvatarEnabled || !params.livelyCentralMagic) return null;
-  const id = typeof params.identityPortraitUrl === 'string' ? params.identityPortraitUrl.trim() : '';
-  if (id) return id;
-  return resolveFloatingPresetImage(params.floatingPresetId);
+  return resolveFloatingAgentImageUrl({
+    avatarUrl: params.avatarUrl,
+    identityPortraitUrl: params.identityPortraitUrl,
+  });
 }
 
-/** Olhos “cartoon” por cima só fazem sentido nos presets com PNG; retrato InstantID é realista. */
+/** Olhos cartoon por cima da foto real — desativado (só imagem do utilizador). */
 export function livelyProfileUsesPupilOverlay(
-  identityPortraitUrl: string | null | undefined,
-  floatingPresetId: string,
+  _identityPortraitUrl: string | null | undefined,
+  _avatarUrl: string | null | undefined,
 ): boolean {
-  const id = typeof identityPortraitUrl === 'string' ? identityPortraitUrl.trim() : '';
-  if (id) return false;
-  return resolveFloatingPresetImage(floatingPresetId) != null;
+  return false;
 }

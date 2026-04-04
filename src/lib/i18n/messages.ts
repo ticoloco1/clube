@@ -57,8 +57,8 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   credits_wallet_missing: { en: "Wallet not set", pt: "Carteira não configurada" },
   credits_ia_topup_title: { en: "IA balance (mini-site)", pt: "Saldo IA (mini-site)" },
   credits_ia_topup_blurb: {
-    en: "Each mini-site gets ~US$2 free for chat, TTS and editor tools; then it uses paid balance on that site. Minimum purchase US$10 face value — charged amount is double (100% margin).",
-    pt: "Cada mini-site tem ~US$2 grátis para chat, TTS e ferramentas do editor; depois usa saldo pago no mesmo site. Compra mínima US$10 de valor útil — o preço cobrado é o dobro (margem 100%).",
+    en: "IA usage (chat, TTS, editor tools) draws from each mini-site’s paid USD balance. Buy a pack below — minimum US$10 face value; amount charged is double (100% margin). No automatic free USD unless the platform sets IA_FREE_USD_PER_SITE.",
+    pt: "O uso de IA (chat, TTS, ferramentas do editor) usa o saldo USD pago de cada mini-site. Compra um pack abaixo — mínimo US$10 de valor útil; o valor cobrado é o dobro (margem 100%). Sem USD grátis automático salvo se a plataforma definir IA_FREE_USD_PER_SITE.",
   },
   credits_ia_topup_site_heading: { en: "/{slug}", pt: "/{slug}" },
   credits_ia_topup_pack_label: { en: "+US${face} usable → pay US${charge}", pt: "+US${face} úteis → pagas US${charge}" },
@@ -376,6 +376,16 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     en: "Animated avatar; answers use your site links + DeepSeek-compatible AI (platform key).",
     pt: "Avatar animado; respostas usam os links do perfil + IA (API compatível com DeepSeek na plataforma).",
   },
+  lively_assist_toggle_label: {
+    en: "AI assistant on this page",
+    pt: "Assistente IA nesta página",
+  },
+  lively_assist_on: { en: "On", pt: "Ligado" },
+  lively_assist_off: { en: "Off", pt: "Desligado" },
+  lively_assist_hint_off: {
+    en: "Turn on to load the assistant and chat (voice optional). Stays off until you enable it.",
+    pt: "Liga para carregar o assistente e conversar (voz opcional). Fica desligado até ativares.",
+  },
   lively_placeholder: { en: "Type your question…", pt: "Escreve a tua pergunta…" },
   lively_thinking: { en: "Thinking…", pt: "A pensar…" },
   lively_listen: { en: "Speaking…", pt: "A falar…" },
@@ -423,14 +433,18 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     en: "Magic portrait on profile (CSS glow + breathe)",
     pt: "Retrato mágico no perfil (brilho + respiração CSS)",
   },
+  ed_lively_floating_profile_hint: {
+    en: "The corner assistant uses your profile photo first; if you generate a portrait in Identity Lab, that image is used when there is no profile photo. Upload or change the photo in this editor — no animal presets. The character tilts in 3D as the visitor moves the mouse.",
+    pt: "O assistente no canto usa primeiro a foto de perfil; se gerares um retrato no Laboratório Identidade, essa imagem entra quando não há foto de perfil. Carrega ou altera a foto neste editor — sem presets de animais. O personagem inclina em 3D conforme o rato do visitante.",
+  },
   ed_lively_floating: { en: "Floating agent (preset)", pt: "Agente flutuante (preset)" },
   ed_lively_expressive_gestures: {
     en: "Expressive corner gestures (thumbs up + peek out)",
     pt: "Gestos expressivos no canto (polegar + sair do quadro)",
   },
   ed_lively_expressive_gestures_hint: {
-    en: "After each assistant reply in chat: stronger “peek out” from the icon and a thumbs-up badge. Works with any preset.",
-    pt: "Após cada resposta do assistente no chat: animação mais forte “a sair” do ícone e ícone de polegar para cima. Funciona com qualquer preset.",
+    en: "After each assistant reply in chat: stronger “peek out” from the photo and a thumbs-up badge.",
+    pt: "Após cada resposta do assistente no chat: animação mais forte “a sair” da foto e ícone de polegar para cima.",
   },
   ed_lively_floating_hint: {
     en: "Premium: Monkey, Shark, Pet, Alien — requires verified premium NFT.",
@@ -438,20 +452,24 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   },
   ed_lively_dual: { en: "Dual-agent mode (Owner + Assistant in chat)", pt: "Modo dual-agente (Dono + Assistente no chat)" },
   ed_lively_model_hint: {
-    en: "Face tint in the chat panel SVG (separate from floating preset).",
-    pt: "Cor do rosto SVG no painel de chat (separado do preset flutuante).",
+    en: "Face tint in the chat panel SVG (when you are not using only the profile photo there).",
+    pt: "Cor do rosto SVG no painel de chat (quando não usas só a foto de perfil ali).",
   },
   ed_lively_instructions: { en: "Custom instructions", pt: "Palavras de ordem / diretrizes" },
   ed_lively_instructions_ph: {
     en: 'e.g. "When price comes up, the agent yells TOO CHEAP!"',
     pt: 'Ex.: "Quando falarem em preço, o agente grita BARATO DEMAIS!"',
   },
+  ed_lively_assistant_behavior_hint: {
+    en: "The assistant follows the site language (header switcher). It is prompted to answer in short, direct sentences. Fine-tune tone here — e.g. “Always answer in 3 bullet points” or “Legal tone, EU Portuguese”. For a richer voice, paste ElevenLabs voice IDs below (choose a natural voice on elevenlabs.io); if those are empty, OpenAI HD TTS is used as fallback.",
+    pt: "O assistente segue o idioma do mini-site (seletor no topo) e está orientado a respostas curtas e diretas. Ajusta o tom aqui — ex.: “Responde sempre em 3 tópicos” ou “Tom jurídico, português europeu”. Para voz mais bonita, cola os IDs ElevenLabs abaixo (escolhe uma voz natural em elevenlabs.io); se ficarem vazios, usa-se TTS OpenAI HD como plano B.",
+  },
   ed_lively_eleven_owner: { en: "ElevenLabs voice ID (owner)", pt: "ElevenLabs voice ID (Dono)" },
   ed_lively_eleven_agent: { en: "ElevenLabs voice ID (agent)", pt: "ElevenLabs voice ID (Agente)" },
   ed_lively_credits_title: { en: "Mini-site IA budget (USD)", pt: "Orçamento IA do mini-site (USD)" },
   ed_lively_credits_hint: {
-    en: "Pricing: we pass through provider cost (DeepSeek, OpenAI TTS, ElevenLabs, etc.) and add 100% margin — e.g. US$2 API spend ≈ US$4 charged. After you pay monthly, each site keeps ~US$2 of complimentary DeepSeek/chat budget (see IA_FREE_USD_PER_SITE); top-ups start at US$10 face value billed at 2×. Platform 24h trial: AI not debited. Visitors get ~40 min free, then your site wallet. Top up at /credits.",
-    pt: "Preço: repassamos o custo dos fornecedores (DeepSeek, OpenAI TTS, ElevenLabs, etc.) com margem de 100% — ex.: US$2 de API ≈ US$4 cobrados. Com mensalidade ativa, cada site mantém ~US$2 grátis para DeepSeek/chat (IA_FREE_USD_PER_SITE); recargas a partir de US$10 úteis faturados a 2×. Trial 24h da plataforma: IA não debita. Visitantes: ~40 min grátis, depois a carteira do site. Recarrega em /creditos.",
+    en: "Pricing: provider cost (DeepSeek, OpenAI TTS, ElevenLabs, etc.) + 100% margin — e.g. US$2 API spend ≈ US$4 charged. Default: no complimentary site USD (buy packs at /creditos from US$10 face, billed 2×). Optional promo: set IA_FREE_USD_PER_SITE on the server. Platform 24h trial: AI not debited. Visitors: ~40 min free, then your site wallet.",
+    pt: "Preço: custo dos fornecedores (DeepSeek, OpenAI TTS, ElevenLabs, etc.) + margem 100% — ex.: US$2 de API ≈ US$4 cobrados. Por defeito: sem USD grátis por site (compra packs em /creditos a partir de US$10 úteis, faturado a 2×). Promo opcional: IA_FREE_USD_PER_SITE no servidor. Trial 24h da plataforma: IA não debita. Visitantes: ~40 min grátis, depois a carteira do site.",
   },
   ed_ia_tab: { en: "AI", pt: "IA" },
   ed_ia_profile_title: { en: "Speaking profile avatar", pt: "Avatar falante no perfil" },

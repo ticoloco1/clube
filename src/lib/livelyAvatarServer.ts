@@ -38,6 +38,12 @@ export type LivelySiteRow = {
   ai_free_usd_remaining?: number | string | null;
   ai_paid_usd_balance?: number | string | null;
   lively_premium_nft_verified_at?: string | null;
+  booking_enabled?: boolean | null;
+  booking_slot_minutes?: number | null;
+  booking_timezone?: string | null;
+  booking_weekly_hours?: unknown;
+  booking_vertical?: string | null;
+  contact_phone?: string | null;
 };
 
 export async function getViewerUserId(): Promise<string | null> {
@@ -103,6 +109,12 @@ export async function getLivelySiteForApi(slug: string, viewerUserId: string | n
         'ai_free_usd_remaining',
         'ai_paid_usd_balance',
         'lively_premium_nft_verified_at',
+        'booking_enabled',
+        'booking_slot_minutes',
+        'booking_timezone',
+        'booking_weekly_hours',
+        'booking_vertical',
+        'contact_phone',
       ].join(','),
     )
     .eq('slug', slugClean)

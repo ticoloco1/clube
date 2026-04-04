@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useT } from '@/lib/i18n';
+import { useT, getLang } from '@/lib/i18n';
+import { livelyDefaultVisitorGreeting } from '@/lib/aiVisitorLanguage';
 import { resolveLivelyModel } from '@/lib/livelyAvatarModels';
 import { defaultElevenVoice } from '@/lib/elevenLabsTts';
 import { buildVisemeKeyframes, visemeAtTime, type VisemeShape } from '@/lib/visemesFromText';
@@ -19,7 +20,7 @@ export function LivelyAvatarWidget({
   siteName,
   welcome,
   modelId,
-  floatingPreset,
+  floatingImageUrl,
   dualAgent,
   isOwner,
   openBeta,
@@ -30,6 +31,8 @@ export function LivelyAvatarWidget({
   speechBeforeReply,
   elevenAgentVoiceId,
   floatingExpressiveGestures = false,
+  /** Retrato gerado no Identity Lab (URL pública). */
+  identityPortraitUrl,
   /** Incrementa (ex.: 1,2,3…) para abrir o painel a partir do botão no perfil. */
   requestOpen = 0,
 }: {
@@ -37,7 +40,8 @@ export function LivelyAvatarWidget({
   siteName: string;
   welcome?: string | null;
   modelId?: string | null;
-  floatingPreset: string;
+  /** Foto de perfil ou retrato para o boneco 3D no canto. */
+  floatingImageUrl: string | null;
   dualAgent: boolean;
   isOwner: boolean;
   openBeta: boolean;
@@ -50,24 +54,22 @@ export function LivelyAvatarWidget({
   elevenAgentVoiceId?: string | null;
   /** Polegar + movimento extra no agente flutuante após respostas (mini-site). */
   floatingExpressiveGestures?: boolean;
+  identityPortraitUrl?: string | null;
   requestOpen?: number;
 }) {
   const T = useT();
-  const lang = typeof document !== 'undefined' && document.documentElement.lang?.startsWith('en') ? 'en' : 'pt';
+  const uiLang = getLang();
   const model = resolveLivelyModel(modelId || undefined);
   const livelyGate = nftVerified || openBeta;
   const previewOnly = isOwner && !livelyGate;
+  const portraitSrc = typeof identityPortraitUrl === 'string' ? identityPortraitUrl.trim() : '';
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Msg[]>(() => {
     const w = (welcome || '').trim();
     if (w) return [{ role: 'assistant', content: w }];
-    const def =
-      lang === 'en'
-        ? `Hi! I'm ${siteName}'s assistant on TrustBank. How can I help?`
-        : `Olá! Sou o assistente de ${siteName} na TrustBank. Em que posso ajudar?`;
-    return [{ role: 'assistant', content: def }];
+    return [{ role: 'assistant', content: livelyDefaultVisitorGreeting(siteName, uiLang) }];
   });
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -165,7 +167,7 @@ export function LivelyAvatarWidget({
       runLipSync(keys, est);
       return new Promise<void>((resolve) => {
         const u = new SpeechSynthesisUtterance(text);
-        u.lang = lang === 'en' ? 'en-US' : 'pt-BR';
+        u.lang = uiLang === 'pt' ? 'pt-BR' : 'en-US';
         u.onend = () => {
           stopLipSync();
           resolve();
@@ -178,7 +180,7 @@ export function LivelyAvatarWidget({
         window.speechSynthesis.speak(u);
       });
     },
-    [lang, runLipSync, stopLipSync],
+    [uiLang, runLipSync, stopLipSync],
   );
 
   const speakWithOpenAiOrClient = useCallback(
@@ -257,17 +259,21 @@ export function LivelyAvatarWidget({
     const nextMsgs: Msg[] = [...messages, { role: 'user', content: q }];
     setMessages(nextMsgs);
     try {
-      const pre = (speechBeforeReply || '').trim();
-      if (pre) {
-        const vid = (elevenAgentVoiceId || '').trim() || defaultElevenVoice('agent');
-        if (vid) await speakWithEleven(pre, vid);
-        else await speakWithOpenAiOrClient(pre);
+      try {
+        const pre = (speechBeforeReply || '').trim();
+        if (pre) {
+          const vid = (elevenAgentVoiceId || '').trim() || defaultElevenVoice('agent');
+          if (vid) await speakWithEleven(pre, vid);
+          else await speakWithOpenAiOrClient(pre);
+        }
+      } catch {
+        /* pré-fala opcional: não bloqueia o chat */
       }
 
       const res = await fetch('/api/lively-avatar/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, messages: nextMsgs }),
+        body: JSON.stringify({ slug, messages: nextMsgs, uiLang: getLang() }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 402) {
@@ -279,7 +285,6 @@ export function LivelyAvatarWidget({
             content: typeof data.error === 'string' ? data.error : T('lively_paywall_msg'),
           },
         ]);
-        setAnimState('idle');
         return;
       }
       if (!res.ok) {
@@ -290,7 +295,6 @@ export function LivelyAvatarWidget({
             content: typeof data.error === 'string' ? data.error : T('lively_error'),
           },
         ]);
-        setAnimState('idle');
         return;
       }
 
@@ -299,10 +303,20 @@ export function LivelyAvatarWidget({
         agent: String(data.voices?.agent || ''),
       };
 
+      const runReplyTts = async (fn: () => Promise<void>) => {
+        try {
+          await fn();
+        } catch (e) {
+          console.warn('[LivelyAvatarWidget] TTS da resposta falhou (texto já exibido)', e);
+        } finally {
+          setSpeechEndKey((k) => k + 1);
+        }
+      };
+
       if (data.dual && Array.isArray(data.turns) && data.turns.length) {
         const turns = data.turns as { speaker: string; text: string }[];
-        const labelOwner = lang === 'en' ? 'Owner' : 'Dono';
-        const labelAgent = lang === 'en' ? 'Assistant' : 'Assistente';
+        const labelOwner = uiLang === 'pt' ? 'Dono' : 'Owner';
+        const labelAgent = uiLang === 'pt' ? 'Assistente' : 'Assistant';
         const block = turns
           .map((t) => {
             const sp = t.speaker === 'owner' ? labelOwner : labelAgent;
@@ -311,21 +325,29 @@ export function LivelyAvatarWidget({
           .join('\n\n');
         setMessages((m) => [...m, { role: 'assistant', content: block }]);
         setNudgeKey((k) => k + 1);
-        await speakDual(
-          turns.map((t) => ({
-            speaker: t.speaker === 'owner' ? 'owner' : 'agent',
-            text: String(t.text || '').trim(),
-          })),
-          voices,
-        );
-        setSpeechEndKey((k) => k + 1);
+        setLoading(false);
+        setAnimState('idle');
+        void runReplyTts(async () => {
+          await speakDual(
+            turns.map((t) => ({
+              speaker: t.speaker === 'owner' ? 'owner' : 'agent',
+              text: String(t.text || '').trim(),
+            })),
+            voices,
+          );
+        });
       } else {
         const reply = String(data.reply || '').trim();
         if (reply) {
           setMessages((m) => [...m, { role: 'assistant', content: reply }]);
           setNudgeKey((k) => k + 1);
-          await speakWithEleven(reply, voices.agent || voices.owner);
-          setSpeechEndKey((k) => k + 1);
+        }
+        setLoading(false);
+        setAnimState('idle');
+        if (reply) {
+          void runReplyTts(async () => {
+            await speakWithEleven(reply, voices.agent || voices.owner);
+          });
         }
       }
     } catch {
@@ -339,7 +361,7 @@ export function LivelyAvatarWidget({
   return (
     <>
       <FloatingAgentCharacter
-        preset={floatingPreset}
+        imageUrl={floatingImageUrl}
         animState={loading ? 'thinking' : animState}
         accent={accent}
         visible
@@ -383,7 +405,7 @@ export function LivelyAvatarWidget({
       )}
 
       <div
-        className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-2"
+        className="fixed bottom-5 right-5 z-[95] flex flex-col items-end gap-2"
         style={{ fontFamily: 'system-ui, sans-serif' }}
       >
         {open && (
@@ -416,16 +438,40 @@ export function LivelyAvatarWidget({
               </button>
             </div>
             <div className="relative flex justify-center py-4 bg-black/20">
-              <LivelyFaceSvg
-                model={model}
-                mouthShape={mouth}
-                speaking={speaking}
-                thinking={loading}
-                interactionKey={interactionKey}
-                replyPulse={nudgeKey}
-                speechDoneKey={speechEndKey}
-                accent={accent}
-              />
+              {portraitSrc ? (
+                <div
+                  className="relative w-[120px] h-[120px] rounded-full overflow-hidden ring-2 ring-white/15 shadow-lg"
+                  style={
+                    speaking
+                      ? { boxShadow: `0 0 0 3px ${accent}88, 0 12px 28px rgba(0,0,0,0.35)` }
+                      : { boxShadow: '0 12px 28px rgba(0,0,0,0.35)' }
+                  }
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={portraitSrc}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  {loading && (
+                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-white/90" aria-hidden />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <LivelyFaceSvg
+                  model={model}
+                  mouthShape={mouth}
+                  speaking={speaking}
+                  thinking={loading}
+                  interactionKey={interactionKey}
+                  replyPulse={nudgeKey}
+                  speechDoneKey={speechEndKey}
+                  accent={accent}
+                />
+              )}
               {speaking && (
                 <span
                   className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-70 z-[2]"

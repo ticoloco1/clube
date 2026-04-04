@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { ThumbsUp } from 'lucide-react';
-import { resolveFloatingPresetImage } from '@/lib/floatingAgentPresets';
 
 type Anim = 'idle' | 'thinking' | 'interaction';
 
 export function FloatingAgentCharacter({
-  preset,
+  imageUrl,
   animState,
   accent,
   visible,
@@ -17,28 +15,22 @@ export function FloatingAgentCharacter({
   expressiveGestures = false,
   speaking = false,
 }: {
-  preset: string;
+  /** Foto de perfil ou retrato; se null, ícone genérico. */
+  imageUrl: string | null;
   animState: Anim;
   accent: string;
   visible: boolean;
-  /** Incrementa após uma resposta do assistente — animação “sai do quadro / aponta”. */
   nudgeKey?: number;
-  /** Incrementa quando o áudio da resposta termina — aceno / assentir suave. */
   speechEndKey?: number;
-  /** Polegar + “sair do quadro” mais acentuado após cada resposta (opção no editor). */
   expressiveGestures?: boolean;
-  /** Enquanto o TTS fala — respiração um pouco mais acentuada e menos piscar aleatório. */
   speaking?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [look, setLook] = useState({ x: 0, y: 0 });
   const [peek, setPeek] = useState(false);
   const [showThumb, setShowThumb] = useState(false);
-  const [blink, setBlink] = useState(false);
-  const [laughing, setLaughing] = useState(false);
   const [settling, setSettling] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
-  const img = resolveFloatingPresetImage(preset);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -51,16 +43,13 @@ export function FloatingAgentCharacter({
   useEffect(() => {
     if (!nudgeKey) return;
     setPeek(true);
-    setLaughing(true);
     setShowThumb(true);
-    const laughTimer = window.setTimeout(() => setLaughing(false), expressiveGestures ? 820 : 640);
     const thumbTimer = window.setTimeout(() => setShowThumb(false), expressiveGestures ? 1200 : 880);
     const peekMs = expressiveGestures ? 1100 : 900;
     const peekTimer = window.setTimeout(() => setPeek(false), peekMs);
     return () => {
       window.clearTimeout(peekTimer);
       window.clearTimeout(thumbTimer);
-      window.clearTimeout(laughTimer);
     };
   }, [nudgeKey, expressiveGestures]);
 
@@ -72,7 +61,7 @@ export function FloatingAgentCharacter({
   }, [speechEndKey]);
 
   useEffect(() => {
-    if (!visible || img || reduceMotion) return;
+    if (!visible || imageUrl || reduceMotion) return;
     const id = window.setInterval(() => {
       if (Math.random() > 0.9) {
         setPeek(true);
@@ -80,46 +69,7 @@ export function FloatingAgentCharacter({
       }
     }, 5200);
     return () => clearInterval(id);
-  }, [visible, img, reduceMotion]);
-
-  useEffect(() => {
-    if (!visible || reduceMotion) return;
-    let cancelled = false;
-    let timeoutId: number | undefined;
-    const tick = () => {
-      const thinkingNow = animState === 'thinking' && !speaking;
-      let delay: number;
-      let allowDouble: boolean;
-      if (speaking) {
-        delay = 3200 + Math.random() * 3600;
-        allowDouble = false;
-      } else if (thinkingNow) {
-        delay = 2500 + Math.random() * 2600;
-        allowDouble = false;
-      } else {
-        delay = 1900 + Math.random() * 2100;
-        allowDouble = true;
-      }
-      timeoutId = window.setTimeout(() => {
-        if (cancelled) return;
-        setBlink(true);
-        window.setTimeout(() => setBlink(false), 108);
-        if (allowDouble && Math.random() > 0.76) {
-          window.setTimeout(() => {
-            if (cancelled) return;
-            setBlink(true);
-            window.setTimeout(() => setBlink(false), 96);
-          }, 145);
-        }
-        tick();
-      }, delay);
-    };
-    tick();
-    return () => {
-      cancelled = true;
-      if (timeoutId != null) window.clearTimeout(timeoutId);
-    };
-  }, [visible, speaking, reduceMotion, animState]);
+  }, [visible, imageUrl, reduceMotion]);
 
   useEffect(() => {
     if (!visible) return;
@@ -142,16 +92,11 @@ export function FloatingAgentCharacter({
 
   if (!visible) return null;
 
-  const thinkingEyes = animState === 'thinking' && !speaking;
-  const pupil = {
-    transform: `translate(${look.x * 5}px, ${look.y * 4 + (thinkingEyes ? -2.2 : 0)}px)`,
-  };
-  const bodyNudge = reduceMotion
-    ? undefined
-    : `translate(${look.x * 3.5}px, ${look.y * 2.5}px) rotate(${look.x * 5.5}deg)`;
+  const tiltX = reduceMotion ? 0 : -look.y * 16;
+  const tiltY = reduceMotion ? 0 : look.x * 18;
+  const tiltZ = reduceMotion ? 0 : look.x * -2.5 + look.y * 1.2;
 
-  const bounce =
-    animState === 'interaction' ? 'tb-agent-bounce 0.55s ease-out' : undefined;
+  const bounce = animState === 'interaction' ? 'tb-agent-bounce 0.55s ease-out' : undefined;
   const settleAnim = settling && !reduceMotion ? 'tb-agent-settle 0.5s ease-out' : undefined;
   const breatheSpeak = !reduceMotion && speaking ? 'tb-agent-speak-breath 2.1s ease-in-out infinite' : undefined;
   const breatheThink =
@@ -160,17 +105,22 @@ export function FloatingAgentCharacter({
   const breathe = breatheSpeak || breatheThink || breatheIdle;
   const rootMotion = bounce || settleAnim || breathe;
 
-  const innerLaugh = laughing && !reduceMotion ? 'tb-agent-laugh 0.34s ease-in-out infinite' : undefined;
   const peekAnim = peek
     ? `${expressiveGestures ? 'tb-agent-peek-strong' : 'tb-agent-peek'} 0.95s ease-out`
     : undefined;
 
+  const card3d = reduceMotion
+    ? undefined
+    : `rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotateZ(${tiltZ}deg) translateZ(8px)`;
+
   return (
     <div
       ref={wrapRef}
-      className="pointer-events-none select-none fixed z-[75] bottom-[5.5rem] right-6 w-[88px] h-[88px] md:bottom-[6rem] md:right-8 md:w-[100px] md:h-[100px]"
+      className="pointer-events-none select-none fixed z-[92] bottom-[5.5rem] right-6 w-[88px] h-[88px] md:bottom-[6rem] md:right-8 md:w-[100px] md:h-[100px]"
       style={{
         animation: rootMotion,
+        perspective: reduceMotion ? undefined : 520,
+        transformStyle: 'preserve-3d',
       }}
     >
       <style>{`
@@ -186,20 +136,15 @@ export function FloatingAgentCharacter({
           0%, 100% { transform: translateY(0) scale(1); }
           50% { transform: translateY(-2px) scale(1.022); }
         }
-        @keyframes tb-agent-settle {
-          0% { transform: translateY(0) scale(1) rotate(0deg); }
-          40% { transform: translateY(5px) scale(1.035) rotate(2.5deg); }
-          100% { transform: translateY(0) scale(1) rotate(0deg); }
-        }
         @keyframes tb-agent-bounce {
           0% { transform: translateY(0) scale(1); }
           40% { transform: translateY(-14px) scale(1.06) rotate(-3deg); }
           100% { transform: translateY(0) scale(1); }
         }
-        @keyframes tb-agent-laugh {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          45% { transform: translate(0, -2px) scale(1.05, 0.98); }
-          70% { transform: translate(0, -1px) scale(1.03, 1.01); }
+        @keyframes tb-agent-settle {
+          0% { transform: translateY(0) scale(1) rotate(0deg); }
+          40% { transform: translateY(5px) scale(1.035) rotate(2.5deg); }
+          100% { transform: translateY(0) scale(1) rotate(0deg); }
         }
         @keyframes tb-agent-peek {
           0% { transform: translate(0, 0) scale(1) rotate(0deg); }
@@ -227,20 +172,30 @@ export function FloatingAgentCharacter({
           60% { transform: rotate(10deg); }
         }
       `}</style>
-      <div className="w-full h-full relative" style={{ transform: bodyNudge }}>
-        <div className="w-full h-full relative" style={{ animation: peekAnim }}>
-          <div className="w-full h-full relative" style={{ animation: innerLaugh }}>
-            {img ? (
-              <div className="relative w-full h-full rounded-2xl overflow-visible border-2 shadow-xl" style={{ borderColor: accent }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img} alt="" className="w-full h-full object-cover object-top" />
-                <FloatingPhotoEye className="absolute left-[32%] top-[38%]" pupil={pupil} blink={blink} />
-                <FloatingPhotoEye className="absolute right-[28%] top-[38%]" pupil={pupil} blink={blink} />
-              </div>
-            ) : (
-              <AgentSvgFallback preset={preset} accent={accent} pupilStyle={pupil} blinkClosed={blink} />
-            )}
-          </div>
+      <div
+        className="w-full h-full relative"
+        style={{
+          transformStyle: 'preserve-3d',
+          transform: card3d,
+          transition: reduceMotion ? undefined : 'transform 0.12s ease-out',
+        }}
+      >
+        <div className="w-full h-full relative" style={{ animation: peekAnim, transformStyle: 'preserve-3d' }}>
+          {imageUrl ? (
+            <div
+              className="relative w-full h-full rounded-2xl overflow-hidden border-2 shadow-2xl"
+              style={{
+                borderColor: accent,
+                boxShadow: `0 18px 36px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.12) inset, 0 -6px 20px ${accent}33`,
+                transform: 'translateZ(4px)',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt="" className="w-full h-full object-cover object-center" referrerPolicy="no-referrer" />
+            </div>
+          ) : (
+            <AgentFallbackIcon accent={accent} />
+          )}
         </div>
         {showThumb ? (
           <div
@@ -291,126 +246,17 @@ export function FloatingAgentCharacter({
   );
 }
 
-function FloatingPhotoEye({
-  className,
-  pupil,
-  blink,
-}: {
-  className?: string;
-  pupil: CSSProperties;
-  blink: boolean;
-}) {
+function AgentFallbackIcon({ accent }: { accent: string }) {
   return (
     <div
-      className={`${className} w-[10px] h-[10px] rounded-full bg-white/90 flex items-center justify-center overflow-hidden`}
+      className="w-full h-full rounded-2xl flex items-center justify-center text-3xl border-2 shadow-xl"
       style={{
-        boxShadow: '0 0 0 2px rgba(0,0,0,0.35)',
-        transform: blink ? 'scaleY(0.14)' : 'scaleY(1)',
-        transformOrigin: 'center 55%',
-        transition: 'transform 0.06s ease-out',
+        borderColor: accent,
+        background: 'linear-gradient(145deg, rgba(30,30,40,0.95), rgba(15,15,22,0.98))',
+        boxShadow: `0 12px 28px rgba(0,0,0,0.4), 0 0 0 1px ${accent}44`,
       }}
     >
-      <span className="w-[5px] h-[5px] rounded-full bg-black block" style={pupil} />
-    </div>
-  );
-}
-
-function AgentSvgFallback({
-  preset,
-  accent,
-  pupilStyle,
-  blinkClosed,
-}: {
-  preset: string;
-  accent: string;
-  pupilStyle: CSSProperties;
-  blinkClosed: boolean;
-}) {
-  const pt = pupilStyle.transform as string | undefined;
-  const m = pt?.match(/translate\(([-0-9.]+)px,\s*([-0-9.]+)px\)/);
-  const px = m ? parseFloat(m[1]) : 0;
-  const py = m ? parseFloat(m[2]) : 0;
-
-  if (preset === 'shark_lawyer') {
-    return (
-      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-        <ellipse cx="50" cy="52" rx="46" ry="38" fill="#64748b" stroke="#334155" strokeWidth="2" />
-        <path d="M4 52 L0 42 L12 48 Z" fill="#94a3b8" />
-        {!blinkClosed ? (
-          <>
-            <ellipse cx="38" cy="48" rx="8" ry="7" fill="#fff" />
-            <ellipse cx="62" cy="48" rx="8" ry="7" fill="#fff" />
-            <g transform={`translate(${px},${py})`}>
-              <circle cx="38" cy="48" r="3.5" fill="#0f172a" />
-              <circle cx="62" cy="48" r="3.5" fill="#0f172a" />
-            </g>
-          </>
-        ) : (
-          <>
-            <path d="M31 48 Q38 45.5 45 48" stroke="#0f172a" fill="none" strokeWidth="2.2" strokeLinecap="round" />
-            <path d="M55 48 Q62 45.5 69 48" stroke="#0f172a" fill="none" strokeWidth="2.2" strokeLinecap="round" />
-          </>
-        )}
-        <ellipse cx="50" cy="62" rx="10" ry="5" fill="#1e293b" />
-      </svg>
-    );
-  }
-  if (preset === 'pet_influencer') {
-    return (
-      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-        <polygon points="30,22 38,8 46,22" fill={accent} />
-        <polygon points="54,22 62,8 70,22" fill={accent} />
-        <circle cx="50" cy="55" r="38" fill="#fdba74" stroke="#ea580c" strokeWidth="2" />
-        {!blinkClosed ? (
-          <>
-            <ellipse cx="38" cy="50" rx="9" ry="10" fill="#fff" />
-            <ellipse cx="62" cy="50" rx="9" ry="10" fill="#fff" />
-            <g transform={`translate(${px},${py})`}>
-              <circle cx="38" cy="50" r="4" fill="#1f2937" />
-              <circle cx="62" cy="50" r="4" fill="#1f2937" />
-            </g>
-          </>
-        ) : (
-          <>
-            <path d="M30 50 Q38 47 46 50" stroke="#1f2937" fill="none" strokeWidth="2.4" strokeLinecap="round" />
-            <path d="M54 50 Q62 47 70 50" stroke="#1f2937" fill="none" strokeWidth="2.4" strokeLinecap="round" />
-          </>
-        )}
-        <ellipse cx="50" cy="68" rx="12" ry="7" fill="#9a3412" />
-      </svg>
-    );
-  }
-  if (preset === 'alien_tech') {
-    return (
-      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-        <line x1="50" y1="6" x2="50" y2="22" stroke={accent} strokeWidth="3" />
-        <circle cx="50" cy="4" r="4" fill={accent} />
-        <ellipse cx="50" cy="58" rx="40" ry="36" fill="#34d399" stroke="#065f46" strokeWidth="2" />
-        {!blinkClosed ? (
-          <>
-            <ellipse cx="36" cy="52" rx="12" ry="14" fill="#ecfdf5" />
-            <ellipse cx="64" cy="52" rx="12" ry="14" fill="#ecfdf5" />
-            <g transform={`translate(${px},${py})`}>
-              <circle cx="36" cy="52" r="5" fill="#064e3b" />
-              <circle cx="64" cy="52" r="5" fill="#064e3b" />
-            </g>
-          </>
-        ) : (
-          <>
-            <path d="M25 52 Q36 48 47 52" stroke="#064e3b" fill="none" strokeWidth="2.4" strokeLinecap="round" />
-            <path d="M53 52 Q64 48 75 52" stroke="#064e3b" fill="none" strokeWidth="2.4" strokeLinecap="round" />
-          </>
-        )}
-        <ellipse cx="50" cy="72" rx="8" ry="4" fill="#047857" />
-      </svg>
-    );
-  }
-  return (
-    <div
-      className="w-full h-full rounded-2xl flex items-center justify-center text-4xl border-2 shadow-lg"
-      style={{ borderColor: accent, background: 'rgba(0,0,0,0.25)' }}
-    >
-      🤖
+      <span aria-hidden>✨</span>
     </div>
   );
 }

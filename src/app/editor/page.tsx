@@ -19,7 +19,7 @@ import {
   Save, Eye, Upload, Plus, X, Loader2,
   Globe, Link2, Video, FileText, ChevronDown,
   Image as ImageIcon, Shield, GripVertical, ExternalLink,   CreditCard, Sparkles,
-  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone,
+  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone, CalendarClock,
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
@@ -27,7 +27,6 @@ import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { CVEditor, type CVData } from '@/components/editor/CVEditor';
 import { SeoTrafficMeter, GoogleSerpPreview, buildDefaultSeoTitle } from '@/components/editor/SeoToolkit';
 import { LIVELY_AVATAR_MODELS } from '@/lib/livelyAvatarModels';
-import { FLOATING_PRESETS } from '@/lib/floatingAgentPresets';
 import { IdentityLabPanel } from '@/components/editor/IdentityLabPanel';
 import { CreatorStudioPanel } from '@/components/editor/CreatorStudioPanel';
 import { AvatarCharacterInspirationPanel } from '@/components/editor/AvatarCharacterInspirationPanel';
@@ -37,6 +36,7 @@ import { TrustGenesisHub } from '@/components/editor/TrustGenesisHub';
 import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
 import { EditorGuidePanel } from '@/components/editor/EditorGuidePanel';
 import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
+import { DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSchedule';
 
 // ── 30 Themes (rótulos: T(`ed_theme_${id}`)) ───────────────────────────────────
 const THEMES = [
@@ -112,6 +112,7 @@ function EditorPageInner() {
       feed: T('ed_mod_feed'),
       ads: T('ed_mod_ads'),
       mystic: T('ed_mod_mystic'),
+      booking: T('ed_mod_booking'),
     }),
     [T, lang],
   );
@@ -130,6 +131,8 @@ function EditorPageInner() {
   const [bannerPlaceholderColor, setBannerPlaceholderColor] = useState('#1f2937');
   const [walletAddr,   setWalletAddr]   = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  /** Número WhatsApp público (guardado em mini_sites.contact_phone) — link wa.me para visitantes. */
+  const [contactWhatsapp, setContactWhatsapp] = useState('');
   const [published,    setPublished]    = useState(false);
   const [seoTitle,     setSeoTitle]     = useState('');
   const [seoDescription, setSeoDescription] = useState('');
@@ -145,7 +148,6 @@ function EditorPageInner() {
   const [livelyAvatarWelcome, setLivelyAvatarWelcome] = useState('');
   const [livelyNftVerifyLoading, setLivelyNftVerifyLoading] = useState(false);
   const [livelyCentralMagic, setLivelyCentralMagic] = useState(false);
-  const [livelyFloatingPreset, setLivelyFloatingPreset] = useState('classic');
   const [livelyFloatingExpressive, setLivelyFloatingExpressive] = useState(false);
   const [livelyDualAgent, setLivelyDualAgent] = useState(false);
   const [livelyAgentInstructions, setLivelyAgentInstructions] = useState('');
@@ -198,14 +200,14 @@ function EditorPageInner() {
   // ── Feed state ───────────────────────────────────────────────────────────
   const [showFeed,    setShowFeed]    = useState(true);
   const [feedCols,    setFeedCols]    = useState<1|2|3>(1);
-  const [moduleOrder, setModuleOrder] = useState<string[]>(['links', 'feed', 'videos', 'cv', 'ads', 'mystic']);
+  const [moduleOrder, setModuleOrder] = useState<string[]>(['links', 'feed', 'videos', 'cv', 'ads', 'mystic', 'booking']);
   const [pageWidth, setPageWidth] = useState<number>(600);
   const [sitePages,   setSitePages]   = useState<{id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[]>([{id:'home',label:'Home',template:'default'}]);
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
-  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links', 'feed', 'videos', 'cv', 'ads', 'mystic'] });
+  const [pageModules, setPageModules] = useState<Record<string, string[]>>({ home: ['links', 'feed', 'videos', 'cv', 'ads', 'mystic', 'booking'] });
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
   const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({
-    home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 },
+    home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
   });
   const [clearAllArmed, setClearAllArmed] = useState<Record<string, boolean>>({});
   const [adAskingPrice, setAdAskingPrice] = useState('');
@@ -230,6 +232,16 @@ function EditorPageInner() {
   const [mysticPublicEnabled, setMysticPublicEnabled] = useState(false);
   const [mysticTarotPrice, setMysticTarotPrice] = useState('4.99');
   const [mysticLotteryPrice, setMysticLotteryPrice] = useState('2.99');
+  const [bookingEnabled, setBookingEnabled] = useState(false);
+  const [bookingSlotMinutes, setBookingSlotMinutes] = useState('30');
+  const [bookingTimezone, setBookingTimezone] = useState('America/Sao_Paulo');
+  const [bookingWeeklyJson, setBookingWeeklyJson] = useState(() => JSON.stringify(DEFAULT_WEEKLY_HOURS, null, 2));
+  const [bookingServicesJson, setBookingServicesJson] = useState(
+    () => JSON.stringify([{ label: 'Consultation', minutes: 30 }], null, 2),
+  );
+  const [bookingVertical, setBookingVertical] = useState<'general' | 'medical' | 'legal' | 'business'>('general');
+  const [bookingRows, setBookingRows] = useState<any[]>([]);
+  const [bookingRowsLoading, setBookingRowsLoading] = useState(false);
   const [sectionOrder, setSectionOrder] = useState<string[]>(['summary','experience','education','skills','projects','languages','certificates','contact']);
 
   // ── UI state ─────────────────────────────────────────────────────────────
@@ -308,6 +320,7 @@ function EditorPageInner() {
     setBannerPlaceholderColor((site as any).banner_placeholder_color || '#1f2937');
     setWalletAddr((site as any).wallet_address || '');
     setContactEmail((site as any).contact_email || '');
+    setContactWhatsapp(typeof (site as any).contact_phone === 'string' ? (site as any).contact_phone : '');
     setPublished(site.published || false);
     setTickerEnabled((site as any).ticker_enabled !== false);
     try {
@@ -340,7 +353,6 @@ function EditorPageInner() {
     setLivelyAvatarModel((site as any).lively_avatar_model || 'neo');
     setLivelyAvatarWelcome(typeof (site as any).lively_avatar_welcome === 'string' ? (site as any).lively_avatar_welcome : '');
     setLivelyCentralMagic((site as any).lively_central_magic === true);
-    setLivelyFloatingPreset((site as any).lively_floating_preset || 'classic');
     setLivelyFloatingExpressive((site as any).lively_floating_expressive === true);
     setLivelyDualAgent((site as any).lively_dual_agent === true);
     setLivelyAgentInstructions(typeof (site as any).lively_agent_instructions === 'string' ? (site as any).lively_agent_instructions : '');
@@ -367,7 +379,7 @@ function EditorPageInner() {
     setTheme(site.theme || 'midnight');
     setAccentColor(site.accent_color || '#818cf8');
     setPhotoShape(site.photo_shape || 'round');
-    setPhotoSize((site as any).photo_size || 'md');
+    setPhotoSize((site as any).photo_size === 'site' ? 'xl' : (site as any).photo_size || 'md');
     setFontStyle((site as any).font_style || 'sans');
     setTextColor((site as any).text_color || '');
     setShowCv(site.show_cv || false);
@@ -398,6 +410,35 @@ function EditorPageInner() {
         ? String((site as any).mystic_lottery_premium_price_usd)
         : '2.99',
     );
+    setBookingEnabled((site as any).booking_enabled === true);
+    setBookingSlotMinutes(String((site as any).booking_slot_minutes ?? 30));
+    setBookingTimezone(typeof (site as any).booking_timezone === 'string' && (site as any).booking_timezone ? (site as any).booking_timezone : 'America/Sao_Paulo');
+    try {
+      const rawWh = (site as any).booking_weekly_hours;
+      if (rawWh != null) {
+        const obj = typeof rawWh === 'string' ? JSON.parse(rawWh) : rawWh;
+        setBookingWeeklyJson(JSON.stringify(obj && typeof obj === 'object' ? obj : DEFAULT_WEEKLY_HOURS, null, 2));
+      } else {
+        setBookingWeeklyJson(JSON.stringify(DEFAULT_WEEKLY_HOURS, null, 2));
+      }
+    } catch {
+      setBookingWeeklyJson(JSON.stringify(DEFAULT_WEEKLY_HOURS, null, 2));
+    }
+    try {
+      const rawSv = (site as any).booking_services;
+      if (rawSv != null) {
+        const arr = typeof rawSv === 'string' ? JSON.parse(rawSv) : rawSv;
+        setBookingServicesJson(JSON.stringify(Array.isArray(arr) ? arr : [{ label: 'Consultation', minutes: 30 }], null, 2));
+      } else {
+        setBookingServicesJson(JSON.stringify([{ label: 'Consultation', minutes: 30 }], null, 2));
+      }
+    } catch {
+      setBookingServicesJson(JSON.stringify([{ label: 'Consultation', minutes: 30 }], null, 2));
+    }
+    const bv = String((site as any).booking_vertical || 'general').toLowerCase();
+    setBookingVertical(
+      bv === 'medical' || bv === 'legal' || bv === 'business' ? (bv as 'medical' | 'legal' | 'business') : 'general',
+    );
     setSectionOrder((site as any).section_order || ['summary','experience','education','skills','projects','languages','certificates','contact']);
     setShowFeed((site as any).show_feed !== false);
     setFeedCols((site as any).feed_cols || 1);
@@ -427,7 +468,7 @@ function EditorPageInner() {
             if (Array.isArray(raw)) {
               pm[pageId] = raw;
               pc[pageId] = 1;
-              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 };
+              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
               return;
             }
             const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
@@ -441,6 +482,7 @@ function EditorPageInner() {
               feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
               ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
               mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
+              booking: [1,2,3].includes(Number(raw?.moduleColumns?.booking)) ? Number(raw.moduleColumns.booking) as 1|2|3 : 1,
             };
           });
         }
@@ -506,6 +548,31 @@ function EditorPageInner() {
       .then((r: any) => setFeedPosts(r.data || []));
   }, [site?.id]);
 
+  const refreshBookingRows = useCallback(async () => {
+    if (!site?.id) return;
+    setBookingRowsLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('site_bookings')
+        .select('*')
+        .eq('site_id', site.id)
+        .order('starts_at', { ascending: true })
+        .limit(100);
+      if (error) {
+        setBookingRows([]);
+        return;
+      }
+      setBookingRows(data || []);
+    } finally {
+      setBookingRowsLoading(false);
+    }
+  }, [site?.id]);
+
+  useEffect(() => {
+    if (activeTab !== 'booking' || !site?.id) return;
+    void refreshBookingRows();
+  }, [activeTab, site?.id, refreshBookingRows]);
+
   useEffect(() => {
     (supabase as any).from('platform_settings').select('key,value').in('key', ['trial_hours', 'grace_days']).then(({ data }: any) => {
       (data || []).forEach((s: any) => {
@@ -538,9 +605,10 @@ function EditorPageInner() {
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
       showCv, cvLocked, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
-      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, published, seoTitle, seoDescription, seoOgImage, seoSearchTags, seoJsonLd,       livelyAvatarEnabled, livelyAvatarModel, livelyAvatarWelcome, livelyCentralMagic, livelyFloatingPreset, livelyFloatingExpressive, livelyDualAgent, livelyAgentInstructions, livelyElevenOwner, livelyElevenAgent, identityPortraitUrl, identityStylePreset, identityVoiceEffect, magicPortraitEnabled, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
+      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, contactWhatsapp, published, seoTitle, seoDescription, seoOgImage, seoSearchTags, seoJsonLd,       livelyAvatarEnabled, livelyAvatarModel, livelyAvatarWelcome, livelyCentralMagic, livelyFloatingExpressive, livelyDualAgent, livelyAgentInstructions, livelyElevenOwner, livelyElevenAgent, identityPortraitUrl, identityStylePreset, identityVoiceEffect, magicPortraitEnabled, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
       adAskingPrice, adShowPricePublic, directoryProfileSlug, siteCategorySlug,
-      mysticPublicEnabled, mysticTarotPrice, mysticLotteryPrice]);
+      mysticPublicEnabled, mysticTarotPrice, mysticLotteryPrice,
+      bookingEnabled, bookingSlotMinutes, bookingTimezone, bookingWeeklyJson, bookingServicesJson, bookingVertical]);
 
   // ── Upload helper ─────────────────────────────────────────────────────────
   const uploadToStorage = async (file: File, folder: string): Promise<string> => {
@@ -585,6 +653,7 @@ function EditorPageInner() {
           siteId: site.id,
           action: 'magic_description',
           payload: seoAssistPayload(),
+          uiLang: lang,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -616,6 +685,7 @@ function EditorPageInner() {
           siteId: site.id,
           action: 'suggest_keywords',
           payload: seoAssistPayload(),
+          uiLang: lang,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -653,6 +723,7 @@ function EditorPageInner() {
           siteId: site.id,
           action: 'seo_pack',
           payload: seoAssistPayload(),
+          uiLang: lang,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -744,7 +815,7 @@ function EditorPageInner() {
       const res = await fetch('/api/lively-avatar/suggest-welcome', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug }),
+        body: JSON.stringify({ slug, uiLang: lang }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -803,9 +874,31 @@ function EditorPageInner() {
         combinedPageModules[p.id] = {
           modules,
           columns: pageColumns[p.id] || 1,
-          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 },
+          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
         };
       });
+
+      let weeklyHoursPayload: Record<string, unknown> | null = null;
+      try {
+        const w = JSON.parse(bookingWeeklyJson);
+        if (w && typeof w === 'object' && !Array.isArray(w)) weeklyHoursPayload = w as Record<string, unknown>;
+      } catch {
+        weeklyHoursPayload = null;
+      }
+      let servicesPayload: unknown[] | null = null;
+      try {
+        const s = JSON.parse(bookingServicesJson);
+        servicesPayload = Array.isArray(s) ? s : null;
+      } catch {
+        servicesPayload = null;
+      }
+      if (!weeklyHoursPayload || !servicesPayload) {
+        if (!silent) {
+          toast.error(T('ed_booking_json_invalid'));
+          setSaving(false);
+          return;
+        }
+      }
 
       await save({
         site_name:     siteName,
@@ -821,7 +914,7 @@ function EditorPageInner() {
         theme,
         accent_color:  accentColor,
         photo_shape:   photoShape,
-        photo_size:    photoSize,
+        photo_size:    photoSize === 'site' ? 'xl' : photoSize,
         font_style:    fontStyle,
         text_color:    textColor || null,
         show_cv:       showCv,
@@ -851,6 +944,7 @@ function EditorPageInner() {
         page_modules: JSON.stringify(combinedPageModules),
         wallet_address: walletAddr,
         contact_email: contactEmail,
+        contact_phone: contactWhatsapp.trim() || null,
         ticker_enabled: tickerEnabled,
         ticker_items: tickerItems,
         seo_title: seoTitle || null,
@@ -862,7 +956,7 @@ function EditorPageInner() {
         lively_avatar_model: livelyAvatarModel || 'neo',
         lively_avatar_welcome: livelyAvatarWelcome.trim() || null,
         lively_central_magic: livelyCentralMagic,
-        lively_floating_preset: livelyFloatingPreset || 'classic',
+        lively_floating_preset: 'classic',
         lively_floating_expressive: livelyFloatingExpressive,
         lively_dual_agent: livelyDualAgent,
         lively_agent_instructions: livelyAgentInstructions.trim() || null,
@@ -890,6 +984,12 @@ function EditorPageInner() {
         mystic_public_enabled: mysticPublicEnabled,
         mystic_tarot_price_usd: Math.max(0.5, mysticTarotNum || 4.99),
         mystic_lottery_premium_price_usd: Math.max(0.5, mysticLotteryNum || 2.99),
+        booking_enabled: bookingEnabled,
+        booking_slot_minutes: Math.max(15, Math.min(180, parseInt(String(bookingSlotMinutes), 10) || 30)),
+        booking_timezone: bookingTimezone.trim() || 'America/Sao_Paulo',
+        ...(weeklyHoursPayload ? { booking_weekly_hours: weeklyHoursPayload } : {}),
+        ...(servicesPayload ? { booking_services: servicesPayload } : {}),
+        booking_vertical: bookingVertical,
       } as any);
 
       // Handle slug change
@@ -1247,7 +1347,8 @@ function EditorPageInner() {
   const currentTheme = THEMES.find(t => t.id === theme) || THEMES[0];
   const siteUrl = site?.slug ? `https://${site.slug}.trustbank.xyz` : null;
   const managePreviewUrl = site?.slug ? `/s/${site.slug}?manage=1` : null;
-  const photoSizePx: Record<string,number> = { sm:72, md:96, lg:128, xl:160 };
+  const photoSizePx: Record<string, number> = { sm: 72, md: 96, lg: 128, xl: 192 };
+  const previewContentW = Math.min(1010, Math.max(320, pageWidth));
   const avatarPx = photoSizePx[photoSize] || 96;
 
   const TABS = [
@@ -1261,26 +1362,28 @@ function EditorPageInner() {
     { id:'seo',     label:T('ed_seo'),     icon:Globe },
     { id:'copilot', label:T('ed_copilot_tab'), icon:Wand2 },
     { id:'ia',     label:T('ed_ia_tab'),     icon:Cpu },
+    { id:'booking', label:T('ed_tab_booking'), icon:CalendarClock },
     { id:'verify',  label:T('ed_verify'),  icon:Shield },
   ];
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <Header />
-      <EditorGuidePanel T={T} activeTab={activeTab} onGoToTab={setActiveTab} />
+      <EditorGuidePanel activeTab={activeTab} onGoToTab={setActiveTab} />
 
-      {/* Top bar */}
+      {/* Top bar — mais espaço vertical e quebra de linha para caberem todos os separadores */}
       <div className="sticky top-16 z-40 bg-[var(--bg)]/95 backdrop-blur border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-1 overflow-x-auto">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 min-w-0 flex-1">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                 activeTab === tab.id ? 'bg-brand text-white' : 'text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--bg2)]'}`}>
-              <tab.icon className="w-4 h-4" /> {tab.label}
+              <tab.icon className="w-4 h-4 shrink-0" /> {tab.label}
             </button>
           ))}
-          <div className="flex-1" />
-          <div className="flex items-center gap-2 flex-shrink-0">
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 pt-0.5 sm:pt-0 sm:pl-2 border-t border-[var(--border)]/60 sm:border-t-0">
             {isDirty.current
               ? <span className="text-xs text-amber-400 font-semibold">{T('ed_unsaved')}</span>
               : lastSaved && <span className="text-xs text-green-500">{T('ed_saved_at')} {lastSaved.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</span>}
@@ -1583,17 +1686,14 @@ function EditorPageInner() {
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                  <p className="text-sm font-bold text-[var(--text)]">Serviços místicos no mini-site</p>
+                  <p className="text-sm font-bold text-[var(--text)]">{T('ed_mystic_card_title')}</p>
                 </div>
-                <p className="text-xs text-[var(--text2)]">
-                  Visitantes pagam <span className="font-semibold text-[var(--text)]">directamente na tua conta Stripe</span> (Checkout
-                  Connect — sem passar pelo saldo da plataforma). O site só confirma o pagamento e gera o resultado (IA no servidor).
-                </p>
+                <p className="text-xs text-[var(--text2)]">{T('ed_mystic_card_body')}</p>
                 <p className="text-xs text-amber-200/90 border border-amber-500/25 rounded-lg px-3 py-2 bg-amber-500/5">
                   {T('ed_mystic_place_hint')}
                 </p>
                 <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg)]/80">
-                  <span className="text-sm font-semibold text-[var(--text)]">Activar venda (tarô + loteria premium)</span>
+                  <span className="text-sm font-semibold text-[var(--text)]">{T('ed_mystic_enable_sales')}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -1624,7 +1724,7 @@ function EditorPageInner() {
                 {mysticPublicEnabled && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="label block mb-1">Preço tarô (USD)</label>
+                      <label className="label block mb-1">{T('ed_mystic_price_tarot_label')}</label>
                       <input
                         value={mysticTarotPrice}
                         onChange={(e) => {
@@ -1638,7 +1738,7 @@ function EditorPageInner() {
                       />
                     </div>
                     <div>
-                      <label className="label block mb-1">Preço loteria premium (USD)</label>
+                      <label className="label block mb-1">{T('ed_mystic_price_lottery_label')}</label>
                       <input
                         value={mysticLotteryPrice}
                         onChange={(e) => {
@@ -1665,6 +1765,22 @@ function EditorPageInner() {
                 <label className="label block mb-1">{T('ed_label_contact_email')}</label>
                 <input value={contactEmail} onChange={e => { setContactEmail(e.target.value); markDirty(); }}
                   className="input" type="email" placeholder={T('ed_ph_contact_email')} />
+              </div>
+
+              <div>
+                <label className="label block mb-1">{T('ed_whatsapp_public_label')}</label>
+                <input
+                  value={contactWhatsapp}
+                  onChange={(e) => {
+                    setContactWhatsapp(e.target.value);
+                    markDirty();
+                  }}
+                  className="input font-mono text-sm"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder={T('ed_whatsapp_public_ph')}
+                />
+                <p className="text-xs text-[var(--text2)] mt-1">{T('ed_whatsapp_public_hint')}</p>
               </div>
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-3 space-y-2">
@@ -1755,7 +1871,7 @@ function EditorPageInner() {
 
               <div>
                 <label className="label block mb-2">{T('ed_photo_size')}</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {([
                     ['sm', 'ed_photo_sz_sm'],
                     ['md', 'ed_photo_sz_md'],
@@ -1763,9 +1879,10 @@ function EditorPageInner() {
                     ['xl', 'ed_photo_sz_xl'],
                   ] as const).map(([v, key]) => (
                     <button key={v} onClick={() => { setPhotoSize(v); markDirty(); }}
-                      className={`py-2 rounded-xl text-xs font-semibold transition-all ${photoSize===v ? 'bg-brand text-white' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}>{T(key)}</button>
+                      className={`py-2 px-1 rounded-xl text-xs font-semibold transition-all leading-snug ${photoSize===v ? 'bg-brand text-white' : 'bg-[var(--bg2)] text-[var(--text2)]'}`}>{T(key)}</button>
                   ))}
                 </div>
+                <p className="text-[10px] text-[var(--text2)] mt-1.5 leading-relaxed">{T('ed_photo_size_layout_hint')}</p>
               </div>
 
               <div>
@@ -2122,6 +2239,7 @@ function EditorPageInner() {
                   {moduleOrder.map((mod, idx) => {
                     const labels: Record<string,string> = {
                       links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads', mystic:'🔮 Mystic',
+                      booking: `📅 ${modLab.booking}`,
                     };
                     return (
                       <div key={mod} draggable
@@ -2139,7 +2257,7 @@ function EditorPageInner() {
                         }}
                         className={`flex items-center gap-3 p-3 rounded-xl border cursor-grab transition-all ${dragOverMod===mod ? 'border-brand bg-brand/5' : 'border-[var(--border)] bg-[var(--bg2)]'}`}>
                         <GripVertical className="w-4 h-4 text-[var(--text2)]" />
-                        <span className="text-sm font-bold text-[var(--text)]">{labels[mod]}</span>
+                        <span className="text-sm font-bold text-[var(--text)]">{labels[mod] ?? modLab[mod as keyof typeof modLab] ?? mod}</span>
                         <span className="text-xs text-[var(--text2)] ml-auto">#{idx+1}</span>
                       </div>
                     );
@@ -2244,7 +2362,7 @@ function EditorPageInner() {
                     setSitePages(prev => [...prev, { id: newId, label: T('ed_page_new_label').replace('{n}', String(prev.length + 1)) }]);
                     setPageModules(prev => ({ ...prev, [newId]: [] }));
                     setPageColumns(prev => ({ ...prev, [newId]: 1 }));
-                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1 } }));
+                    setModuleColumns(prev => ({ ...prev, [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 } }));
                     markDirty();
                   }}
                     className="btn-secondary w-full justify-center text-sm"><Plus className="w-4 h-4" /> {T('ed_add_page')}</button>
@@ -2290,7 +2408,7 @@ function EditorPageInner() {
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {(['links','videos','cv','feed','ads','mystic'] as const).map(mod => {
+                      {(['links','videos','cv','feed','ads','mystic','booking'] as const).map(mod => {
                         const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
                         const enabled = currentModules.includes(mod);
                         const isFixedOnHome = page.id === 'home' && (mod === 'links' || mod === 'feed');
@@ -2317,7 +2435,7 @@ function EditorPageInner() {
                                   const col = Number(e.target.value) as 1|2|3;
                                   setModuleColumns(prev => ({
                                     ...prev,
-                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1, ads:1, mystic:1 }), [mod]: col },
+                                    [page.id]: { ...(prev[page.id] || { links:1, videos:1, cv:1, feed:1, ads:1, mystic:1, booking:1 }), [mod]: col },
                                   }));
                                   markDirty();
                                 }}
@@ -2708,24 +2826,9 @@ function EditorPageInner() {
                 />
                 <span className="text-sm font-semibold text-[var(--text)]">{T('ed_lively_central_magic')}</span>
               </label>
-              <div>
-                <label className="label block mb-1">{T('ed_lively_floating')}</label>
-                <select
-                  value={livelyFloatingPreset}
-                  onChange={(e) => {
-                    setLivelyFloatingPreset(e.target.value);
-                    markDirty();
-                  }}
-                  className="input"
-                >
-                  {FLOATING_PRESETS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {T(p.labelKey)}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_lively_floating_hint')}</p>
-              </div>
+              <p className="text-xs text-[var(--text2)] leading-relaxed rounded-xl border border-[var(--border)] bg-[var(--bg2)] px-3 py-2 mb-2">
+                {T('ed_lively_floating_profile_hint')}
+              </p>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -2806,6 +2909,7 @@ function EditorPageInner() {
                   rows={4}
                   placeholder={T('ed_lively_instructions_ph')}
                 />
+                <p className="text-[10px] text-[var(--text2)] mt-1 leading-relaxed">{T('ed_lively_assistant_behavior_hint')}</p>
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
@@ -2921,6 +3025,217 @@ function EditorPageInner() {
               </div>
             </div>
           )}
+            </div>
+          )}
+
+          {activeTab === 'booking' && (
+            <div className="space-y-5">
+              <div className="card p-6 space-y-4 border border-emerald-500/20 bg-emerald-500/[0.04]">
+                <div className="flex items-start gap-3">
+                  <CalendarClock className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h2 className="font-black text-lg text-[var(--text)]">{T('ed_booking_title')}</h2>
+                    <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed">{T('ed_booking_blurb')}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg)]/80">
+                  <span className="text-sm font-semibold text-[var(--text)]">{T('ed_booking_enable')}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !bookingEnabled;
+                      setBookingEnabled(next);
+                      if (next) {
+                        setModuleOrder((prev) =>
+                          prev.includes('booking') ? prev : enforceHomeFixedModules([...prev, 'booking']),
+                        );
+                        setPageModules((prev) => {
+                          if (prev.home?.includes('booking')) return prev;
+                          const seed =
+                            prev.home?.length ? prev.home : ['links', 'feed', 'videos', 'cv', 'ads', 'mystic'];
+                          return { ...prev, home: enforceHomeFixedModules([...seed, 'booking']) };
+                        });
+                      }
+                      markDirty();
+                    }}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${bookingEnabled ? 'bg-brand' : 'bg-[var(--border)]'}`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        bookingEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="text-[11px] text-[var(--text2)]">
+                  {T('ed_ia_tab')}: {T('ed_lively_enable')} — {lang.startsWith('en') ? 'the avatar answers using your schedule when booking is on.' : 'o avatar responde com a tua agenda quando a marcação está ativa.'}
+                </p>
+              </div>
+
+              <div className="card p-6 space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label block mb-1">{T('ed_booking_slot_min')}</label>
+                    <select
+                      value={String(Math.max(15, Math.min(180, parseInt(bookingSlotMinutes, 10) || 30)))}
+                      onChange={(e) => {
+                        setBookingSlotMinutes(e.target.value);
+                        markDirty();
+                      }}
+                      className="input w-full"
+                    >
+                      {[15, 20, 30, 45, 60, 90, 120].map((m) => (
+                        <option key={m} value={m}>
+                          {m} min
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label block mb-1">{T('ed_booking_tz')}</label>
+                    <select
+                      value={bookingTimezone}
+                      onChange={(e) => {
+                        setBookingTimezone(e.target.value);
+                        markDirty();
+                      }}
+                      className="input w-full"
+                    >
+                      <option value="America/Sao_Paulo">America/São Paulo</option>
+                      <option value="Europe/Lisbon">Europe/Lisbon</option>
+                      <option value="Europe/Madrid">Europe/Madrid</option>
+                      <option value="America/New_York">America/New York</option>
+                      <option value="America/Los_Angeles">America/Los Angeles</option>
+                      <option value="UTC">UTC</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="label block mb-1">{T('ed_booking_vertical')}</label>
+                  <select
+                    value={bookingVertical}
+                    onChange={(e) => {
+                      setBookingVertical(e.target.value as typeof bookingVertical);
+                      markDirty();
+                    }}
+                    className="input w-full"
+                  >
+                    <option value="general">{T('ed_booking_vertical_general')}</option>
+                    <option value="medical">{T('ed_booking_vertical_medical')}</option>
+                    <option value="legal">{T('ed_booking_vertical_legal')}</option>
+                    <option value="business">{T('ed_booking_vertical_business')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label block mb-1">{T('ed_booking_weekly_json')}</label>
+                  <textarea
+                    value={bookingWeeklyJson}
+                    onChange={(e) => {
+                      setBookingWeeklyJson(e.target.value);
+                      markDirty();
+                    }}
+                    className="input font-mono text-xs w-full min-h-[140px] resize-y"
+                    spellCheck={false}
+                  />
+                  <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_booking_weekly_hint')}</p>
+                </div>
+                <div>
+                  <label className="label block mb-1">{T('ed_booking_services_json')}</label>
+                  <textarea
+                    value={bookingServicesJson}
+                    onChange={(e) => {
+                      setBookingServicesJson(e.target.value);
+                      markDirty();
+                    }}
+                    className="input font-mono text-xs w-full min-h-[100px] resize-y"
+                    spellCheck={false}
+                  />
+                  <p className="text-[10px] text-[var(--text2)] mt-1">{T('ed_booking_services_hint')}</p>
+                </div>
+              </div>
+
+              {site?.id ? (
+                <div className="card p-6 space-y-3">
+                  <h3 className="font-black text-sm text-[var(--text)]">{T('ed_booking_upcoming')}</h3>
+                  {bookingRowsLoading ? (
+                    <p className="text-xs text-[var(--text2)] flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> …
+                    </p>
+                  ) : bookingRows.length === 0 ? (
+                    <p className="text-sm text-[var(--text2)]">{T('ed_booking_no_rows')}</p>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {bookingRows.map((row: any) => (
+                        <div
+                          key={row.id}
+                          className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-3 text-xs space-y-2"
+                        >
+                          <div className="flex flex-wrap justify-between gap-2">
+                            <span className="font-bold text-[var(--text)]">
+                              {row.visitor_name || row.visitor_email || '—'}
+                            </span>
+                            <span className="text-[var(--text2)]">
+                              {T('ed_booking_status')}: <span className="text-brand font-semibold">{row.status || 'pending'}</span>
+                            </span>
+                          </div>
+                          <p className="text-[var(--text2)]">
+                            {new Date(row.starts_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                            {' — '}
+                            {new Date(row.ends_at).toLocaleTimeString(undefined, { timeStyle: 'short' })}
+                          </p>
+                          {row.visitor_email ? (
+                            <p className="text-[var(--text2)] truncate">{row.visitor_email}</p>
+                          ) : null}
+                          {row.status !== 'cancelled' ? (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {row.status !== 'confirmed' ? (
+                                <button
+                                  type="button"
+                                  className="px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-400 text-xs font-bold"
+                                  onClick={async () => {
+                                    const { error } = await (supabase as any)
+                                      .from('site_bookings')
+                                      .update({ status: 'confirmed' })
+                                      .eq('id', row.id)
+                                      .eq('site_id', site.id);
+                                    if (error) {
+                                      toast.error(error.message || 'Erro');
+                                      return;
+                                    }
+                                    toast.success(T('ed_booking_row_updated'));
+                                    void refreshBookingRows();
+                                  }}
+                                >
+                                  {T('ed_booking_confirm')}
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 text-xs font-bold"
+                                onClick={async () => {
+                                  const { error } = await (supabase as any)
+                                    .from('site_bookings')
+                                    .update({ status: 'cancelled' })
+                                    .eq('id', row.id)
+                                    .eq('site_id', site.id);
+                                  if (error) {
+                                    toast.error(error.message || 'Erro');
+                                    return;
+                                  }
+                                  toast.success(T('ed_booking_row_updated'));
+                                  void refreshBookingRows();
+                                }}
+                              >
+                                {T('ed_booking_cancel')}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           )}
 

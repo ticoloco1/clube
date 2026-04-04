@@ -18,6 +18,8 @@
     "@tiptap/react": "^2.7.3",
     "@tiptap/starter-kit": "^2.7.3",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "i18next": "^23.7.6",
     "lucide-react": "^0.460.0",
     "next": "14.2.5",

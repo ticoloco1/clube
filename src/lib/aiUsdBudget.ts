@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-/** Orçamento gratuito inicial por mini-site (USD). */
+/** Orçamento promocional por mini-site (USD). Default 0 — compra em /creditos. Override: IA_FREE_USD_PER_SITE. */
 export function iaFreeAllowanceUsd(): number {
-  const v = parseFloat(process.env.IA_FREE_USD_PER_SITE || '2');
-  return Number.isFinite(v) && v >= 0 ? v : 2;
+  const v = parseFloat(process.env.IA_FREE_USD_PER_SITE || '0');
+  return Number.isFinite(v) && v >= 0 ? v : 0;
 }
 
 /** Top-up: valor útil mínimo (USD) e preço de venda = face × 2 (100% margem). */
@@ -81,7 +81,7 @@ export function evaluateIaAccessUsd(params: {
       ok: false,
       code: 'IA_PAYWALL',
       message:
-        'AI budget exhausted (including the complimentary US$2). Top up from US$10 face value on the credits page — we charge 2× provider cost (100% margin) so the platform stays sustainable.',
+        'AI budget exhausted. Top up from US$10 face value on the credits page (/creditos) — we charge 2× provider cost (100% margin) so the platform stays sustainable.',
       trialExpired: false,
     };
   }

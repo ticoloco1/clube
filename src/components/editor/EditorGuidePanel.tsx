@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { BookOpen, ChevronRight, PanelRightClose, X } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 const STORAGE_COLLAPSED = 'trustbank-editor-guide-collapsed-v1';
 const STORAGE_NO_AUTO = 'trustbank-editor-guide-no-auto-v1';
@@ -28,17 +29,18 @@ const STEPS: GuideStep[] = [
   { id: 'seo', tab: 'seo', titleKey: 'ed_guide_step_seo_title', bodyKey: 'ed_guide_step_seo_body' },
   { id: 'copilot', tab: 'copilot', titleKey: 'ed_guide_step_copilot_title', bodyKey: 'ed_guide_step_copilot_body' },
   { id: 'ia', tab: 'ia', titleKey: 'ed_guide_step_ia_title', bodyKey: 'ed_guide_step_ia_body' },
+  { id: 'booking', tab: 'booking', titleKey: 'ed_guide_step_booking_title', bodyKey: 'ed_guide_step_booking_body' },
   { id: 'verify', tab: 'verify', titleKey: 'ed_guide_step_verify_title', bodyKey: 'ed_guide_step_verify_body' },
   { id: 'slugs', titleKey: 'ed_guide_step_slugs_title', bodyKey: 'ed_guide_step_slugs_body' },
 ];
 
 export type EditorGuidePanelProps = {
-  T: (key: string) => string;
   activeTab: string;
   onGoToTab: (tabId: string) => void;
 };
 
-export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelProps) {
+export function EditorGuidePanel({ activeTab, onGoToTab }: EditorGuidePanelProps) {
+  const { t, lang } = useI18n();
   const [mounted, setMounted] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -107,15 +109,15 @@ export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelPr
                 here ? 'border-brand/60 bg-brand/5' : 'border-[var(--border)] bg-[var(--bg2)]/60'
               }`}
             >
-              <p className="text-sm font-bold text-[var(--text)]">{T(step.titleKey)}</p>
-              <p className="text-xs text-[var(--text2)] mt-1.5 leading-relaxed whitespace-pre-line">{T(step.bodyKey)}</p>
+              <p className="text-sm font-bold text-[var(--text)]">{t(step.titleKey)}</p>
+              <p className="text-xs text-[var(--text2)] mt-1.5 leading-relaxed whitespace-pre-line">{t(step.bodyKey)}</p>
               {step.tab && (
                 <button
                   type="button"
                   onClick={() => goTab(step.tab)}
                   className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline"
                 >
-                  {T('ed_guide_open_tab')} <ChevronRight className="w-3.5 h-3.5" />
+                  {t('ed_guide_open_tab')} <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               )}
               {step.id === 'slugs' && (
@@ -123,7 +125,7 @@ export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelPr
                   href="/slugs"
                   className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline"
                 >
-                  {T('ed_guide_open_slugs')} <ChevronRight className="w-3.5 h-3.5" />
+                  {t('ed_guide_open_slugs')} <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               )}
             </div>
@@ -131,7 +133,7 @@ export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelPr
         })}
       </div>
     ),
-    [T, activeTab, goTab],
+    [t, lang, activeTab, goTab],
   );
 
   const footerBlock = useMemo(
@@ -142,12 +144,12 @@ export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelPr
           onClick={stopAutoOpen}
           className="w-full text-xs font-semibold text-[var(--text2)] hover:text-[var(--text)] py-2 rounded-lg hover:bg-[var(--bg2)]"
         >
-          {T('ed_guide_dont_auto')}
+          {t('ed_guide_dont_auto')}
         </button>
-        <p className="text-[10px] text-[var(--text2)]/80 text-center leading-snug">{T('ed_guide_footer_hint')}</p>
+        <p className="text-[10px] text-[var(--text2)]/80 text-center leading-snug">{t('ed_guide_footer_hint')}</p>
       </div>
     ),
-    [T, stopAutoOpen],
+    [t, lang, stopAutoOpen],
   );
 
   if (!mounted) return null;
@@ -157,22 +159,23 @@ export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelPr
       {/* Desktop / tablet: painel lateral */}
       {expanded ? (
         <aside
+          key={lang}
           className="hidden md:flex flex-col fixed right-0 top-[7.5rem] z-[38] w-[min(20.5rem,calc(100vw-12px))] max-h-[calc(100dvh-7.5rem)] border-l border-[var(--border)] bg-[var(--bg)]/98 backdrop-blur-md shadow-[0_0_24px_rgba(0,0,0,0.12)] px-3 pb-3 pt-3"
-          aria-label={T('ed_guide_title')}
+          aria-label={t('ed_guide_title')}
         >
           <div className="flex flex-col h-full min-h-0 max-h-[calc(100dvh-7.5rem)]">
             <div className="flex items-start justify-between gap-2 pb-3 border-b border-[var(--border)] flex-shrink-0">
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wide text-brand">{T('ed_guide_kicker')}</p>
-                <h2 className="text-base font-black text-[var(--text)] leading-tight mt-0.5">{T('ed_guide_title')}</h2>
-                <p className="text-[11px] text-[var(--text2)] mt-1">{T('ed_guide_subtitle')}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand">{t('ed_guide_kicker')}</p>
+                <h2 className="text-base font-black text-[var(--text)] leading-tight mt-0.5">{t('ed_guide_title')}</h2>
+                <p className="text-[11px] text-[var(--text2)] mt-1">{t('ed_guide_subtitle')}</p>
               </div>
               <button
                 type="button"
                 onClick={collapse}
                 className="p-2 rounded-lg text-[var(--text2)] hover:bg-[var(--bg2)] hover:text-[var(--text)] flex-shrink-0"
-                title={T('ed_guide_minimize')}
-                aria-label={T('ed_guide_minimize')}
+                title={t('ed_guide_minimize')}
+                aria-label={t('ed_guide_minimize')}
               >
                 <PanelRightClose className="w-4 h-4" />
               </button>
@@ -187,11 +190,11 @@ export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelPr
           onClick={expand}
           className="hidden md:flex fixed right-0 top-1/2 -translate-y-1/2 z-[38] flex-col items-center gap-1 py-4 px-2 rounded-l-xl border border-r-0 border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] shadow-lg hover:bg-brand hover:text-white hover:border-brand transition-colors"
           aria-expanded={false}
-          title={T('ed_guide_show_again')}
+          title={t('ed_guide_show_again')}
         >
           <BookOpen className="w-4 h-4 flex-shrink-0" />
           <span className="text-[10px] font-black uppercase tracking-wider [writing-mode:vertical-rl] rotate-180 max-h-[8rem]">
-            {T('ed_guide_tab_label')}
+            {t('ed_guide_tab_label')}
           </span>
         </button>
       )}
@@ -201,31 +204,31 @@ export function EditorGuidePanel({ T, activeTab, onGoToTab }: EditorGuidePanelPr
         type="button"
         onClick={() => setMobileOpen(true)}
         className="md:hidden fixed bottom-20 right-4 z-[38] flex items-center gap-2 rounded-full border border-[var(--border)] bg-brand text-white px-4 py-3 text-sm font-bold shadow-lg"
-        aria-label={T('ed_guide_title')}
+        aria-label={t('ed_guide_title')}
       >
         <BookOpen className="w-4 h-4" />
-        {T('ed_guide_tab_label')}
+        {t('ed_guide_tab_label')}
       </button>
 
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-[45] flex flex-col justify-end bg-black/50" role="dialog" aria-modal="true">
           <button type="button" className="flex-1 min-h-[20vh] w-full cursor-default" aria-label="Close" onClick={() => setMobileOpen(false)} />
-          <div className="max-h-[min(78dvh,560px)] rounded-t-2xl border-t border-x border-[var(--border)] bg-[var(--bg)] px-4 pt-2 pb-4 shadow-2xl flex flex-col">
+          <div key={lang} className="max-h-[min(78dvh,560px)] rounded-t-2xl border-t border-x border-[var(--border)] bg-[var(--bg)] px-4 pt-2 pb-4 shadow-2xl flex flex-col">
             <div className="flex justify-center pb-2">
               <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
             </div>
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
-              <span className="text-sm font-black text-[var(--text)]">{T('ed_guide_title')}</span>
+              <span className="text-sm font-black text-[var(--text)]">{t('ed_guide_title')}</span>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="p-2 rounded-lg text-[var(--text2)] hover:bg-[var(--bg2)]"
-                aria-label={T('ed_guide_close_mobile')}
+                aria-label={t('ed_guide_close_mobile')}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-[11px] text-[var(--text2)] pb-2">{T('ed_guide_subtitle')}</p>
+            <p className="text-[11px] text-[var(--text2)] pb-2">{t('ed_guide_subtitle')}</p>
             <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
               {stepsBlock}
               {footerBlock}

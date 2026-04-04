@@ -11,6 +11,8 @@ export type SiteKnowledgeInput = {
   seo_title?: string | null;
   seo_description?: string | null;
   seo_search_tags?: string[] | null;
+  /** E.164-style digits for visitor WhatsApp (mini_sites.contact_phone) */
+  contact_whatsapp_digits?: string | null;
 };
 
 export type LinkRow = { title: string; url: string };
@@ -34,6 +36,12 @@ export function buildSiteKnowledgeJson(site: SiteKnowledgeInput, links: LinkRow[
       location: site.cv_location || '',
       content_excerpt:
         typeof site.cv_content === 'string' ? site.cv_content.replace(/<[^>]+>/g, ' ').slice(0, 2500) : '',
+    },
+    contact: {
+      whatsapp_wa_me:
+        site.contact_whatsapp_digits && site.contact_whatsapp_digits.length >= 8
+          ? `https://wa.me/${site.contact_whatsapp_digits}`
+          : '',
     },
   };
   return JSON.stringify(payload, null, 0);

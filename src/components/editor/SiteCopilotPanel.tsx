@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Wand2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { useT } from '@/lib/i18n';
+import { useT, useI18n } from '@/lib/i18n';
 
 type Task =
   | 'profile_bio'
@@ -47,6 +47,7 @@ export function SiteCopilotPanel({
   onAppendLivelyInstructions: (s: string) => void;
 }) {
   const T = useT();
+  const { lang } = useI18n();
   const [task, setTask] = useState<Task>('profile_bio');
   const [context, setContext] = useState('');
   const [draft, setDraft] = useState('');
@@ -89,6 +90,7 @@ export function SiteCopilotPanel({
           pageLabel: page?.label || '',
           paywallEnabled,
           paywallPrice,
+          uiLang: lang,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -108,7 +110,7 @@ export function SiteCopilotPanel({
     } finally {
       setBusy(false);
     }
-  }, [siteId, busy, task, context, draft, pageId, sitePages, paywallEnabled, paywallPrice, T]);
+  }, [siteId, busy, task, context, draft, pageId, sitePages, paywallEnabled, paywallPrice, lang, T]);
 
   const copyOut = useCallback(async () => {
     if (!out) return;

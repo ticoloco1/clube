@@ -129,10 +129,10 @@ export function TrustBankShareModal({
           {T('share_open')}
         </button>
 
-      {/* Canto: QR “ver no telemóvel” (estilo Linktree) */}
+      {/* Canto inferior esquerdo: QR “ver no telemóvel” (evita sobrepor o assistente IA à direita) */}
       {qrSrc && (
         <div
-          className="fixed bottom-4 right-4 z-[60] hidden sm:flex flex-col items-center gap-1 rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-black/5"
+          className="fixed bottom-4 left-4 z-[55] hidden sm:flex flex-col items-center gap-1 rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-black/5"
           style={{ maxWidth: 112 }}
         >
           <span className="text-[10px] font-bold text-neutral-500 text-center leading-tight px-1">

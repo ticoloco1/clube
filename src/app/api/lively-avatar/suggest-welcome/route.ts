@@ -4,6 +4,7 @@ import { openAiCompatibleChat, resolveAiRuntime, type AiConfigRow } from '@/lib/
 import { getLivelySiteForApi, getServiceDb, getViewerUserId, rateLimitLively } from '@/lib/livelyAvatarServer';
 import { applySiteAiBudgetDeduction, assertOwnerAiBudgetUsd, IA_USD, readSiteAiBudget } from '@/lib/aiUsdBudget';
 import { iaUsdBillingApplies } from '@/lib/iaBillingSubscription';
+import { outputLanguageNameForPrompt, parseUiLang } from '@/lib/aiVisitorLanguage';
 
 async function loadAiConfig(db: ReturnType<typeof getServiceDb>): Promise<AiConfigRow> {
   const { data } = await db.from('platform_settings' as never).select('value').eq('key', 'ai_config').maybeSingle();
@@ -34,6 +35,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const slug = typeof body.slug === 'string' ? body.slug.trim().toLowerCase() : '';
     const topic = typeof body.topic === 'string' ? body.topic.trim().slice(0, 400) : '';
+    const uiLang = parseUiLang(body.uiLang);
+    const outLang = outputLanguageNameForPrompt(uiLang);
 
     if (!slug) {
       return NextResponse.json({ error: 'slug obrigatório' }, { status: 400 });
@@ -65,13 +68,12 @@ export async function POST(req: NextRequest) {
     }
 
     const userPrompt = topic
-      ? `Mini-site: "${site.site_name}". Nicho/tema: ${topic}. Gera UMA mensagem de boas-vindas (máx. 350 caracteres), em português, tom acolhedor, convidando à conversa.`
-      : `Mini-site: "${site.site_name}". Bio: ${(site.bio || '').slice(0, 500)}. Gera UMA mensagem de boas-vindas (máx. 350 caracteres), em português, profissional e calorosa.`;
+      ? `Mini-site: "${site.site_name}". Niche/topic: ${topic}. Write ONE welcome message (max 350 characters) in ${outLang}, warm tone, inviting chat.`
+      : `Mini-site: "${site.site_name}". Bio: ${(site.bio || '').slice(0, 500)}. Write ONE welcome message (max 350 characters) in ${outLang}, professional and warm.`;
 
     const text = await openAiCompatibleChat({
       ...runtime,
-      system:
-        'Respondes só com o texto final da mensagem, sem aspas, sem título, sem markdown. Uma frase ou dois períodos curtos.',
+      system: `Reply with only the final message text: no quotes, no title, no markdown. One or two short sentences. Language: ${outLang}.`,
       user: userPrompt,
       max_tokens: 200,
       temperature: 0.55,

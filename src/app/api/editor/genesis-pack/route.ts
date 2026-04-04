@@ -12,6 +12,7 @@ import {
 } from '@/lib/aiUsdBudget';
 import { iaUsdBillingApplies } from '@/lib/iaBillingSubscription';
 import type { GenesisPack } from '@/lib/genesisPackTypes';
+import { outputLanguageNameForPrompt, parseUiLang } from '@/lib/aiVisitorLanguage';
 
 const OWNER_EMAIL = (process.env.ADMIN_OWNER_EMAIL || 'arytcf@gmail.com').toLowerCase();
 
@@ -137,22 +138,24 @@ export async function POST(req: NextRequest) {
 
     const raw = await openAiCompatibleChat({
       ...runtime,
-      system: `És o motor Génesis do TrustBank (DeepSeek). Gera um ÚNICO objeto JSON válido — sem markdown à volta, sem texto antes ou depois.
+      system: `You are the TrustBank Genesis engine (DeepSeek). Output a SINGLE valid JSON object — no markdown fences, no text before or after.
 
-Schema obrigatório:
+Visitor/editor UI language (from flags): ${outLang}.
+
+Schema (all user-facing string values MUST be written in ${outLang}):
 {
-  "bio": "string, 2-4 frases, max 450 chars, português",
-  "cv_headline": "string, uma linha forte, max 110 chars",
-  "cv_body_markdown": "string com ## secções e listas - , inclui Sobre, Experiência, Skills, Contacto/Redes",
+  "bio": "string, 2-4 sentences, max 450 chars",
+  "cv_headline": "string, one strong line, max 110 chars",
+  "cv_body_markdown": "string with ## sections and - lists: About, Experience, Skills, Contact/links",
   "seo_title": "max 58 chars",
   "seo_description": "130-155 chars",
-  "link_ideas": [{"title":"string","url_hint":"https://... ou texto se não souberes URL exata"}],
-  "feed_ideas": ["3 a 6 ideias curtas de posts para o feed"],
-  "paywall_pitch": "2 frases a explicar valor de conteúdo premium, ético"
+  "link_ideas": [{"title":"string","url_hint":"https://... or hint if URL unknown"}],
+  "feed_ideas": ["3 to 6 short post ideas for the feed"],
+  "paywall_pitch": "2 sentences explaining premium content value, ethical tone"
 }
 
-Regras: usa o snapshot JSON do estado actual + o brief do utilizador. Não inventes factos biográficos concretos não mencionados — preenche com placeholders honestos (ex. "Empresa X") se faltar info. link_ideas: 4 a 7 sugestões realistas.`,
-      user: `Snapshot:\n${snapStr}\n\nBrief do criador:\n${brief || '(nenhum — infere a partir do snapshot)'}`,
+Rules: use the snapshot JSON + creator brief. Do not invent concrete biographical facts not mentioned — use honest placeholders (e.g. "Company X") if missing. link_ideas: 4 to 7 realistic suggestions.`,
+      user: `Snapshot:\n${snapStr}\n\nCreator brief:\n${brief || '(none — infer from snapshot)'}`,
       max_tokens: 2200,
       temperature: 0.5,
     });

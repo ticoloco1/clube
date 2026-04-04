@@ -11,6 +11,8 @@ import {
   readSiteAiBudget,
 } from '@/lib/aiUsdBudget';
 import { iaUsdBillingApplies } from '@/lib/iaBillingSubscription';
+import { outputLanguageNameForPrompt, parseUiLang } from '@/lib/aiVisitorLanguage';
+import type { Lang } from '@/lib/i18n/types';
 
 const OWNER_EMAIL = (process.env.ADMIN_OWNER_EMAIL || 'arytcf@gmail.com').toLowerCase();
 
@@ -77,35 +79,37 @@ function rateLimitCopilot(key: string): boolean {
   return true;
 }
 
-function buildPrompts(task: string, ctx: Record<string, unknown>, extra: string, draft: string) {
+function buildPrompts(task: string, ctx: Record<string, unknown>, extra: string, draft: string, outputLang: Lang) {
   const pack = JSON.stringify(ctx, null, 0);
-  const tail = [extra && `Pedido extra do criador:\n${extra}`, draft && `Rascunho / texto atual:\n${draft}`]
+  const tail = [extra && `Creator extra request:\n${extra}`, draft && `Current draft / text:\n${draft}`]
     .filter(Boolean)
     .join('\n\n');
 
   const baseUser = `${pack}\n\n${tail}`;
+  const langName = outputLanguageNameForPrompt(outputLang);
+  const langFooter = `\n\nOutput language (required): write everything in ${langName}.`;
 
   switch (task) {
     case 'profile_bio':
       return {
         system:
-          'És copywriter para mini-sites estilo link-in-bio (TrustBank). Escreve uma bio curta, calorosa e clara (2–4 frases, máx. ~420 caracteres). Português. Sem hashtags excessivas. Sem markdown. Uma só mensagem final.',
-        user: `Melhora ou cria a bio do perfil com base em:\n${baseUser}`,
+          `You are a copywriter for link-in-bio mini-sites (TrustBank). Write a short, warm, clear profile bio (2–4 sentences, max ~420 characters). No excessive hashtags. No markdown. Single final message only.${langFooter}`,
+        user: `Improve or create the profile bio from:\n${baseUser}`,
         max_tokens: 400,
         temperature: 0.5,
       };
     case 'cv_headline':
       return {
         system:
-          'És coach de carreira. Gera um headline de CV curto (uma linha, máx. 120 caracteres), específico e memorável. Português. Sem aspas. Sem markdown.',
-        user: `Headline para o CV:\n${baseUser}`,
+          `You are a career coach. Generate a short CV headline (one line, max 120 characters), specific and memorable. No quotes. No markdown.${langFooter}`,
+        user: `CV headline:\n${baseUser}`,
         max_tokens: 200,
         temperature: 0.45,
       };
     case 'seo_title':
       return {
         system:
-          'SEO: gera um meta title (máx. 60 caracteres) para Google. Inclui nome ou marca do site se fizer sentido. Português. Uma linha, sem aspas, sem markdown.',
+          `SEO: generate a meta title (max 60 characters) for Google. Include site name or brand if it fits. One line, no quotes, no markdown.${langFooter}`,
         user: `Meta title:\n${baseUser}`,
         max_tokens: 120,
         temperature: 0.4,
@@ -113,40 +117,40 @@ function buildPrompts(task: string, ctx: Record<string, unknown>, extra: string,
     case 'seo_meta_description':
       return {
         system:
-          'SEO: meta descrição para Google (130–155 caracteres). Call-to-action suave. Português. Uma linha, sem aspas, sem markdown.',
-        user: `Meta descrição:\n${baseUser}`,
+          `SEO: meta description for Google (130–155 characters). Soft call-to-action. One line, no quotes, no markdown.${langFooter}`,
+        user: `Meta description:\n${baseUser}`,
         max_tokens: 220,
         temperature: 0.45,
       };
     case 'paywall_pitch':
       return {
         system:
-          'Escreve 2–3 frases de vendas éticas para conteúdo em paywall (vídeo premium). Tom entusiasta mas honesto. Menciona valor, não promessas irreais. Português. Sem markdown.',
-        user: `Pitch paywall (preço e contexto no JSON):\n${baseUser}`,
+          `Write 2–3 ethical sales sentences for premium paywalled content (video). Enthusiastic but honest tone. Mention value, not unrealistic promises. No markdown.${langFooter}`,
+        user: `Paywall pitch (price and context in JSON):\n${baseUser}`,
         max_tokens: 280,
         temperature: 0.5,
       };
     case 'page_html':
       return {
         system:
-          'Gera HTML simples para uma página do mini-site: apenas <p>, <strong>, <ul>, <li>, <br/>. Sem scripts, sem iframes, sem estilos inline complexos. Conteúdo em português, estruturado e legível.',
-        user: `Página do menu. Preenche com conteúdo útil:\n${baseUser}`,
+          `Generate simple HTML for a mini-site page: only <p>, <strong>, <ul>, <li>, <br/>. No scripts, no iframes, no heavy inline styles. Structured, readable content.${langFooter}`,
+        user: `Menu page. Fill with useful content:\n${baseUser}`,
         max_tokens: 900,
         temperature: 0.45,
       };
     case 'sponsor_voice_script':
       return {
         system:
-          'Escreve um monólogo curto (4–8 frases) para um assistente de voz no site: acolhe visitantes, menciona que o espaço aceita parcerias/publicidade de forma elegante, convida a explorar o feed ou links. Se o criador der nome de marca no pedido extra, podes mencioná-la como exemplo de “experiência” fictícia apenas se for claramente ilustrativo — nunca afirmes patrocínio real. Português natural. Sem markdown.',
-        user: `Script para o assistente falante:\n${baseUser}`,
+          `Write a short monologue (4–8 sentences) for a voice assistant on the site: welcome visitors, mention that the space accepts partnerships/ads elegantly, invite them to explore feed or links. If the creator names a brand in the extra request, you may mention it as a fictional illustrative example only — never claim real sponsorship. Natural tone. No markdown.${langFooter}`,
+        user: `Speaking assistant script:\n${baseUser}`,
         max_tokens: 450,
         temperature: 0.55,
       };
     case 'site_audit':
       return {
         system:
-          'És auditor de mini-sites. Devolve uma lista com marcas “- ” (6 a 10 itens) com melhorias concretas: bio, SEO, links, paywall, clareza, confiança. Português. Sem markdown, sem título.',
-        user: `Análise rápida:\n${baseUser}`,
+          `You audit mini-sites. Return a bullet list with "- " (6 to 10 items) with concrete improvements: bio, SEO, links, paywall, clarity, trust. No markdown title line.${langFooter}`,
+        user: `Quick audit:\n${baseUser}`,
         max_tokens: 650,
         temperature: 0.35,
       };
@@ -179,6 +183,7 @@ export async function POST(req: NextRequest) {
     const paywallEnabled = body.paywallEnabled === true;
     const paywallPrice =
       typeof body.paywallPrice === 'string' ? body.paywallPrice.trim().slice(0, 20) : '';
+    const uiLang = parseUiLang(body.uiLang);
 
     if (!siteId || !COPILOT_TASKS.has(task)) {
       return NextResponse.json({ error: 'siteId ou task inválido' }, { status: 400 });
@@ -250,7 +255,7 @@ export async function POST(req: NextRequest) {
       ctxObj.pagina = pageLabel || 'Página';
     }
 
-    const prompts = buildPrompts(task, ctxObj, context, draft);
+    const prompts = buildPrompts(task, ctxObj, context, draft, uiLang);
     if (!prompts) {
       return NextResponse.json({ error: 'Task inválido' }, { status: 400 });
     }
