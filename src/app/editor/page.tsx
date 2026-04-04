@@ -117,6 +117,7 @@ function EditorPageInner() {
       feed: T('ed_mod_feed'),
       ads: T('ed_mod_ads'),
       mystic: T('ed_mod_mystic'),
+      slug_market: T('ed_mod_slug_market'),
       booking: T('ed_mod_booking'),
       pages: T('ed_mod_pages'),
     }),
@@ -214,7 +215,7 @@ function EditorPageInner() {
   const [pagesEditorSelectedId, setPagesEditorSelectedId] = useState<string>('home');
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
   const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({
-    home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+    home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
   });
   const [clearAllArmed, setClearAllArmed] = useState<Record<string, boolean>>({});
   const [adAskingPrice, setAdAskingPrice] = useState('');
@@ -559,7 +560,7 @@ function EditorPageInner() {
             if (Array.isArray(raw)) {
               pm[pageId] = raw;
               pc[pageId] = 1;
-              mc[pageId] = { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
+              mc[pageId] = { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 };
               return;
             }
             const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
@@ -574,6 +575,7 @@ function EditorPageInner() {
               feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
               ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
               mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
+              slug_market: [1,2,3].includes(Number(raw?.moduleColumns?.slug_market)) ? Number(raw.moduleColumns.slug_market) as 1|2|3 : 1,
               booking: [1,2,3].includes(Number(raw?.moduleColumns?.booking)) ? Number(raw.moduleColumns.booking) as 1|2|3 : 1,
             };
           });
@@ -953,7 +955,7 @@ function EditorPageInner() {
         combinedPageModules[p.id] = {
           modules,
           columns: pageColumns[p.id] || 1,
-          moduleColumns: moduleColumns[p.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+          moduleColumns: moduleColumns[p.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
         };
       });
 
@@ -1676,7 +1678,7 @@ function EditorPageInner() {
                       setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
                       setModuleColumns((prev) => ({
                         ...prev,
-                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
                       }));
                       setPagesEditorSelectedId(newId);
                       setActiveTab('pages');
@@ -2412,7 +2414,7 @@ function EditorPageInner() {
                   {moduleOrder.map((mod, idx) => {
                     const labels: Record<string,string> = {
                       pages: `📑 ${modLab.pages}`,
-                      links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads', mystic:'🔮 Mystic',
+                      links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads', mystic:'🔮 Mystic', slug_market:'🏷️ Slugs',
                       booking: `📅 ${modLab.booking}`,
                     };
                     return (
@@ -2577,7 +2579,7 @@ function EditorPageInner() {
                       setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
                       setModuleColumns((prev) => ({
                         ...prev,
-                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
                       }));
                       setPagesEditorSelectedId(newId);
                       markDirty();
@@ -2630,7 +2632,7 @@ function EditorPageInner() {
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {(['pages', 'links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'booking'] as const).map((mod) => {
+                        {(['pages', 'links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'slug_market', 'booking'] as const).map((mod) => {
                           const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
                           const enabled = currentModules.includes(mod);
                           return (
@@ -2657,7 +2659,7 @@ function EditorPageInner() {
                                     setModuleColumns((prev) => ({
                                       ...prev,
                                       [page.id]: {
-                                        ...(prev[page.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 }),
+                                        ...(prev[page.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 }),
                                         [mod]: col,
                                       },
                                     }));

@@ -127,7 +127,7 @@ export function PageRichEditor({ value, onChange, placeholder, editorKey }: Prop
                   <img
                     src={slot === 0 ? img0 : img1}
                     alt=""
-                    className="w-full max-h-48 object-cover rounded-lg block"
+                    className="w-full max-h-48 object-contain rounded-lg block bg-black/5"
                   />
                   <button
                     type="button"

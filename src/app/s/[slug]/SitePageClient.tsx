@@ -17,6 +17,7 @@ import { AvatarTiltShell } from '@/components/site/AvatarTiltShell';
 import { CentralProfileMagicAvatar } from '@/components/site/CentralProfileMagicAvatar';
 import { MagicPortraitOutOfFrame } from '@/components/site/MagicPortraitOutOfFrame';
 import { SiteBookingWidget } from '@/components/site/SiteBookingWidget';
+import { SiteSlugMarketPanel } from '@/components/site/SiteSlugMarketPanel';
 import { resolveFloatingAgentImageUrl } from '@/lib/floatingAgentImage';
 import { resolveLivelyProfileImageUrl, livelyProfileUsesPupilOverlay } from '@/lib/livelyProfileImage';
 import { CentralProfileLivelyPhoto } from '@/components/site/CentralProfileLivelyPhoto';
@@ -205,13 +206,14 @@ export default function SitePageClient({
             feed: [1,2,3].includes(Number(raw?.moduleColumns?.feed)) ? Number(raw.moduleColumns.feed) as 1|2|3 : 1,
             ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
             mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
+            slug_market: [1,2,3].includes(Number(raw?.moduleColumns?.slug_market)) ? Number(raw.moduleColumns.slug_market) as 1|2|3 : 1,
             booking: [1,2,3].includes(Number(raw?.moduleColumns?.booking)) ? Number(raw.moduleColumns.booking) as 1|2|3 : 1,
           };
         });
         return out;
       }
     } catch {}
-    return { home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 } };
+    return { home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 } };
   })();
   const sitePages: {id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[] = (() => {
     try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home","template":"default"}]'); }
@@ -223,7 +225,7 @@ export default function SitePageClient({
     (m) => m !== 'mystic',
   );
   const activeColumns = pageColumnsMap[activePage] || 1;
-  const activeModuleCols = pageModuleColumnsMap[activePage] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
+  const activeModuleCols = pageModuleColumnsMap[activePage] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 };
   const pageTabsNav =
     sitePages.length > 1 ? (
       <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1137,6 +1139,19 @@ export default function SitePageClient({
               />
             );
           }
+          if (mod === 'slug_market') {
+            return (
+              <SiteSlugMarketPanel
+                key="slug_market"
+                accentColor={accent}
+                textColor={t.text}
+                textMuted={t.text2}
+                borderColor={t.border}
+                bgCard={t.btn}
+                radius={r}
+              />
+            );
+          }
           return null;
           };
 
@@ -1187,6 +1202,14 @@ export default function SitePageClient({
         {hasDisplayableRichHtml(pageContents[activePage]) && (
           <div style={{paddingBottom:24}}>
             <div
+              onClick={(ev) => {
+                const el = ev.target as HTMLElement;
+                if (el.tagName !== 'IMG') return;
+                const img = el as HTMLImageElement;
+                if (!img.closest('.tb-page-media')) return;
+                const src = img.currentSrc || img.getAttribute('src');
+                if (src) setLightboxImage(src);
+              }}
               dangerouslySetInnerHTML={{ __html: normalizeRichEmbeds(pageContents[activePage]) }}
               style={{ fontSize:15, lineHeight:1.8, color:textMain, padding:'4px 0', maxWidth:(site as any)?.page_width||600, margin:'0 auto', width:'100%' }}
               className="rich-content"
@@ -1272,7 +1295,7 @@ export default function SitePageClient({
       <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}
       .rich-content img{max-width:100%;height:auto;border-radius:10px;display:block;margin:10px 0}
       .rich-content .tb-page-media{margin-top:12px}
-      .rich-content .tb-page-media-grid img{max-width:100%;width:100%;object-fit:cover;border-radius:12px}
+      .rich-content .tb-page-media-grid img,.rich-content .tb-page-media-img{max-width:100%;width:100%;height:auto!important;object-fit:contain!important;max-height:none!important;border-radius:12px;cursor:zoom-in}
       .rich-content iframe{max-width:100%;width:100%;min-height:240px;border:0;border-radius:12px;display:block;margin:10px 0}
       .rich-content .trust-video-wrapper{position:relative;padding-bottom:56.25%;height:0;margin:12px 0;border-radius:12px;overflow:hidden}
       .rich-content .trust-video-wrapper iframe{position:absolute;inset:0;width:100%;height:100%}

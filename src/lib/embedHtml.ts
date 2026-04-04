@@ -128,7 +128,7 @@ export function mergePageRichContent(body: string, images: string[], videoEmbedU
     const cols = imgs.length === 1 ? '1fr' : 'repeat(2,1fr)';
     inner += `<div class="tb-page-media-grid" style="display:grid;grid-template-columns:${cols};gap:12px;">`;
     for (const url of imgs) {
-      inner += `<img src="${esc(url)}" alt="" style="width:100%;border-radius:12px;display:block;height:auto;object-fit:cover;max-height:420px;" loading="lazy" />`;
+      inner += `<img src="${esc(url)}" alt="" class="tb-page-media-img" style="width:100%;max-width:100%;height:auto;border-radius:12px;display:block;object-fit:contain;vertical-align:middle;background:rgba(0,0,0,0.06);" loading="lazy" />`;
     }
     inner += `</div>`;
   }

@@ -123,6 +123,7 @@ export const EDITOR_UI_MESSAGES: Record<string, MessageRow> = {
   ed_mod_feed: { en: 'FEED', pt: 'FEED' },
   ed_mod_ads: { en: 'ADS', pt: 'ANÚNCIOS' },
   ed_mod_mystic: { en: 'MYSTIC & LOTTERY', pt: 'MÍSTICO & LOTERIA' },
+  ed_mod_slug_market: { en: 'SLUGS FOR SALE', pt: 'SLUGS À VENDA' },
   ed_mod_booking: { en: 'BOOKING', pt: 'AGENDA' },
   ed_mod_pages: { en: 'PAGE TABS', pt: 'SEPARADORES' },
   ed_mod_fixed: { en: 'FIXED', pt: 'FIXO' },
