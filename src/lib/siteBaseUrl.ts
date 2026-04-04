@@ -1,11 +1,33 @@
 import { headers } from 'next/headers';
-import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
+import { normalizePublicSiteUrl, parseAlternatePublicSiteUrls } from '@/lib/publicSiteUrl';
 
-export { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
+export { normalizePublicSiteUrl, parseAlternatePublicSiteUrls } from '@/lib/publicSiteUrl';
 
 /** URL canónica do site (apex), sem barra final. */
 export function getSiteBaseUrl(): string {
   return normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+}
+
+/**
+ * Host do site principal (apex ou www), mesmo produto que `getProductRootDomain()`.
+ * Usado para sitemap/robots: qualquer um dos dois resolve para `getSiteBaseUrl()` (canónico).
+ */
+export function isMainPublicSiteHostname(host: string): boolean {
+  const h = (host || '').toLowerCase().split(':')[0];
+  if (!h) return false;
+
+  const root = getProductRootDomain();
+  if (h === root || h === `www.${root}`) return true;
+
+  const candidates = [getSiteBaseUrl(), ...parseAlternatePublicSiteUrls()];
+  for (const url of candidates) {
+    try {
+      if (new URL(url).hostname.toLowerCase() === h) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
 }
 
 /** Host de deploy Vercel (*.vercel.app) — não usar em sitemap/robots como domínio público. */
@@ -19,6 +41,9 @@ function isVercelDeployHost(hostname: string): boolean {
  * Evita listar `*.vercel.app` no XML se `NEXT_PUBLIC_SITE_URL` estiver errado em produção.
  *
  * Ordem: `SITE_CANONICAL_URL` (só servidor, Vercel) → `NEXT_PUBLIC_SITE_URL` válido → cabeçalhos do pedido.
+ *
+ * `www` e apex (`trustbank.xyz`): tratados como o mesmo site; o XML usa sempre `getSiteBaseUrl()`.
+ * Opcional na Vercel: `NEXT_PUBLIC_SITE_URL_ALT` com a outra origem (vírgula se várias).
  */
 export async function getCanonicalSiteBaseUrl(): Promise<string> {
   const serverCanonical = normalizePublicSiteUrl(process.env.SITE_CANONICAL_URL || undefined);
@@ -53,6 +78,9 @@ export async function getCanonicalSiteBaseUrl(): Promise<string> {
       .split(':')[0]
       .toLowerCase();
     if (host && host !== 'localhost' && !host.startsWith('127.') && !isVercelDeployHost(host)) {
+      if (isMainPublicSiteHostname(host)) {
+        return getSiteBaseUrl();
+      }
       const proto = (h.get('x-forwarded-proto') || 'https').split(',')[0].trim() || 'https';
       return `${proto}://${host}`;
     }

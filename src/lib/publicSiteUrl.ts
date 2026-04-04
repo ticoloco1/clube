@@ -11,3 +11,17 @@ export function normalizePublicSiteUrl(raw?: string | null): string {
   }
   return t.replace(/\/+$/, '');
 }
+
+/**
+ * URLs alternativas do mesmo site (ex.: apex se o canónico for `www`).
+ * Vercel: `NEXT_PUBLIC_SITE_URL_ALT` — uma URL ou várias separadas por vírgula.
+ */
+export function parseAlternatePublicSiteUrls(): string[] {
+  const raw = (process.env.NEXT_PUBLIC_SITE_URL_ALT || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(/[,|]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => normalizePublicSiteUrl(s));
+}

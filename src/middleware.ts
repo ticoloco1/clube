@@ -5,6 +5,7 @@ import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
 /**
  * Apex usado para reconhecer `slug.apex` no middleware.
  * - Defina `NEXT_PUBLIC_ROOT_DOMAIN` na Vercel se o site principal for outro host.
+ * - `NEXT_PUBLIC_SITE_URL` = URL canónica (ex. https://www.trustbank.xyz); `NEXT_PUBLIC_SITE_URL_ALT` = outra (ex. https://trustbank.xyz), opcional.
  * - Se `NEXT_PUBLIC_SITE_URL` for só `*.vercel.app` (preview), não use isso como apex —
  *   senão `foo.trustbank.xyz` deixa de bater em `.vercel.app` e o rewrite não corre.
  */
