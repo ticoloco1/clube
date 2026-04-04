@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { MetadataRoute } from 'next';
-import { getRootHostname } from '@/lib/siteBaseUrl';
+import { getProductRootDomain } from '@/lib/siteBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,7 @@ export default async function sitemap({ params }: { params: { slug: string } }):
 
   if (!site?.published) return [];
 
-  const host = getRootHostname();
+  const host = getProductRootDomain();
   const base = `https://${slug}.${host}`;
   const lastMod = new Date((site as { updated_at?: string }).updated_at || Date.now());
 

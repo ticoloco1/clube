@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { MetadataRoute } from 'next';
-import { getSiteBaseUrl, miniSiteCanonicalUrl } from '@/lib/siteBaseUrl';
+import { getCanonicalSiteBaseUrl, miniSiteUrlOnRoot, getProductRootDomain } from '@/lib/siteBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,8 @@ function getDb() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = getSiteBaseUrl();
+  const base = await getCanonicalSiteBaseUrl();
+  const productRoot = getProductRootDomain();
   const now = new Date();
 
   // Static pages
@@ -38,12 +39,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .order('updated_at', { ascending: false })
       .limit(1000);
 
-    const siteUrls: MetadataRoute.Sitemap = (sites || []).map(s => ({
-      url: miniSiteCanonicalUrl(s.slug),
-      lastModified: new Date(s.updated_at || now),
-      changeFrequency: 'weekly' as const,
-      priority: 0.9,
-    }));
+    const siteUrls: MetadataRoute.Sitemap = (sites || []).flatMap((s) => {
+      const url = miniSiteUrlOnRoot(s.slug, productRoot);
+      if (!url) return [];
+      return [
+        {
+          url,
+          lastModified: new Date(s.updated_at || now),
+          changeFrequency: 'weekly' as const,
+          priority: 0.9,
+        },
+      ];
+    });
 
     // Dynamic: active classified listings
     const { data: listings } = await getDb()
