@@ -28,6 +28,8 @@ type Props = {
   onMarkDirty: () => void;
   onReload: () => Promise<void>;
   T: (key: string) => string;
+  /** false = não chamar APIs de IA (retrato, clone, greeting). */
+  iaApiEnabled?: boolean;
 };
 
 const LANGS = [
@@ -65,6 +67,7 @@ export function IdentityLabPanel({
   onMarkDirty,
   onReload,
   T,
+  iaApiEnabled = true,
 }: Props) {
   const [sourcePreview, setSourcePreview] = useState<string | null>(null);
   const [portraitBusy, setPortraitBusy] = useState(false);
@@ -174,6 +177,10 @@ export function IdentityLabPanel({
       toast.error(T('id_err_audio_large'));
       return;
     }
+    if (!iaApiEnabled) {
+      toast.message(T('ed_ia_master_off_hint'));
+      return;
+    }
     setCloneBusy(true);
     try {
       const fd = new FormData();
@@ -195,6 +202,10 @@ export function IdentityLabPanel({
   };
 
   const runGeneratePortrait = async () => {
+    if (!iaApiEnabled) {
+      toast.message(T('ed_ia_master_off_hint'));
+      return;
+    }
     if (!sourcePreview) {
       toast.error(T('id_err_need_photo'));
       return;
@@ -272,6 +283,10 @@ export function IdentityLabPanel({
       toast.error(T('id_err_audio_short'));
       return;
     }
+    if (!iaApiEnabled) {
+      toast.message(T('ed_ia_master_off_hint'));
+      return;
+    }
     setCloneBusy(true);
     try {
       const fd = new FormData();
@@ -294,6 +309,10 @@ export function IdentityLabPanel({
 
   const playGreetingPreview = async () => {
     if (!slug) return;
+    if (!iaApiEnabled) {
+      toast.message(T('ed_ia_master_off_hint'));
+      return;
+    }
     setGreetingBusy(true);
     try {
       const res = await fetch('/api/identity/greeting-audio', {
@@ -383,7 +402,7 @@ export function IdentityLabPanel({
               </select>
               <button
                 type="button"
-                disabled={portraitBusy}
+                disabled={portraitBusy || !iaApiEnabled}
                 onClick={() => void runGeneratePortrait()}
                 className="btn-primary gap-2 text-sm mt-2"
               >
@@ -422,7 +441,7 @@ export function IdentityLabPanel({
           {!recording ? (
             <button
               type="button"
-              disabled={cloneBusy}
+              disabled={cloneBusy || !iaApiEnabled}
               onClick={() => void startRecord()}
               className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-sm font-semibold hover:border-brand/50"
             >
@@ -440,7 +459,7 @@ export function IdentityLabPanel({
           )}
           <button
             type="button"
-            disabled={cloneBusy || recording}
+            disabled={cloneBusy || recording || !iaApiEnabled}
             onClick={() => audioCloneInputRef.current?.click()}
             className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-sm font-semibold hover:border-brand/50"
           >
@@ -489,7 +508,7 @@ export function IdentityLabPanel({
           </div>
           <button
             type="button"
-            disabled={greetingBusy || !identityCloneVoiceId}
+            disabled={greetingBusy || !identityCloneVoiceId || !iaApiEnabled}
             onClick={() => void playGreetingPreview()}
             className="flex items-center gap-2 btn-primary text-sm"
           >

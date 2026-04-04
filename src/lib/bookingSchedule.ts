@@ -17,6 +17,11 @@ export const DEFAULT_WEEKLY_HOURS: WeeklyHours = {
   sun: [],
 };
 
+/** Fallback ao gravar se o JSON manual estiver inválido. */
+export const DEFAULT_BOOKING_SERVICES: { label: string; minutes: number }[] = [
+  { label: 'Consultation', minutes: 30 },
+];
+
 export function parseWeeklyHours(raw: unknown): WeeklyHours {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_WEEKLY_HOURS };
   const o = raw as Record<string, unknown>;

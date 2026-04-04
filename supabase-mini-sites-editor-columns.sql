@@ -92,6 +92,15 @@ alter table if exists mini_sites add column if not exists identity_clone_voice_i
 alter table if exists mini_sites add column if not exists identity_voice_effect text default 'neutral';
 alter table if exists mini_sites add column if not exists magic_portrait_enabled boolean default false;
 
+-- Agenda / reservas (evita erro: Could not find the 'booking_enabled' column…)
+-- Tabela site_bookings: ver supabase-site-booking.sql se ainda não existir.
+alter table if exists mini_sites add column if not exists booking_enabled boolean default false;
+alter table if exists mini_sites add column if not exists booking_slot_minutes integer default 30;
+alter table if exists mini_sites add column if not exists booking_timezone text default 'America/Sao_Paulo';
+alter table if exists mini_sites add column if not exists booking_weekly_hours jsonb default '{"mon":[{"from":"09:00","to":"18:00"}],"tue":[{"from":"09:00","to":"18:00"}],"wed":[{"from":"09:00","to":"18:00"}],"thu":[{"from":"09:00","to":"18:00"}],"fri":[{"from":"09:00","to":"18:00"}],"sat":[],"sun":[]}'::jsonb;
+alter table if exists mini_sites add column if not exists booking_services jsonb default '[{"label":"Consultation","minutes":30}]'::jsonb;
+alter table if exists mini_sites add column if not exists booking_vertical text default 'general';
+
 -- feed_posts (se faltar)
 alter table if exists feed_posts add column if not exists media_urls jsonb default '[]'::jsonb;
 alter table if exists feed_posts add column if not exists video_embed_url text;

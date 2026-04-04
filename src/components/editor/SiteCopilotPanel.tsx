@@ -30,6 +30,7 @@ export function SiteCopilotPanel({
   onAppendLivelyInstructions,
   paywallEnabled,
   paywallPrice,
+  iaApiEnabled = true,
 }: {
   siteId: string;
   bio: string;
@@ -45,6 +46,7 @@ export function SiteCopilotPanel({
   onApplySeoDescription: (s: string) => void;
   onApplyPageHtml: (pageId: string, html: string) => void;
   onAppendLivelyInstructions: (s: string) => void;
+  iaApiEnabled?: boolean;
 }) {
   const T = useT();
   const { lang } = useI18n();
@@ -110,7 +112,7 @@ export function SiteCopilotPanel({
     } finally {
       setBusy(false);
     }
-  }, [siteId, busy, task, context, draft, pageId, sitePages, paywallEnabled, paywallPrice, lang, T]);
+  }, [siteId, busy, task, context, draft, pageId, sitePages, paywallEnabled, paywallPrice, lang, iaApiEnabled, T]);
 
   const copyOut = useCallback(async () => {
     if (!out) return;
@@ -235,7 +237,7 @@ export function SiteCopilotPanel({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={busy || !siteId}
+          disabled={busy || !siteId || !iaApiEnabled}
           onClick={() => void run()}
           className="btn-primary gap-2 text-sm"
         >

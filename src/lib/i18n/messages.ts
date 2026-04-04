@@ -251,6 +251,19 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     pt: "O texto foi acrescentado às instruções do Lively; revê, ajusta marcas legais e grava. Não afirmes patrocínios reais sem contrato.",
   },
   ed_copilot_lively_block: { en: "Suggested script (Copilot)", pt: "Script sugerido (Copiloto)" },
+  ed_ia_master_title: { en: "Editor AI API calls", pt: "Pedidos de IA no editor" },
+  ed_ia_master_sub: {
+    en: "Off = no automatic assistant sync, no paid API calls from Genesis, Copilot, SEO assist, Identity lab, etc. (avoids budget toasts). Preference is saved in this browser.",
+    pt: "Desligado = sem sincronização automática do assistente, sem chamadas pagas (Génesis, Copiloto, SEO, laboratório de identidade, etc.). Evita avisos de orçamento. A preferência fica guardada neste browser.",
+  },
+  ed_ia_master_off_hint: {
+    en: "Turn on “Editor AI API calls” above to use this (uses your AI budget).",
+    pt: "Liga «Pedidos de IA no editor» acima para usar isto (usa o teu orçamento de IA).",
+  },
+  ed_ia_hub_off_hint: {
+    en: "AI calls are off (toggle above). Turn them on when you want Genesis / coach to use the API.",
+    pt: "Os pedidos de IA estão desligados (interruptor acima). Liga quando quiseres que o Génesis / coach usem a API.",
+  },
   ed_neo_title: { en: "Neural assistant", pt: "Assistente neural" },
   ed_neo_sub: {
     en: "Reads your mini-site live · DeepSeek",
@@ -937,6 +950,20 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   admin_minisites_updated: { en: "Updated", pt: "Atualizado" },
   admin_minisites_none: { en: "No mini sites yet.", pt: "Ainda sem mini sites." },
   admin_minisites_page: { en: "Page {page} · {total} total", pt: "Página {page} · {total} no total" },
+  admin_minisites_bulk_title: { en: "Create several at once", pt: "Criar vários de uma vez" },
+  admin_minisites_bulk_hint: {
+    en: "One slug per line. Optional name after comma or tab. Published + Lively IA enabled. Platform owner skips IA USD billing for tests.",
+    pt: "Um slug por linha. Nome opcional após vírgula ou tab. Publicado + Lively IA ligado. Conta dono da plataforma não paga orçamento IA USD nos testes.",
+  },
+  admin_minisites_bulk_placeholder: {
+    en: "demo-alpha\nbeta-test, Beta team\ngamma",
+    pt: "demo-alpha\nbeta-test, Equipa beta\ngamma",
+  },
+  admin_minisites_bulk_run: { en: "Create mini sites", pt: "Criar mini sites" },
+  admin_minisites_bulk_toast: {
+    en: "Created {ok} of {total}.",
+    pt: "Criados {ok} de {total}.",
+  },
   ed_site_not_found_title: { en: "Mini-site not found", pt: "Mini-site não encontrado" },
   ed_site_not_found_body: {
     en: "This link is invalid or the site does not belong to your account.",

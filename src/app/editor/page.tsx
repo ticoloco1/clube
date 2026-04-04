@@ -36,7 +36,9 @@ import { TrustGenesisHub } from '@/components/editor/TrustGenesisHub';
 import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
 import { EditorGuidePanel } from '@/components/editor/EditorGuidePanel';
 import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
-import { DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSchedule';
+import { DEFAULT_BOOKING_SERVICES, DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSchedule';
+
+const LS_EDITOR_IA_API = 'tb_editor_ia_api_enabled';
 
 // ── 30 Themes (rótulos: T(`ed_theme_${id}`)) ───────────────────────────────────
 const THEMES = [
@@ -268,6 +270,30 @@ function EditorPageInner() {
   /** Evita repor slug/campos a cada refresh do objeto `site` (load após save) */
   const editorHydratedForSiteId = useRef<string | null>(null);
   const stripeReturnHandled = useRef(false);
+
+  /** Desliga pedidos às APIs de IA (Génesis, Copilot, SEO assist, etc.) — evita toasts de orçamento. */
+  const [editorIaApiEnabled, setEditorIaApiEnabled] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(LS_EDITOR_IA_API) === '0') setEditorIaApiEnabled(false);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const setEditorIaApiEnabledPersist = useCallback((on: boolean) => {
+    setEditorIaApiEnabled(on);
+    try {
+      localStorage.setItem(LS_EDITOR_IA_API, on ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const ensureEditorIaOrToast = useCallback(() => {
+    if (editorIaApiEnabled) return true;
+    toast.message(T('ed_ia_master_off_hint'));
+    return false;
+  }, [editorIaApiEnabled, T]);
 
   const enforceHomeFixedModules = useCallback((mods: string[]) => {
     const unique = Array.from(new Set(mods));
@@ -643,6 +669,7 @@ function EditorPageInner() {
   };
 
   const runMagicDescription = async () => {
+    if (!ensureEditorIaOrToast()) return;
     if (!site?.id || magicDescLoading) return;
     setMagicDescLoading(true);
     try {
@@ -713,6 +740,7 @@ function EditorPageInner() {
   };
 
   const runSeoPack = async () => {
+    if (!ensureEditorIaOrToast()) return;
     if (!site?.id || seoPackLoading) return;
     setSeoPackLoading(true);
     try {
@@ -808,6 +836,7 @@ function EditorPageInner() {
   };
 
   const runSuggestLivelyWelcome = async () => {
+    if (!ensureEditorIaOrToast()) return;
     const slug = site?.slug?.trim();
     if (!slug || livelySuggestWelcomeBusy) return;
     setLivelySuggestWelcomeBusy(true);
@@ -836,6 +865,7 @@ function EditorPageInner() {
   };
 
   const runSuggestAdPrice = async () => {
+    if (!ensureEditorIaOrToast()) return;
     if (!site?.id || suggestingPrice) return;
     setSuggestingPrice(true);
     try {
@@ -878,26 +908,19 @@ function EditorPageInner() {
         };
       });
 
-      let weeklyHoursPayload: Record<string, unknown> | null = null;
+      let weeklyHoursPayload: Record<string, unknown> = { ...DEFAULT_WEEKLY_HOURS };
       try {
         const w = JSON.parse(bookingWeeklyJson);
         if (w && typeof w === 'object' && !Array.isArray(w)) weeklyHoursPayload = w as Record<string, unknown>;
       } catch {
-        weeklyHoursPayload = null;
+        /* mantém default */
       }
-      let servicesPayload: unknown[] | null = null;
+      let servicesPayload: unknown[] = [...DEFAULT_BOOKING_SERVICES];
       try {
         const s = JSON.parse(bookingServicesJson);
-        servicesPayload = Array.isArray(s) ? s : null;
+        if (Array.isArray(s) && s.length) servicesPayload = s;
       } catch {
-        servicesPayload = null;
-      }
-      if (!weeklyHoursPayload || !servicesPayload) {
-        if (!silent) {
-          toast.error(T('ed_booking_json_invalid'));
-          setSaving(false);
-          return;
-        }
+        /* mantém default */
       }
 
       await save({
@@ -987,8 +1010,8 @@ function EditorPageInner() {
         booking_enabled: bookingEnabled,
         booking_slot_minutes: Math.max(15, Math.min(180, parseInt(String(bookingSlotMinutes), 10) || 30)),
         booking_timezone: bookingTimezone.trim() || 'America/Sao_Paulo',
-        ...(weeklyHoursPayload ? { booking_weekly_hours: weeklyHoursPayload } : {}),
-        ...(servicesPayload ? { booking_services: servicesPayload } : {}),
+        booking_weekly_hours: weeklyHoursPayload,
+        booking_services: servicesPayload,
         booking_vertical: bookingVertical,
       } as any);
 
@@ -1454,7 +1477,31 @@ function EditorPageInner() {
       )}
 
       {site?.id && (
-        <div className="max-w-6xl mx-auto px-4 pt-4">
+        <div className="max-w-6xl mx-auto px-4 pt-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg2)]/60 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-[var(--text)] flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-brand shrink-0" />
+                {T('ed_ia_master_title')}
+              </p>
+              <p className="text-xs text-[var(--text2)] mt-1 leading-relaxed">{T('ed_ia_master_sub')}</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={editorIaApiEnabled}
+              onClick={() => setEditorIaApiEnabledPersist(!editorIaApiEnabled)}
+              className={`relative w-14 h-8 rounded-full transition-colors flex-shrink-0 ${
+                editorIaApiEnabled ? 'bg-brand' : 'bg-[var(--border)]'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                  editorIaApiEnabled ? 'translate-x-7' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
           <TrustGenesisHub
             siteId={site.id}
             snapshot={coachSnapshot}
@@ -1473,6 +1520,7 @@ function EditorPageInner() {
             onAppendLivelyInstructions={(s) => {
               setLivelyAgentInstructions((prev) => (prev + `\n\n${s}`).slice(0, 2000));
             }}
+            iaApiEnabled={editorIaApiEnabled}
           />
         </div>
       )}
@@ -1549,7 +1597,7 @@ function EditorPageInner() {
                       <>
                         <div
                           className="w-full h-24 rounded-xl mt-2 border border-[var(--border)] overflow-hidden"
-                          style={{ background: bannerPlaceholderColor || '#1f2937' }}
+                          style={{ background: '#07070a' }}
                         >
                           <img
                             src={bannerUrl}
@@ -2476,6 +2524,7 @@ function EditorPageInner() {
               siteId={site.id}
               bio={bio}
               cvHeadline={cvHeadline}
+              iaApiEnabled={editorIaApiEnabled}
               paywallEnabled={paywallEnabled}
               paywallPrice={paywallPrice}
               sitePages={sitePages}
@@ -2993,6 +3042,7 @@ function EditorPageInner() {
               <IdentityLabPanel
                 siteId={site.id}
                 slug={slug.trim()}
+                iaApiEnabled={editorIaApiEnabled}
                 aiFreeUsd={iaBudget.freeUsd}
                 aiPaidUsd={iaBudget.paidUsd}
                 identityPortraitUrl={identityPortraitUrl}
@@ -3302,7 +3352,7 @@ function EditorPageInner() {
             <div className="rounded-2xl overflow-hidden border border-[var(--border)]" style={{ background: currentTheme.bg }}>
               {/* Banner preview */}
               {bannerUrl && (
-                <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative', background: currentTheme.bg }}>
+                <div style={{ width:'100%', height:80, overflow:'hidden', position:'relative', background: '#07070a' }}>
                   <img src={bannerUrl} style={{
                     width:'100%',
                     height:'100%',

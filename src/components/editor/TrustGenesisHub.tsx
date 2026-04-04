@@ -102,6 +102,7 @@ export function TrustGenesisHub({
   onPrefillLink,
   onNavigateTab,
   onAppendLivelyInstructions,
+  iaApiEnabled = true,
 }: {
   siteId: string;
   snapshot: Record<string, unknown>;
@@ -115,6 +116,8 @@ export function TrustGenesisHub({
   onPrefillLink: (title: string, url: string) => void;
   onNavigateTab: (tabId: string) => void;
   onAppendLivelyInstructions: (s: string) => void;
+  /** false = sem chamadas automáticas / à API (evita toasts de orçamento). */
+  iaApiEnabled?: boolean;
 }) {
   const T = useT();
   const { lang } = useI18n();
@@ -133,7 +136,7 @@ export function TrustGenesisHub({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
-  const bootRef = useRef(false);
+  const bootSiteKeyRef = useRef<string>('');
   const listRef = useRef<HTMLDivElement>(null);
   const snapRef = useRef(snapshot);
   snapRef.current = snapshot;
@@ -161,6 +164,7 @@ export function TrustGenesisHub({
 
   const callCoach = useCallback(
     async (msgs: Msg[]) => {
+      if (!iaApiEnabled) return null;
       setCoachLoading(true);
       try {
         const res = await fetch('/api/editor/site-coach', {
@@ -186,12 +190,19 @@ export function TrustGenesisHub({
         setCoachLoading(false);
       }
     },
-    [siteId, T],
+    [siteId, iaApiEnabled, T],
   );
 
   useEffect(() => {
-    if (!siteId || bootRef.current) return;
-    bootRef.current = true;
+    if (!siteId) return;
+    if (!iaApiEnabled) {
+      bootSiteKeyRef.current = '';
+      setMessages([{ role: 'assistant', content: T('ed_ia_hub_off_hint') }]);
+      return;
+    }
+    const key = siteId;
+    if (bootSiteKeyRef.current === key) return;
+    bootSiteKeyRef.current = key;
     (async () => {
       const reply = await callCoach([{ role: 'user', content: '___BOOTSTRAP___' }]);
       if (reply) {
@@ -199,9 +210,13 @@ export function TrustGenesisHub({
         scrollBottom();
       }
     })();
-  }, [siteId, callCoach, scrollBottom]);
+  }, [siteId, iaApiEnabled, callCoach, scrollBottom, T]);
 
   const sendCoach = useCallback(async () => {
+    if (!iaApiEnabled) {
+      toast.message(T('ed_ia_master_off_hint'));
+      return;
+    }
     const q = input.trim();
     if (!q || coachLoading) return;
     setInput('');
@@ -213,7 +228,7 @@ export function TrustGenesisHub({
       setMessages([...next, { role: 'assistant', content: reply }]);
       scrollBottom();
     }
-  }, [input, coachLoading, messages, callCoach, scrollBottom]);
+  }, [input, coachLoading, messages, callCoach, scrollBottom, iaApiEnabled, T]);
 
   useEffect(() => {
     if (!forgeBusy) return;
@@ -240,6 +255,10 @@ export function TrustGenesisHub({
   }, []);
 
   const runForge = useCallback(async () => {
+    if (!iaApiEnabled) {
+      toast.message(T('ed_ia_master_off_hint'));
+      return;
+    }
     if (!siteId || forgeBusy) return;
     setForgeBusy(true);
     setPack(null);
@@ -266,7 +285,7 @@ export function TrustGenesisHub({
     } finally {
       setForgeBusy(false);
     }
-  }, [siteId, forgeBusy, brief, lang, T]);
+  }, [siteId, forgeBusy, brief, lang, iaApiEnabled, T]);
 
   const applyAll = useCallback(
     (p: GenesisPack) => {
@@ -460,13 +479,13 @@ export function TrustGenesisHub({
                   value={input}
                   onChange={(e) => setInput(e.target.value.slice(0, 2000))}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && void sendCoach()}
-                  disabled={coachLoading}
+                  disabled={coachLoading || !iaApiEnabled}
                   className="flex-1 rounded-xl border border-cyan-500/25 bg-slate-950/60 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-violet-400/50"
                   placeholder={T('ed_neo_placeholder')}
                 />
                 <button
                   type="button"
-                  disabled={coachLoading || !input.trim()}
+                  disabled={coachLoading || !input.trim() || !iaApiEnabled}
                   onClick={() => void sendCoach()}
                   className="rounded-xl px-4 py-2.5 font-bold text-slate-950 disabled:opacity-40 flex items-center gap-2"
                   style={{
@@ -486,13 +505,13 @@ export function TrustGenesisHub({
               <textarea
                 value={brief}
                 onChange={(e) => setBrief(e.target.value.slice(0, 2000))}
-                disabled={forgeBusy}
+                disabled={forgeBusy || !iaApiEnabled}
                 className="w-full rounded-xl border border-violet-500/25 bg-slate-950/50 px-3 py-2.5 text-sm text-slate-100 min-h-[88px] outline-none focus:border-cyan-400/40"
                 placeholder={T('gen_forge_ph')}
               />
               <button
                 type="button"
-                disabled={forgeBusy || !siteId}
+                disabled={forgeBusy || !siteId || !iaApiEnabled}
                 onClick={() => void runForge()}
                 className="w-full rounded-xl py-3 font-black text-slate-950 flex items-center justify-center gap-2 disabled:opacity-40"
                 style={{
