@@ -413,7 +413,7 @@ export default function DashboardPage() {
             {site?.id && (
               <FeedSection
                 siteId={site.id}
-                isOwner={true}
+                canPost={true}
                 accentColor={site.accent_color || '#818cf8'}
                 onPost={loadPosts}
               />

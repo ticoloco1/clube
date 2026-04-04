@@ -4,7 +4,7 @@ import { Bold, Italic, List, Heading1, Heading2, Video, Link2, Quote, Code, Imag
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
-import { youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
+import { resolveVideoEmbedUrl, safeIframeSrc } from '@/lib/embedHtml';
 
 const MAX_PAGE_IMAGES = 10;
 
@@ -28,20 +28,19 @@ function normalizeHttpsUrl(raw: string): string {
   return t;
 }
 
-/** src seguro para iframe: só https; aceita URLs absolutas e //… */
-function safeIframeSrc(raw: string): string | null {
-  const t = normalizeHttpsUrl(raw);
-  if (!t) return null;
-  try {
-    const u = t.includes('://') ? new URL(t) : new URL(`https://${t}`);
-    if (u.protocol !== 'https:') return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
-
-export function RichTextEditor({ value, onChange, placeholder, editorKey }: any) {
+export function RichTextEditor({
+  value,
+  onChange,
+  placeholder,
+  editorKey,
+  showToolbarMedia = true,
+}: {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+  editorKey?: string;
+  showToolbarMedia?: boolean;
+}) {
   const T = useT();
   const editorRef  = useRef<HTMLDivElement>(null);
   const [showEmbed, setShowEmbed] = useState(false);
@@ -91,14 +90,7 @@ export function RichTextEditor({ value, onChange, placeholder, editorKey }: any)
 
   const insertVideo = () => {
     if (!embedUrl.trim()) return;
-    let url = embedUrl.trim().replace(/^\/\//, 'https://');
-    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    if (/youtu\.?be|youtube\.com/i.test(url)) {
-      url = youtubeWatchUrlToEmbedUrl(url);
-    } else if (/vimeo\.com/i.test(url)) {
-      const id = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
-      if (id) url = `https://player.vimeo.com/video/${id}`;
-    }
+    const url = resolveVideoEmbedUrl(embedUrl);
     const safe = safeIframeSrc(url);
     if (!safe) {
       toast.error(T('rte_embed_invalid'));
@@ -220,21 +212,25 @@ export function RichTextEditor({ value, onChange, placeholder, editorKey }: any)
         <button title={T('rte_paper_dark')} onClick={() => insertPaperBlock('dark')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-violet-400"><StickyNote size={16}/></button>
         <button title={T('rte_no_paper')} onClick={clearPaperBlocks} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)]">{T('rte_no_paper')}</button>
         <button title={T('rte_no_mark')} onClick={clearHighlights} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)]">{T('rte_no_mark')}</button>
-        <button onClick={() => setShowEmbed(true)} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-blue-400"><Video size={16}/></button>
-        <label title={T('rte_image_title')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)] cursor-pointer">
-          {uploading ? <Loader2 size={16} className="animate-spin"/> : <ImgIcon size={16}/>}
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              const fl = e.target.files;
-              e.target.value = '';
-              if (fl?.length) void uploadImageFiles(fl);
-            }}
-          />
-        </label>
+        {showToolbarMedia && (
+          <>
+            <button onClick={() => setShowEmbed(true)} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-blue-400"><Video size={16}/></button>
+            <label title={T('rte_image_title')} className="p-2 hover:bg-[var(--bg2)] rounded-lg text-[var(--text2)] cursor-pointer">
+              {uploading ? <Loader2 size={16} className="animate-spin"/> : <ImgIcon size={16}/>}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const fl = e.target.files;
+                  e.target.value = '';
+                  if (fl?.length) void uploadImageFiles(fl);
+                }}
+              />
+            </label>
+          </>
+        )}
       </div>
 
       {/* Editable area — direction:ltr fixes RTL text bug */}

@@ -195,6 +195,9 @@ export const EDITOR_UI_MESSAGES: Record<string, MessageRow> = {
   ed_theme_sand: { en: 'Sand', pt: 'Areia' },
   ed_theme_nordic: { en: 'Nordic', pt: 'Nórdico' },
   ed_theme_sakura: { en: 'Sakura', pt: 'Sakura' },
+  ed_theme_cyber_violet: { en: 'Cyber Lilac', pt: 'Cyber Lilás' },
+  ed_theme_cyber_azure: { en: 'Cyber Azure', pt: 'Cyber Azul' },
+  ed_theme_cyber_crimson: { en: 'Cyber Crimson', pt: 'Cyber Vermelho' },
 
   ed_guide_kicker: { en: 'Step by step', pt: 'Passo a passo' },
   ed_guide_title: { en: 'Mini-site guide', pt: 'Guia do mini-site' },

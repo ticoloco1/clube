@@ -23,6 +23,11 @@ export const EXTRA_UI_MESSAGES: Record<string, MessageRow> = {
   rte_embed_invalid: { en: 'Use a valid https embed URL (YouTube, Vimeo, etc.).', pt: 'Use um URL https válido (YouTube, Vimeo, etc.).' },
   rte_max_images: { en: 'This page already has {n} images (maximum).', pt: 'Esta página já tem {n} imagens (máximo).' },
   rte_max_images_partial: { en: 'Only some files were added — maximum {n} images per page.', pt: 'Só alguns ficheiros foram adicionados — máximo {n} imagens por página.' },
+  ed_page_media_block_title: { en: 'Photos & video (below text)', pt: 'Fotos e vídeo (abaixo do texto)' },
+  ed_page_media_slot: { en: 'Photo {n} (max 2)', pt: 'Foto {n} (máx. 2)' },
+  ed_page_media_video_label: { en: 'Video embed (YouTube / Vimeo)', pt: 'Vídeo incorporado (YouTube / Vimeo)' },
+  ed_page_media_remove: { en: 'Remove', pt: 'Remover' },
+  ed_page_media_add_photo: { en: 'Click to upload image', pt: 'Clique para enviar imagem' },
 
   tpanel_tab_themes: { en: 'Themes', pt: 'Temas' },
   tpanel_tab_colors: { en: 'Colors', pt: 'Cores' },
@@ -63,6 +68,9 @@ export const EXTRA_UI_MESSAGES: Record<string, MessageRow> = {
   tpanel_desc_forest: { en: 'Earth. Organic. Sustainable.', pt: 'Terra. Orgânico. Sustentável.' },
   tpanel_desc_editorial: { en: 'Medium. Substack. Text as art.', pt: 'Medium. Substack. Texto como arte.' },
   tpanel_desc_aurora: { en: 'Northern lights. Living dynamic gradient.', pt: 'Aurora boreal. Gradiente vivo e dinâmico.' },
+  tpanel_desc_cyber_violet: { en: 'Neon violet cyberpunk. Dark grid.', pt: 'Cyberpunk lilás neon. Grelha escura.' },
+  tpanel_desc_cyber_azure: { en: 'Neon cyan future. Holographic blue.', pt: 'Futuro ciano neon. Azul holográfico.' },
+  tpanel_desc_cyber_crimson: { en: 'Neon red danger. Blade-runner vibe.', pt: 'Vermelho neon. Vibe blade-runner.' },
 
   paywall_exclusive: { en: 'Exclusive content', pt: 'Conteúdo Exclusivo' },
   paywall_or_card: { en: 'or credit card', pt: 'ou cartão de crédito' },

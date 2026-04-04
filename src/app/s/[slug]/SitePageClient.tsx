@@ -74,6 +74,9 @@ const THEMES: Record<string, any> = {
   sand:      { bg:'#fdf4e7', text:'#44260a', text2:'#d97706', accent:'#d97706', btn:'rgba(217,119,6,0.07)', btnHover:'rgba(217,119,6,0.13)', border:'rgba(217,119,6,0.1)', radius:12, font:'system-ui' },
   nordic:    { bg:'#f5f5f0', text:'#2d2d2a', text2:'#4b7bb5', accent:'#4b7bb5', btn:'rgba(75,123,181,0.07)', btnHover:'rgba(75,123,181,0.13)', border:'rgba(75,123,181,0.09)', radius:6, font:'system-ui' },
   sakura:    { bg:'#fff1f5', text:'#4a1530', text2:'#e11d79', accent:'#e11d79', btn:'rgba(225,29,121,0.07)', btnHover:'rgba(225,29,121,0.13)', border:'rgba(225,29,121,0.1)', radius:24, font:'"Georgia",serif' },
+  cyber_violet:{ bg:'#0a0518', text:'#f5e6ff', text2:'rgba(196,181,253,0.65)', accent:'#c084fc', btn:'rgba(192,132,252,0.12)', btnHover:'rgba(192,132,252,0.22)', border:'rgba(167,139,250,0.35)', radius:18, font:'"Orbitron","Space Grotesk",sans-serif', aurora:true },
+  cyber_azure: { bg:'#030a14', text:'#e0f7ff', text2:'rgba(56,189,248,0.65)', accent:'#22d3ee', btn:'rgba(34,211,238,0.1)', btnHover:'rgba(34,211,238,0.2)', border:'rgba(6,182,212,0.35)', radius:16, font:'"Orbitron","IBM Plex Sans",sans-serif', aurora:true },
+  cyber_crimson:{ bg:'#140205', text:'#ffe4ec', text2:'rgba(251,113,133,0.65)', accent:'#fb7185', btn:'rgba(251,113,133,0.12)', btnHover:'rgba(251,113,133,0.22)', border:'rgba(244,63,94,0.4)', radius:14, font:'"Orbitron","Space Grotesk",sans-serif', aurora:true },
 };
 
 function getPostMedia(post: any): string[] {
@@ -393,14 +396,14 @@ export default function SitePageClient({
     return (
       <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, fontFamily: 'system-ui', padding: 24 }}>
         <p style={{ fontSize: 56, margin: 0 }}>🔒</p>
-        <h1 style={{ color: '#e6edf3', fontSize: 22, fontWeight: 900, margin: 0, textAlign: 'center' }}>This profile is not online yet</h1>
+        <h1 style={{ color: '#e6edf3', fontSize: 22, fontWeight: 900, margin: 0, textAlign: 'center' }}>{T('site_offline_title')}</h1>
         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, maxWidth: 360, textAlign: 'center', margin: 0 }}>
-          The creator needs to activate a plan to appear publicly on TrustBank.
+          {T('site_offline_desc')}
         </p>
         <Link href="/planos" style={{ padding: '12px 24px', borderRadius: 14, background: '#818cf8', color: '#fff', fontWeight: 700, textDecoration: 'none' }}>
-          View plans
+          {T('site_offline_plans')}
         </Link>
-        <Link href="/" style={{ color: '#818cf8', fontSize: 13 }}>Back to home</Link>
+        <Link href="/" style={{ color: '#818cf8', fontSize: 13 }}>{T('site_offline_home')}</Link>
       </div>
     );
   }
@@ -946,8 +949,8 @@ export default function SitePageClient({
           if (mod === 'feed' && (site as any).show_feed !== false) return (
             <div key="feed" style={{marginBottom:32}}>
               {/* Owner composer */}
-              {isOwner && site.id && activeModules.includes('feed') && (
-                <FeedSection siteId={site.id} isOwner={isOwner} accentColor={accent} isDark={isDark} textColor={textMain} onPost={() => {
+              {canManageFeed && site.id && activeModules.includes('feed') && (
+                <FeedSection siteId={site.id} canPost={canManageFeed} accentColor={accent} isDark={isDark} textColor={textMain} onPost={() => {
                   const now = new Date().toISOString();
                   (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
                     .or(`pinned.eq.true,expires_at.gt.${now}`)
@@ -995,7 +998,7 @@ export default function SitePageClient({
               ))}
               {/* Feed window (Instagram-like) */}
               {posts.filter((p:any) => !p.pinned).length > 0 && (
-                <div style={{ width: '100%', maxWidth: 550, minWidth: Math.min(550, pageMaxWidth), margin: '0 auto' }}>
+                <div style={{ width: '100%', maxWidth: 580, minWidth: Math.min(580, pageMaxWidth), margin: '0 auto' }}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                     <h2 style={{color:t.text,fontSize:14,fontWeight:800,margin:0}}>{T('site_posts')}</h2>
                     <span style={{fontSize:11,color:t.text2}}>{posts.filter((p:any)=>!p.pinned).length} posts</span>
@@ -1205,10 +1208,10 @@ export default function SitePageClient({
             display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap',
           }}>
             <span style={{ fontSize:12, fontWeight:700 }}>
-              Trial active: {trialCountdown || '--:--:--'} · then it moves to draft
+              {T('site_trial_offline_banner').replace('{time}', trialCountdown || '--:--:--')}
             </span>
             <a href="/planos" style={{ color:'#fbbf24', fontSize:12, fontWeight:800, textDecoration:'underline' }}>
-              Subscribe monthly or yearly (discount)
+              {T('site_trial_offline_cta')}
             </a>
           </div>
         )}
@@ -1247,6 +1250,8 @@ export default function SitePageClient({
       </div>
       <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}
       .rich-content img{max-width:100%;height:auto;border-radius:10px;display:block;margin:10px 0}
+      .rich-content .tb-page-media{margin-top:12px}
+      .rich-content .tb-page-media-grid img{max-width:100%;width:100%;object-fit:cover;border-radius:12px}
       .rich-content iframe{max-width:100%;width:100%;min-height:240px;border:0;border-radius:12px;display:block;margin:10px 0}
       .rich-content .trust-video-wrapper{position:relative;padding-bottom:56.25%;height:0;margin:12px 0;border-radius:12px;overflow:hidden}
       .rich-content .trust-video-wrapper iframe{position:absolute;inset:0;width:100%;height:100%}

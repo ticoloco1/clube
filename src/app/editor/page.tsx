@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
-import { RichTextEditor } from '@/components/editor/RichTextEditor';
+import { PageRichEditor } from '@/components/editor/PageRichEditor';
 import { CVEditor, type CVData } from '@/components/editor/CVEditor';
 import { SeoTrafficMeter, GoogleSerpPreview, buildDefaultSeoTitle } from '@/components/editor/SeoToolkit';
 import { LIVELY_AVATAR_MODELS } from '@/lib/livelyAvatarModels';
@@ -72,6 +72,9 @@ const THEMES = [
   { id:'sand',      emoji:'🏖️', bg:'#fdf4e7', text:'#44260a', accent:'#d97706' },
   { id:'nordic',    emoji:'🇸🇪', bg:'#f5f5f0', text:'#2d2d2a', accent:'#4b7bb5' },
   { id:'sakura',    emoji:'🌺', bg:'#fff1f5', text:'#4a1530', accent:'#e11d79' },
+  { id:'cyber_violet', emoji:'⚡', bg:'#0a0518', text:'#f5e6ff', accent:'#c084fc' },
+  { id:'cyber_azure', emoji:'🧿', bg:'#030a14', text:'#e0f7ff', accent:'#22d3ee' },
+  { id:'cyber_crimson', emoji:'🔻', bg:'#140205', text:'#ffe4ec', accent:'#fb7185' },
 ] as const;
 
 const BRAND_COLORS: Record<string,string> = {
@@ -1614,11 +1617,11 @@ function EditorPageInner() {
                 if (!trialStillValid) {
                   const trialEnd = new Date(Date.now() + trialHours * 60 * 60 * 1000).toISOString();
                   const graceEnd = new Date(Date.now() + (trialHours + graceDays * 24) * 60 * 60 * 1000).toISOString();
-                  await save({ trial_publish_until: trialEnd, trial_grace_until: graceEnd, trial_notice_sent_at: null, published: true } as any);
-                  setPublished(true);
+                  /** Trial = só editor; público fica offline até assinatura (Stripe → published: true). */
+                  await save({ trial_publish_until: trialEnd, trial_grace_until: graceEnd, trial_notice_sent_at: null, published: false } as any);
+                  setPublished(false);
                   markDirty();
-                  notifySearchEnginesPublished();
-                  toast.success(T('toast_trial_published'));
+                  toast.success(T('toast_trial_editor_offline'));
                   return;
                 }
                 toast.error(T('toast_trial_used'));
@@ -2690,7 +2693,8 @@ function EditorPageInner() {
                       />
                       <span className="text-xs text-[var(--text2)] font-mono w-14">{pageWidth}px</span>
                     </div>
-                    <RichTextEditor
+                    <PageRichEditor
+                      key={page.id}
                       editorKey={page.id}
                       value={pageContents[page.id] || ''}
                       onChange={(v: string) => {

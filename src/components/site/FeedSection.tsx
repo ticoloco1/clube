@@ -10,14 +10,15 @@ import { Image as ImageIcon, X, Pin, Loader2, Send } from 'lucide-react';
 
 interface FeedSectionProps {
   siteId: string;
-  isOwner: boolean;
+  /** Dono, admin ou e-mail de contacto do site — quem pode publicar no feed público. */
+  canPost: boolean;
   accentColor?: string;
   isDark?: boolean;
   textColor?: string;
   onPost?: () => void;
 }
 
-export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark = true, textColor, onPost }: FeedSectionProps) {
+export function FeedSection({ siteId, canPost, accentColor = '#818cf8', isDark = true, textColor, onPost }: FeedSectionProps) {
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -28,7 +29,7 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
   const fileRef = useRef<HTMLInputElement>(null);
 
   const T = useT();
-  if (!isOwner) return null;
+  if (!canPost) return null;
 
   const toEmbedUrl = (raw: string) => {
     const value = raw.trim();
@@ -41,28 +42,35 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
     return value.includes('/embed/') ? value : '';
   };
 
+  const maxFeedImages = 3;
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files || []).slice(0, 3 - imageFiles.length);
+    const picked = Array.from(e.target.files || []).slice(0, maxFeedImages - imageFiles.length);
     if (!picked.length) return;
     const oversized = picked.some(file => file.size > 5 * 1024 * 1024);
     if (oversized) { toast.error(T('err_image_max_5mb')); return; }
-    setImageFiles(prev => [...prev, ...picked].slice(0, 3));
+    setImageFiles(prev => [...prev, ...picked].slice(0, maxFeedImages));
     picked.forEach((file) => {
       const reader = new FileReader();
-      reader.onload = () => setImagePreviews(prev => [...prev, reader.result as string].slice(0, 3));
+      reader.onload = () => setImagePreviews(prev => [...prev, reader.result as string].slice(0, maxFeedImages));
       reader.readAsDataURL(file);
     });
   };
 
   const removeImage = (index: number) => {
-    setImageFiles(prev => prev.filter((_, i) => i !== index));
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
-    if (fileRef.current && imageFiles.length <= 1) fileRef.current.value = '';
+    setImageFiles((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0 && fileRef.current) fileRef.current.value = '';
+      return next;
+    });
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const post = async (pinIt: boolean) => {
     if (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim()) return;
-    if (!user) return;
+    if (!user) {
+      toast.error(T('rte_image_login'));
+      return;
+    }
 
     setPosting(true);
     if (pinIt) setPinning(true);
@@ -139,17 +147,9 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
         }}
       />
 
-      <input
-        value={videoEmbedUrl}
-        onChange={e => setVideoEmbedUrl(e.target.value)}
-        className="input"
-        placeholder="Video embed link (YouTube/Vimeo)"
-        style={{ marginTop: 8 }}
-      />
-
-      {/* Image preview */}
+      {/* Image preview — até 3 por post */}
       {imagePreviews.length > 0 && (
-        <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
+        <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: `repeat(${Math.min(imagePreviews.length, maxFeedImages)}, minmax(0,1fr))`, gap: 8 }}>
           {imagePreviews.map((preview, i) => (
             <div key={i} style={{ position: 'relative' }}>
               <img src={preview} style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: 10, objectFit: 'cover', display: 'block' }} />
@@ -162,13 +162,21 @@ export function FeedSection({ siteId, isOwner, accentColor = '#818cf8', isDark =
         </div>
       )}
 
+      <input
+        value={videoEmbedUrl}
+        onChange={e => setVideoEmbedUrl(e.target.value)}
+        className="input"
+        placeholder="Video embed link (YouTube/Vimeo)"
+        style={{ marginTop: 8 }}
+      />
+
       {/* Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
         {/* Image upload */}
-        <button onClick={() => fileRef.current?.click()}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={imageFiles.length >= maxFeedImages}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: imageFiles.length >= maxFeedImages ? 'not-allowed' : 'pointer', opacity: imageFiles.length >= maxFeedImages ? 0.45 : 1 }}>
           <ImageIcon style={{ width: 14, height: 14 }} />
-          Photo ({imageFiles.length}/3)
+          Photo ({imageFiles.length}/{maxFeedImages})
         </button>
         <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleImage} />
 
