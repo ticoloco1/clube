@@ -19,7 +19,7 @@ import {
   Save, Eye, Upload, Plus, X, Loader2,
   Globe, Link2, Video, FileText, ChevronDown,
   Image as ImageIcon, Shield, GripVertical, ExternalLink,   CreditCard, Sparkles,
-  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone, CalendarClock,
+  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone, CalendarClock, Trash2,
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
@@ -1590,6 +1590,20 @@ function EditorPageInner() {
                     <input value={siteName} onChange={e => { setSiteName(e.target.value); markDirty(); }}
                       className="input" placeholder={T('ed_ph_display_name')} />
                   </div>
+                  {avatarUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAvatarUrl('');
+                        markDirty();
+                        toast.success(T('studio_avatar_removed'));
+                      }}
+                      className="inline-flex items-center gap-2 text-xs font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/35 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {T('ed_profile_remove_avatar')}
+                    </button>
+                  ) : null}
                   <div>
                     <label className="label block mb-1">{T('ed_label_banner')}</label>
                     <div className="flex items-center gap-2">
@@ -2762,6 +2776,44 @@ function EditorPageInner() {
           {activeTab === 'ia' && (
             <div className="space-y-6">
           {site?.id && user?.id ? (
+            <div className="rounded-2xl border-2 border-violet-500/45 bg-gradient-to-br from-violet-500/15 to-[var(--bg2)] px-4 py-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-black text-sm text-[var(--text)] flex items-center gap-2">
+                    <Cpu className="w-4 h-4 text-violet-400 shrink-0" />
+                    {T('ed_lively_public_master_title')}
+                  </h3>
+                  <p className="text-xs text-[var(--text2)] mt-1.5 leading-relaxed max-w-2xl">
+                    {T('ed_lively_public_master_sub')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={livelyAvatarEnabled}
+                  onClick={() => {
+                    setLivelyAvatarEnabled(!livelyAvatarEnabled);
+                    markDirty();
+                  }}
+                  className={`relative w-14 h-8 rounded-full transition-colors flex-shrink-0 ${
+                    livelyAvatarEnabled ? 'bg-violet-500' : 'bg-[var(--border)]'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                      livelyAvatarEnabled ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {!livelyAvatarEnabled ? (
+                <p className="text-xs font-semibold text-amber-400/95 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                  {T('ed_lively_public_off_note')}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {site?.id && user?.id ? (
             <div className="rounded-2xl border border-violet-500/35 bg-gradient-to-br from-violet-500/10 to-transparent px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-[var(--text2)] leading-relaxed max-w-xl">
                 {T('ed_dialog_scripts_intro')}
@@ -2875,19 +2927,10 @@ function EditorPageInner() {
                 <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed border-l-2 border-violet-500/40 pl-3 py-0.5">
                   {T('ed_lively_intro')}
                 </p>
+                <p className="text-[11px] text-violet-400/90 mt-2 font-semibold">
+                  {T('ed_lively_enable_hint_top')}
+                </p>
               </div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={livelyAvatarEnabled}
-                  onChange={(e) => {
-                    setLivelyAvatarEnabled(e.target.checked);
-                    markDirty();
-                  }}
-                  className="rounded border-[var(--border)] w-4 h-4"
-                />
-                <span className="text-sm font-semibold text-[var(--text)]">{T('ed_lively_enable')}</span>
-              </label>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"

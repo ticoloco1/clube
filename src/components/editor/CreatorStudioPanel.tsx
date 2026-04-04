@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { Camera, ExternalLink, Loader2, Mic, MicOff, Smartphone, Upload } from 'lucide-react';
+import { Camera, ExternalLink, Loader2, Mic, MicOff, Smartphone, Trash2, Upload } from 'lucide-react';
 import { resolveLivelyModel } from '@/lib/livelyAvatarModels';
 import { toast } from 'sonner';
 
@@ -280,6 +280,21 @@ export function CreatorStudioPanel({
                 <Upload className="w-4 h-4" />
                 {T('studio_upload_file')}
               </button>
+              {avatarUrl ? (
+                <button
+                  type="button"
+                  disabled={avatarUploadBusy}
+                  onClick={() => {
+                    setAvatarUrl('');
+                    onMarkDirty();
+                    toast.success(T('studio_avatar_removed'));
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-red-500/40 text-sm font-semibold text-red-400 hover:bg-red-500/10 bg-[var(--bg)]/80"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {T('studio_remove_avatar')}
+                </button>
+              ) : null}
             </div>
           </div>
           <p className="text-[10px] text-[var(--text2)] leading-relaxed">{T('studio_avatar_ring_hint')}</p>

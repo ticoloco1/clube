@@ -364,6 +364,10 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     pt: "O avatar é um acessório premium do mini-site: cumprimenta, responde no chat e fala com TTS (OpenAI / ElevenLabs). O raciocínio usa os teus links + modelos compatíveis com DeepSeek na nossa chave. Sincronização labial no browser (visemes) — sem vídeo renderizado no servidor.",
   },
   ed_lively_enable: { en: "Show assistant on public mini-site", pt: "Mostrar assistente no mini-site público" },
+  ed_lively_enable_hint_top: {
+    en: "Use the switch at the top of this tab to turn the live assistant on or off for visitors.",
+    pt: "Usa o interruptor no topo deste separador para ligar ou desligar o assistente em tempo real para visitantes.",
+  },
   ed_lively_model: { en: "Avatar model", pt: "Modelo do avatar" },
   ed_lively_welcome: { en: "Welcome message (optional)", pt: "Mensagem de boas-vindas (opcional)" },
   ed_lively_welcome_ph: { en: "Hi! I'm the assistant…", pt: "Olá! Sou o assistente…" },
@@ -570,6 +574,18 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   },
   studio_dictate_started: { en: "Listening… speak clearly.", pt: "A ouvir… fala com clareza." },
   studio_toast_avatar: { en: "Avatar updated.", pt: "Avatar atualizado." },
+  studio_remove_avatar: { en: "Remove photo", pt: "Apagar foto" },
+  studio_avatar_removed: { en: "Photo removed — save to apply on the site.", pt: "Foto removida — grava para aplicar no site." },
+  ed_profile_remove_avatar: { en: "Remove profile photo", pt: "Remover foto de perfil" },
+  ed_lively_public_master_title: { en: "Lively assistant on the public site", pt: "Assistente Lively no site público" },
+  ed_lively_public_master_sub: {
+    en: "Off = visitors do not see the AI chat / floating widget. Your profile photo and links stay as they are until you change them.",
+    pt: "Desligado = visitantes não veem o chat de IA nem o widget flutuante. A foto de perfil e os links mantêm-se até alterares.",
+  },
+  ed_lively_public_off_note: {
+    en: "Lively is off for visitors. Turn on above if you want the assistant on the live mini-site again.",
+    pt: "Lively desligado para visitantes. Liga acima se quiseres o assistente outra vez no mini-site.",
+  },
   studio_preview_on_site: { en: "Preview on mini-site", pt: "Pré-visualizar no mini-site" },
   studio_avatar_ring_hint: {
     en: "Glow matches your accent color — same energy visitors will feel next to the assistant chip.",
