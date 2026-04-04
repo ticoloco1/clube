@@ -160,8 +160,8 @@ export default function SitePageClient({
   const bannerPlaceholderEnabled = (site as any)?.banner_placeholder_enabled !== false;
   const bannerPlaceholderColor = (site as any)?.banner_placeholder_color || '#1f2937';
   const moduleOrder: string[] = (() => {
-    try { return JSON.parse((site as any)?.module_order || '["links","feed","videos","cv","ads","booking"]'); }
-    catch { return ['links','feed','videos','cv','ads','booking']; }
+    try { return JSON.parse((site as any)?.module_order || '["pages","links","feed","videos","cv","ads","booking"]'); }
+    catch { return ['pages', 'links', 'feed', 'videos', 'cv', 'ads', 'booking']; }
   })();
   const pageModulesMap: Record<string, string[]> = (() => {
     try {
@@ -198,6 +198,7 @@ export default function SitePageClient({
         const out: Record<string, Record<string, 1|2|3>> = {};
         Object.entries(parsed).forEach(([pageId, raw]: any) => {
           out[pageId] = {
+            pages: [1,2,3].includes(Number(raw?.moduleColumns?.pages)) ? Number(raw.moduleColumns.pages) as 1|2|3 : 1,
             links: [1,2,3].includes(Number(raw?.moduleColumns?.links)) ? Number(raw.moduleColumns.links) as 1|2|3 : 1,
             videos: [1,2,3].includes(Number(raw?.moduleColumns?.videos)) ? Number(raw.moduleColumns.videos) as 1|2|3 : 1,
             cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
@@ -210,7 +211,7 @@ export default function SitePageClient({
         return out;
       }
     } catch {}
-    return { home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 } };
+    return { home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 } };
   })();
   const sitePages: {id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[] = (() => {
     try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home","template":"default"}]'); }
@@ -222,7 +223,32 @@ export default function SitePageClient({
     (m) => m !== 'mystic',
   );
   const activeColumns = pageColumnsMap[activePage] || 1;
-  const activeModuleCols = pageModuleColumnsMap[activePage] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
+  const activeModuleCols = pageModuleColumnsMap[activePage] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
+  const pageTabsNav =
+    sitePages.length > 1 ? (
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {sitePages.map((page) => (
+          <button
+            key={page.id}
+            type="button"
+            onClick={() => setActivePage(page.id)}
+            style={{
+              padding: '8px 20px',
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 700,
+              border: `1.5px solid ${activePage === page.id ? accent : t.border}`,
+              background: activePage === page.id ? accent : t.btn,
+              color: activePage === page.id ? '#fff' : t.text,
+              cursor: 'pointer',
+              transition: 'all .2s',
+            }}
+          >
+            {page.label}
+          </button>
+        ))}
+      </div>
+    ) : null;
   const [utm, setUtm] = useState({ source: '', medium: '', campaign: '' });
   const [subActive, setSubActive] = useState(false);
   const [trialCountdown, setTrialCountdown] = useState('');
@@ -810,27 +836,22 @@ export default function SitePageClient({
           />
         </div>
 
-        {/* ── Multi-page menu ── */}
-        {sitePages.length > 1 && (
-          <div style={{display:'flex',gap:6,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
-            {sitePages.map(page => (
-              <button key={page.id} onClick={() => setActivePage(page.id)}
-                style={{
-                  padding:'8px 20px', borderRadius:999, fontSize:13, fontWeight:700,
-                  border:`1.5px solid ${activePage===page.id ? accent : t.border}`,
-                  background: activePage===page.id ? accent : t.btn,
-                  color: activePage===page.id ? '#fff' : t.text,
-                  cursor:'pointer', transition:'all .2s',
-                }}>
-                {page.label}
-              </button>
-            ))}
-          </div>
+        {/* ── Separadores de páginas: legado se ainda não usas o módulo "pages" na ordem ── */}
+        {pageTabsNav && !activeModules.includes('pages') && (
+          <div style={{ marginBottom: 24 }}>{pageTabsNav}</div>
         )}
 
         {/* ── DYNAMIC MODULE ORDER ── */}
         {(() => {
           const renderModule = (mod: string) => {
+          if (mod === 'pages') {
+            if (!pageTabsNav) return null;
+            return (
+              <div key="pages" style={{ marginBottom: 24 }}>
+                {pageTabsNav}
+              </div>
+            );
+          }
           if (mod === 'links' && links.length > 0) return (
             <div key="links" style={{display:'flex',flexDirection:'column',gap:12,marginBottom:32}}>
               {links.map((link:any) => {

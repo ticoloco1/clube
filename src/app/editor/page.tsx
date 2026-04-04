@@ -118,6 +118,7 @@ function EditorPageInner() {
       ads: T('ed_mod_ads'),
       mystic: T('ed_mod_mystic'),
       booking: T('ed_mod_booking'),
+      pages: T('ed_mod_pages'),
     }),
     [T, lang],
   );
@@ -213,7 +214,7 @@ function EditorPageInner() {
   const [pagesEditorSelectedId, setPagesEditorSelectedId] = useState<string>('home');
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
   const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({
-    home: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+    home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
   });
   const [clearAllArmed, setClearAllArmed] = useState<Record<string, boolean>>({});
   const [adAskingPrice, setAdAskingPrice] = useState('');
@@ -301,11 +302,8 @@ function EditorPageInner() {
     return false;
   }, [editorIaApiEnabled, T]);
 
-  const enforceHomeFixedModules = useCallback((mods: string[]) => {
-    const unique = Array.from(new Set(mods));
-    const withoutFixed = unique.filter((m) => m !== 'links' && m !== 'feed');
-    return ['links', 'feed', ...withoutFixed];
-  }, []);
+  /** Ordem livre: só remove duplicados (links/feed já não ficam fixos no topo). */
+  const normalizeModuleList = useCallback((mods: string[]) => Array.from(new Set(mods)), []);
 
   useEffect(() => {
     if (site) {
@@ -561,14 +559,15 @@ function EditorPageInner() {
             if (Array.isArray(raw)) {
               pm[pageId] = raw;
               pc[pageId] = 1;
-              mc[pageId] = { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
+              mc[pageId] = { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 };
               return;
             }
             const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
             const cols = [1,2,3].includes(Number(raw?.columns)) ? Number(raw.columns) as 1|2|3 : 1;
-            pm[pageId] = pageId === 'home' ? enforceHomeFixedModules(modules) : modules;
+            pm[pageId] = pageId === 'home' ? normalizeModuleList(modules) : modules;
             pc[pageId] = cols;
             mc[pageId] = {
+              pages: [1,2,3].includes(Number(raw?.moduleColumns?.pages)) ? Number(raw.moduleColumns.pages) as 1|2|3 : 1,
               links: [1,2,3].includes(Number(raw?.moduleColumns?.links)) ? Number(raw.moduleColumns.links) as 1|2|3 : 1,
               videos: [1,2,3].includes(Number(raw?.moduleColumns?.videos)) ? Number(raw.moduleColumns.videos) as 1|2|3 : 1,
               cv: [1,2,3].includes(Number(raw?.moduleColumns?.cv)) ? Number(raw.moduleColumns.cv) as 1|2|3 : 1,
@@ -950,11 +949,11 @@ function EditorPageInner() {
       const combinedPageModules: Record<string, any> = {};
       sitePages.forEach((p) => {
         const rawModules = pageModules[p.id] || (p.id === 'home' ? moduleOrder : []);
-        const modules = p.id === 'home' ? enforceHomeFixedModules(rawModules) : rawModules;
+        const modules = p.id === 'home' ? normalizeModuleList(rawModules) : rawModules;
         combinedPageModules[p.id] = {
           modules,
           columns: pageColumns[p.id] || 1,
-          moduleColumns: moduleColumns[p.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+          moduleColumns: moduleColumns[p.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
         };
       });
 
@@ -1677,7 +1676,7 @@ function EditorPageInner() {
                       setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
                       setModuleColumns((prev) => ({
                         ...prev,
-                        [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
                       }));
                       setPagesEditorSelectedId(newId);
                       setActiveTab('pages');
@@ -2412,6 +2411,7 @@ function EditorPageInner() {
                 <div className="space-y-2">
                   {moduleOrder.map((mod, idx) => {
                     const labels: Record<string,string> = {
+                      pages: `📑 ${modLab.pages}`,
                       links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads', mystic:'🔮 Mystic',
                       booking: `📅 ${modLab.booking}`,
                     };
@@ -2427,9 +2427,9 @@ function EditorPageInner() {
                           const next = [...moduleOrder];
                           const [item] = next.splice(from, 1);
                           next.splice(idx, 0, item);
-                          const fixed = enforceHomeFixedModules(next);
-                          setModuleOrder(fixed);
-                          setPageModules((prev) => ({ ...prev, home: fixed }));
+                          const normalized = normalizeModuleList(next);
+                          setModuleOrder(normalized);
+                          setPageModules((prev) => ({ ...prev, home: normalized }));
                           setDragOverMod(null);
                           markDirty();
                         }}
@@ -2577,7 +2577,7 @@ function EditorPageInner() {
                       setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
                       setModuleColumns((prev) => ({
                         ...prev,
-                        [newId]: { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
+                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 },
                       }));
                       setPagesEditorSelectedId(newId);
                       markDirty();
@@ -2630,26 +2630,24 @@ function EditorPageInner() {
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {(['links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'booking'] as const).map((mod) => {
+                        {(['pages', 'links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'booking'] as const).map((mod) => {
                           const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
                           const enabled = currentModules.includes(mod);
-                          const isFixedOnHome = page.id === 'home' && (mod === 'links' || mod === 'feed');
                           return (
                             <div key={mod} className="flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (isFixedOnHome) return;
                                   const current = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
                                   const next = enabled ? current.filter((m) => m !== mod) : [...current, mod];
-                                  const final = page.id === 'home' ? enforceHomeFixedModules(next) : next;
+                                  const final = page.id === 'home' ? normalizeModuleList(next) : next;
                                   setPageModules((prev) => ({ ...prev, [page.id]: final }));
                                   if (page.id === 'home') setModuleOrder(final);
                                   markDirty();
                                 }}
-                                className={`flex-1 py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'} ${isFixedOnHome ? 'opacity-100 cursor-default' : ''}`}
+                                className={`flex-1 py-2 rounded-xl text-xs font-semibold border ${enabled ? 'border-brand text-brand bg-brand/10' : 'border-[var(--border)] text-[var(--text2)]'}`}
                               >
-                                {modLab[mod] || mod.toUpperCase()} {isFixedOnHome ? `· ${T('ed_mod_fixed')}` : ''}
+                                {modLab[mod] || mod.toUpperCase()}
                               </button>
                               {(pageColumns[page.id] || 1) > 1 && (
                                 <select
@@ -2659,7 +2657,7 @@ function EditorPageInner() {
                                     setModuleColumns((prev) => ({
                                       ...prev,
                                       [page.id]: {
-                                        ...(prev[page.id] || { links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 }),
+                                        ...(prev[page.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, booking: 1 }),
                                         [mod]: col,
                                       },
                                     }));
