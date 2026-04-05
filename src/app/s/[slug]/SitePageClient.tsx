@@ -19,7 +19,7 @@ import { MagicPortraitOutOfFrame } from '@/components/site/MagicPortraitOutOfFra
 import { SiteBookingWidget } from '@/components/site/SiteBookingWidget';
 import { SiteSlugMarketPanel } from '@/components/site/SiteSlugMarketPanel';
 import { SiteClassifiedsPanel } from '@/components/site/SiteClassifiedsPanel';
-import { resolveFloatingAgentImageUrl } from '@/lib/floatingAgentImage';
+import { resolvePublicSiteFaceUrl } from '@/lib/floatingAgentImage';
 import { normalizeLivelyTtsProvider } from '@/lib/livelyTtsPreference';
 import { resolveLivelyProfileImageUrl, livelyProfileUsesPupilOverlay } from '@/lib/livelyProfileImage';
 import { CentralProfileLivelyPhoto } from '@/components/site/CentralProfileLivelyPhoto';
@@ -486,6 +486,7 @@ export default function SitePageClient({
   const floatingLivelyActive = showLivelyAvatar && livelyAssistVisitorOn;
 
   const livelyCentralMagic = (site as any)?.lively_central_magic === true;
+  const magicPortraitEnabled = (site as any)?.magic_portrait_enabled === true;
   const livelyProfileAsAvatar = (site as any)?.lively_profile_as_avatar === true;
   const livelyProfileSpeakOnEntry = (site as any)?.lively_profile_speak_on_entry !== false;
   const livelySpeechTap = typeof (site as any)?.lively_profile_speech_tap === 'string' ? (site as any).lively_profile_speech_tap : '';
@@ -496,6 +497,7 @@ export default function SitePageClient({
     ? resolveLivelyProfileImageUrl({
         livelyCentralMagic,
         livelyAvatarEnabled: !!(site as any)?.lively_avatar_enabled,
+        magicPortraitEnabled,
         identityPortraitUrl: (site as any)?.identity_portrait_url,
         avatarUrl: site.avatar_url,
       })
@@ -505,9 +507,10 @@ export default function SitePageClient({
     site?.avatar_url,
   );
   const floatingAgentImageUrl = site
-    ? resolveFloatingAgentImageUrl({
+    ? resolvePublicSiteFaceUrl({
         avatarUrl: site.avatar_url,
         identityPortraitUrl: (site as any)?.identity_portrait_url,
+        magicPortraitEnabled,
       })
     : null;
   /** Foto para o avatar falante no perfil (não exige “central magic”). */
@@ -614,7 +617,7 @@ export default function SitePageClient({
           }}
         >
           <CentralProfileMagicAvatar
-            enabled={floatingLivelyActive && (site as any)?.lively_central_magic === true}
+            enabled={floatingLivelyActive && livelyCentralMagic && magicPortraitEnabled}
             accent={accent}
           >
             <AvatarTiltShell enabled={floatingLivelyActive}>
@@ -1379,6 +1382,7 @@ export default function SitePageClient({
             elevenAgentVoiceId={(site as any).lively_elevenlabs_voice_agent || null}
             floatingExpressiveGestures={(site as any).lively_floating_expressive === true}
             identityPortraitUrl={(site as any).identity_portrait_url ?? null}
+            magicPortraitEnabled={magicPortraitEnabled}
             requestOpen={livelyAssistKick}
             ttsProvider={livelyTtsProvider}
           />

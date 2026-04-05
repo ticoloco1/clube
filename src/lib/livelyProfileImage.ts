@@ -1,16 +1,18 @@
-import { resolveFloatingAgentImageUrl } from '@/lib/floatingAgentImage';
+import { resolvePublicSiteFaceUrl } from '@/lib/floatingAgentImage';
 
 /** Imagem no círculo do perfil quando o modo “mágico” Lively está ativo (foto de perfil ou retrato). */
 export function resolveLivelyProfileImageUrl(params: {
   livelyCentralMagic: boolean;
   livelyAvatarEnabled: boolean;
+  magicPortraitEnabled: boolean;
   identityPortraitUrl: string | null | undefined;
   avatarUrl: string | null | undefined;
 }): string | null {
-  if (!params.livelyAvatarEnabled || !params.livelyCentralMagic) return null;
-  return resolveFloatingAgentImageUrl({
+  if (!params.livelyAvatarEnabled || !params.livelyCentralMagic || !params.magicPortraitEnabled) return null;
+  return resolvePublicSiteFaceUrl({
     avatarUrl: params.avatarUrl,
     identityPortraitUrl: params.identityPortraitUrl,
+    magicPortraitEnabled: true,
   });
 }
 

@@ -32,8 +32,10 @@ export function LivelyAvatarWidget({
   speechBeforeReply,
   elevenAgentVoiceId,
   floatingExpressiveGestures = false,
-  /** Retrato gerado no Identity Lab (URL pública). */
+  /** Retrato gerado no Identity Lab (URL pública). Só usado no painel quando o retrato mágico está ligado no site. */
   identityPortraitUrl,
+  /** Se false, a foto redonda do chat usa só `floatingImageUrl` (avatar), nunca o retrato de identidade. */
+  magicPortraitEnabled = true,
   /** Incrementa (ex.: 1,2,3…) para abrir o painel a partir do botão no perfil. */
   requestOpen = 0,
   /** Voz: automática, só OpenAI TTS, ou só ElevenLabs (com fallback OpenAI se falhar). */
@@ -58,6 +60,7 @@ export function LivelyAvatarWidget({
   /** Polegar + movimento extra no agente flutuante após respostas (mini-site). */
   floatingExpressiveGestures?: boolean;
   identityPortraitUrl?: string | null;
+  magicPortraitEnabled?: boolean;
   requestOpen?: number;
   ttsProvider?: LivelyTtsProvider;
 }) {
@@ -66,7 +69,9 @@ export function LivelyAvatarWidget({
   const model = resolveLivelyModel(modelId || undefined);
   const livelyGate = nftVerified || openBeta;
   const previewOnly = isOwner && !livelyGate;
-  const portraitSrc = typeof identityPortraitUrl === 'string' ? identityPortraitUrl.trim() : '';
+  const idPortrait = typeof identityPortraitUrl === 'string' ? identityPortraitUrl.trim() : '';
+  const flImg = typeof floatingImageUrl === 'string' ? floatingImageUrl.trim() : '';
+  const portraitSrc = magicPortraitEnabled ? idPortrait || flImg : flImg;
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
