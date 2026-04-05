@@ -189,7 +189,8 @@ export function IdentityLabPanel({
       const res = await fetch('/api/identity/voice-clone', { method: 'POST', body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(typeof data.error === 'string' ? data.error : T('id_err_clone'));
+        if (res.status === 402) toast.error(T('id_err_ia_budget'));
+        else toast.error(typeof data.error === 'string' ? data.error : T('id_err_clone'));
         return;
       }
       toast.success(T('id_toast_clone_ok'));
@@ -223,7 +224,8 @@ export function IdentityLabPanel({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(typeof data.error === 'string' ? data.error : T('id_err_generic'));
+        if (res.status === 402) toast.error(T('id_err_ia_budget'));
+        else toast.error(typeof data.error === 'string' ? data.error : T('id_err_generic'));
         return;
       }
       const u = typeof data.portraitUrl === 'string' ? data.portraitUrl : '';
@@ -295,7 +297,8 @@ export function IdentityLabPanel({
       const res = await fetch('/api/identity/voice-clone', { method: 'POST', body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(typeof data.error === 'string' ? data.error : T('id_err_clone'));
+        if (res.status === 402) toast.error(T('id_err_ia_budget'));
+        else toast.error(typeof data.error === 'string' ? data.error : T('id_err_clone'));
         return;
       }
       toast.success(T('id_toast_clone_ok'));
@@ -322,7 +325,8 @@ export function IdentityLabPanel({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast.error(typeof data.error === 'string' ? data.error : T('id_err_greeting'));
+        if (res.status === 402) toast.error(T('id_err_ia_budget'));
+        else toast.error(typeof data.error === 'string' ? data.error : T('id_err_greeting'));
         return;
       }
       const buf = await res.arrayBuffer();
@@ -346,6 +350,11 @@ export function IdentityLabPanel({
         <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed border-l-2 border-amber-500/40 pl-3 py-0.5">
           {T('ed_identity_intro')}
         </p>
+        {!iaApiEnabled ? (
+          <p className="text-xs font-semibold text-amber-400/95 mt-3 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2">
+            {T('ed_identity_ia_off_banner')}
+          </p>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-[var(--border)] p-4 space-y-3 bg-[var(--bg2)]/40">

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 import { isFulfillmentKind } from '@/lib/cartFulfillment';
-import { fulfillLine, type FulfillmentLine } from '@/lib/paymentFulfillment';
+import { fulfillLine, type FulfillmentContext, type FulfillmentLine } from '@/lib/paymentFulfillment';
 
 export function paymentRefFromCheckoutSession(session: Stripe.Checkout.Session): string {
   const pi = session.payment_intent;
@@ -17,6 +17,8 @@ export type CheckoutPendingRow = {
   fulfilled: boolean;
   stripe_checkout_session_id?: string | null;
   stripe_connect_account_id?: string | null;
+  /** Carteira Polygon (0x…) para mint NFT do slug após pagamento. */
+  polygon_wallet?: string | null;
 };
 
 /**
@@ -34,10 +36,14 @@ export async function fulfillCheckoutPendingRow(
 
   const lines = pendingRow.lines as Omit<FulfillmentLine, 'userId'>[];
   const userId = pendingRow.user_id;
+  const pwRaw = (pendingRow as { polygon_wallet?: string | null }).polygon_wallet;
+  const polygonWallet = typeof pwRaw === 'string' && pwRaw.trim() ? pwRaw.trim() : null;
+  const ctx: FulfillmentContext = { polygonWallet };
+
   for (const partial of lines || []) {
     const line: FulfillmentLine = { ...partial, userId } as FulfillmentLine;
     if (isFulfillmentKind(line.kind)) {
-      await fulfillLine(db, line, paymentRef);
+      await fulfillLine(db, line, paymentRef, ctx);
     }
   }
 

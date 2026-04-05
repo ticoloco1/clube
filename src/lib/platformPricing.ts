@@ -1,16 +1,17 @@
 /**
- * Preços padrão em USD (marketing, fallbacks da UI e carrinho).
- * A linha `platform_plans` no Supabase continua a poder sobrepor o Pro quando existir.
+ * Preços em USD — site e checkout alinhados aos EUA (Stripe `currency: 'usd'`).
+ * Pro base = `proMonthly`; Pro + IA = proMonthly + proIaAddonMonthly (checkout `pro_ia`).
+ * Alinhar `platform_plans` no Supabase com `supabase-plan-pro-pricing.sql`.
  */
 export const PLATFORM_USD = {
-  /** Plano Pro — valor mostrado no site e no checkout (alinhar `supabase-plan-pro-pricing.sql` na BD). */
-  proMonthly: 39.9,
-  /** Anual (~17% vs 12× mensal, mesma lógica que o tier anterior). */
-  proYearly: 398.99,
-  /** Add-on IA Studio no mesmo plano Pro (+/mês no toggle em /planos). */
-  proIaAddonMonthly: 10,
-  /** Add-on IA em ciclo anual (desconto vs 12× mensal). */
-  proIaAddonYearly: 100,
+  /** Pro base (sem IA Studio) — alinhar `supabase-plan-pro-pricing.sql` na BD. */
+  proMonthly: 26.9,
+  /** Anual base (~10× mensal, mesma lógica que antes com 398.99/39.9). */
+  proYearly: 269.9,
+  /** Add-on IA Studio: Pro + IA = 39,90/mês (26,90 + 13). */
+  proIaAddonMonthly: 13,
+  /** Add-on IA anual (~10× mensal). */
+  proIaAddonYearly: 130,
   /** % do paywall de vídeo para o criador (marketing / hero / stats). */
   paywallVideoCreatorPercent: 85,
   /** Sugestão inicial no editor; o criador define o preço do CV. */

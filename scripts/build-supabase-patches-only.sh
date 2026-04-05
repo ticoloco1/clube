@@ -8,6 +8,7 @@ OUT="$ROOT/supabase-patches-only.sql"
 
 FILES=(
   supabase-stripe-tables.sql
+  supabase-slug-nft-thirdweb.sql
   supabase-mini-sites-multi-per-user.sql
   supabase-mini-sites-editor-columns.sql
   supabase-site-follows-ensure.sql

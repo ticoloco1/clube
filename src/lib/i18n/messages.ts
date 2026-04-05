@@ -287,8 +287,8 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     pt: "O Génesis Hub fica oculto com a IA desligada — usa o interruptor acima se precisares.",
   },
   ed_ia_master_off_hint: {
-    en: "Turn on “Editor AI API calls” above to use this (uses your AI budget).",
-    pt: "Liga «Pedidos de IA no editor» acima para usar isto (usa o teu orçamento de IA).",
+    en: "Turn on “AI assistance” at the top of this tab to use this (uses your AI budget).",
+    pt: "Liga «Assistência IA» no topo deste separador para usar isto (usa o teu orçamento de IA).",
   },
   ed_ia_hub_off_hint: {
     en: "AI calls are off (toggle above). Turn them on when you want Genesis / coach to use the API.",
@@ -549,13 +549,13 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   ed_ia_tab: { en: "AI", pt: "IA" },
   ed_ia_profile_title: { en: "Speaking profile avatar", pt: "Avatar falante no perfil" },
   ed_ia_profile_intro: {
-    en: "When Lively is on: your real profile or identity portrait is shown with a subtle mouth animation while the assistant speaks (browser lip-sync). Turn off to keep a static photo only.",
-    pt: "Com Lively ativo: mostra-se a tua foto de perfil ou retrato de identidade com animação subtil da boca enquanto o assistente fala (sincronização no browser). Desliga para manter só a foto estática.",
+    en: "When Lively is on: only your normal profile photo appears in the header — mouth + subtle motion follow the voice (no second “magic” portrait card here). Turn off to keep a static photo only.",
+    pt: "Com Lively ativo: no topo aparece só a tua foto de perfil normal — boca e movimento seguem a voz (sem segundo cartão de retrato mágico). Desliga para manter só a foto estática.",
   },
   ed_ia_as_avatar: { en: "Speaking profile photo (mouth moves with voice)", pt: "Foto do perfil a falar (boca mexe com a voz)" },
   ed_ia_photo_hint: {
-    en: "Requires a profile photo or identity portrait. Uses OpenAI / ElevenLabs TTS — pick the engine below.",
-    pt: "Precisa de foto de perfil ou retrato de identidade. Usa TTS OpenAI / ElevenLabs — escolhe o motor abaixo.",
+    en: "Upload a clear face photo. TTS: OpenAI / ElevenLabs — pick below. The out-of-frame magic portrait is hidden while this mode is on.",
+    pt: "Carrega uma foto de rosto nítida. TTS: OpenAI / ElevenLabs — escolhe abaixo. O retrato mágico “fora da moldura” fica oculto com este modo ligado.",
   },
   ed_ia_speak_entry: { en: "Speak welcome message when the page opens", pt: "Falar a mensagem de boas-vindas ao abrir o site" },
   ed_ia_speech_tap: { en: "Text when tapping the avatar (optional)", pt: "Texto ao tocar no avatar (opcional)" },
@@ -678,6 +678,10 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   ed_lively_premium_fail: { en: "Premium verification failed.", pt: "Falha na verificação premium." },
   ed_lively_premium_ok_label: { en: "Premium NFT ✓", pt: "NFT premium ✓" },
   ed_identity_tab: { en: "Identity", pt: "Identidade" },
+  ed_identity_ia_off_banner: {
+    en: "Turn on “AI assistance” at the top of this tab to generate portraits and voice clones.",
+    pt: "Liga «Assistência IA» no topo deste separador para gerar retratos e clones de voz.",
+  },
   ed_identity_title: { en: "Identity lab", pt: "Laboratório de identidade" },
   ed_identity_intro: {
     en: "Generate a stylized portrait (Replicate InstantID) from a public photo and create a voice clone (ElevenLabs). Theme voice effects run in the browser via Web Audio. Requires REPLICATE_API_TOKEN and ELEVENLABS_API_KEY on the server.",
@@ -706,7 +710,10 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   ed_identity_record_start: { en: "Record", pt: "Gravar" },
   ed_identity_record_stop: { en: "Stop and create clone", pt: "Parar e criar clone" },
   ed_identity_clone_voice_ok: { en: "ElevenLabs clone", pt: "Clone ElevenLabs" },
-  ed_identity_clone_missing: { en: "No clone yet — record audio or check the API.", pt: "Ainda sem clone — grava áudio ou verifica a API." },
+  ed_identity_clone_missing: {
+    en: "No clone yet — enable “AI assistance” at the top of this tab, add IA budget (/creditos), then record or upload.",
+    pt: "Ainda sem clone — liga «Assistência IA» no topo deste separador, carrega saldo em /creditos e grava ou envia áudio.",
+  },
   ed_identity_effect: { en: "Voice effect (theme)", pt: "Efeito de voz (tema)" },
   ed_identity_effect_hint: {
     en: "Applied to greeting preview in your browser (filter + pitch).",
@@ -738,6 +745,10 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   id_err_audio_short: { en: "Recording too short (min. ~5 s).", pt: "Gravação demasiado curta (mín. ~5 s)." },
   id_err_audio_type: { en: "Pick an audio file (mp3, wav, webm…).", pt: "Escolhe um ficheiro de áudio (mp3, wav, webm…)." },
   id_err_audio_large: { en: "File too large (max 12 MB).", pt: "Ficheiro demasiado grande (máx. 12 MB)." },
+  id_err_ia_budget: {
+    en: "AI budget too low for this action. Top up at /creditos (USD). During platform trial some debits are waived.",
+    pt: "Orçamento IA insuficiente para esta ação. Recarrega em /creditos (USD). No trial da plataforma alguns débitos podem estar isentos.",
+  },
   id_err_clone: { en: "Voice clone failed.", pt: "Falha ao criar clone de voz." },
   id_toast_clone_ok: { en: "Clone created and saved.", pt: "Clone criado e guardado." },
   id_err_greeting: { en: "Could not play greeting.", pt: "Não foi possível reproduzir a saudação." },
@@ -1157,7 +1168,10 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   home_how_title: { en: "How It Works", pt: "Como funciona" },
   home_plan_get: { en: "Get {name}", pt: "Obter {name}" },
   home_plan_popular: { en: "Most Popular", pt: "Mais popular" },
-  home_pricing_sub: { en: "Start free. Upgrade when you need more.", pt: "Começa grátis. Faz upgrade quando precisares." },
+  home_pricing_sub: {
+    en: "Start free. Upgrade when you need more. Prices in USD.",
+    pt: "Começa grátis. Faz upgrade quando precisares. Preços em USD.",
+  },
   home_pricing_title: { en: "Simple Pricing", pt: "Preços simples" },
   home_schema_desc: { en: "Create your professional mini site with paywall videos, CV unlock and Stripe (USD) payments.", pt: "Cria o teu mini site profissional com vídeos paywall, desbloqueio de CV e pagamentos via Stripe (USD)." },
   home_slash_mo: { en: "/mo", pt: "/mês" },
@@ -1548,9 +1562,13 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   open_editor: { en: "Open Editor", pt: "Abrir Editor" },
   page_no_content: { en: "Add content in the editor for this page.", pt: "Adicione conteúdo no editor para esta página." },
   plans_monthly: { en: "Monthly", pt: "Mensal" },
+  plans_all_usd: {
+    en: "All amounts in US dollars (USD).",
+    pt: "Todos os valores em dólares americanos (USD).",
+  },
   plans_pro_only_note: {
-    en: "Pro from US$39.90/mo. IA Studio is on by default (+US$10/mo or yearly add-on): DeepSeek tools, Lively, booking, multilingual replies, monthly IA credit — turn off the toggle for base Pro only.",
-    pt: "Pro a partir de US$39,90/mês. O IA Studio vem ligado por defeito (+US$10/mês ou add-on anual): ferramentas DeepSeek, Lively, agenda, respostas multilíngues, crédito IA mensal — desliga o toggle para só Pro base.",
+    en: "Pro base US$26.90/mo. With IA Studio US$39.90/mo (+US$13/mo or yearly add-on): DeepSeek tools, Lively, booking, multilingual replies, monthly IA credit — the toggle separates base vs IA.",
+    pt: "Pro normal US$26,90/mês. Com IA Studio US$39,90/mês (+US$13/mês ou add-on anual): DeepSeek, Lively, agenda, respostas multilíngues, crédito IA — o toggle separa Pro base e Pro + IA.",
   },
   plans_ia_toggle: { en: "IA Studio (ON)", pt: "IA Studio (ligado)" },
   plans_ia_toggle_sub: {
@@ -1561,8 +1579,12 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   plans_ia_per_month: { en: "/ month", pt: "/ mês" },
   plans_ia_per_year: { en: "/ year", pt: "/ ano" },
   plans_ia_price_breakdown: {
-    en: "Pro ${base} + IA ${addon}",
-    pt: "Pro ${base} + IA ${addon}",
+    en: "Pro US$ {base} + IA US$ {addon} (USD)",
+    pt: "Pro US$ {base} + IA US$ {addon} (USD)",
+  },
+  plans_price_if_ia_toggle: {
+    en: "With IA Studio: US$ {price}/mo (turn the switch on) · USD",
+    pt: "Com IA Studio: US$ {price}/mês (liga o interruptor) · USD",
   },
   plans_ia_f1: {
     en: "Genesis Hub + Copilot: build the mini-site by answering questions",
@@ -1589,8 +1611,8 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   sub_plan_pro_ia: { en: "Pro + IA Studio", pt: "Pro + IA Studio" },
   dash_plan_kind: { en: "Plan", pt: "Plano" },
   home_pricing_ia_hint: {
-    en: "IA Studio +US$10/mo on /planos (on by default; use your DeepSeek key in the editor to avoid platform API spend)",
-    pt: "IA Studio +US$10/mês em /planos (ligado por defeito; chave DeepSeek no editor evita consumo na API da plataforma)",
+    en: "Pro base US$26.90/mo · Pro + IA US$39.90/mo (+US$13) on /planos — DeepSeek key in the editor reduces platform API spend.",
+    pt: "Pro base US$26,90/mês · Pro + IA US$39,90/mês (+US$13) em /planos — chave DeepSeek no editor reduz consumo na API.",
   },
   plans_most_popular: { en: "Most popular", pt: "Mais popular" },
   plans_no_plans: { en: "No plans available right now.", pt: "Nenhum plano disponível no momento." },

@@ -12,12 +12,16 @@ export async function elevenLabsTtsMp3(text: string, voiceId: string): Promise<A
   const input = text.replace(/\s+/g, ' ').trim().slice(0, 2500);
   if (!input) return null;
 
+  /** Menos “teatro” (style baixo), mais entrega linear; override por env. */
   const voice_settings = {
-    stability: parseEnvFloat('ELEVENLABS_STABILITY', 0.42),
-    similarity_boost: parseEnvFloat('ELEVENLABS_SIMILARITY', 0.82),
-    style: parseEnvFloat('ELEVENLABS_STYLE', 0.12),
-    use_speaker_boost: process.env.ELEVENLABS_SPEAKER_BOOST === '0' ? false : true,
+    stability: parseEnvFloat('ELEVENLABS_STABILITY', 0.52),
+    similarity_boost: parseEnvFloat('ELEVENLABS_SIMILARITY', 0.78),
+    style: parseEnvFloat('ELEVENLABS_STYLE', 0),
+    use_speaker_boost: process.env.ELEVENLABS_SPEAKER_BOOST === '1',
   };
+
+  /** Definir ELEVENLABS_MODEL_ID=eleven_turbo_v2_5 no deploy para fala mais rápida/directa. */
+  const modelId = process.env.ELEVENLABS_MODEL_ID?.trim() || 'eleven_multilingual_v2';
 
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(vid)}`, {
     method: 'POST',
@@ -28,7 +32,7 @@ export async function elevenLabsTtsMp3(text: string, voiceId: string): Promise<A
     },
     body: JSON.stringify({
       text: input,
-      model_id: process.env.ELEVENLABS_MODEL_ID?.trim() || 'eleven_multilingual_v2',
+      model_id: modelId,
       voice_settings,
     }),
   });

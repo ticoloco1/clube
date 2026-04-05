@@ -1,4 +1,4 @@
--- Linha legado `studio` em platform_plans (metadados / admin). O produto atual é Pro + toggle IA (+US$10) → plano `pro_ia`.
+-- Linha legado `studio` em platform_plans (metadados / admin). O produto atual é Pro + toggle IA (+US$13) → plano `pro_ia`.
 -- Mantém active = false para não voltar a mostrar cartão Studio na UI antiga. Bónus IA em pagamentos: `pro_ia` ou `studio` no webhook.
 
 insert into platform_plans (name, slug, price_monthly, price_yearly, color, emoji, features, active, sort_order)
@@ -6,7 +6,7 @@ values (
   'Studio',
   'studio',
   39.9,
-  399,
+  399.9,
   '#22d3ee',
   '🤖',
   '[

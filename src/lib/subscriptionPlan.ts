@@ -1,6 +1,6 @@
 /**
  * Planos de subscrição (campo `subscriptions.plan`).
- * `pro_ia` = Pro + pack IA Studio (+US$/mês no toggle em /planos).
+ * `pro_ia` = Pro + pack IA Studio (add-on em /planos; ver `PLATFORM_USD.proIaAddonMonthly`).
  * `studio` mantido por compatibilidade com pagamentos antigos.
  */
 export function subscriptionHasIaStudioPack(plan: string | null | undefined): boolean {

@@ -107,6 +107,18 @@ export const EXTRA_UI_MESSAGES: Record<string, MessageRow> = {
     en: 'Pay with card or wallet via Stripe Checkout. Your purchase activates automatically after payment.',
     pt: 'Pague com cartão ou carteira no Stripe Checkout. Sua compra ativa automaticamente após o pagamento.',
   },
+  cart_polygon_wallet_label: {
+    en: 'Polygon wallet (for slug NFT)',
+    pt: 'Carteira Polygon (NFT do slug)',
+  },
+  cart_polygon_wallet_ph: {
+    en: '0x… (optional — certificate on Polygon after payment)',
+    pt: '0x… (opcional — certificado na Polygon após pagar)',
+  },
+  cart_polygon_wallet_hint: {
+    en: 'If you buy a slug, we can mint an ERC721 to this address after Stripe confirms payment (server + Thirdweb-compatible contract). You can resell on OpenSea etc. Leave empty to skip NFT.',
+    pt: 'Se comprares um slug, podemos mintar um ERC721 neste endereço após o Stripe confirmar (servidor + contrato compatível Thirdweb). Podes revender na OpenSea, etc. Deixa vazio para não pedir NFT.',
+  },
   cart_creating: { en: 'Creating checkout...', pt: 'Criando checkout...' },
   cart_pay: { en: 'Pay ${amount} USD', pt: 'Pagar ${amount} USD' },
   cart_powered: { en: 'Powered by Stripe · USD', pt: 'Powered by Stripe · USD' },

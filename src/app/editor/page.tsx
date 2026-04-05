@@ -3010,6 +3010,36 @@ function EditorPageInner() {
           {activeTab === 'ia' && (
             <div className="space-y-6">
           {site?.id && user?.id ? (
+            <div className="rounded-2xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-500/12 to-[var(--bg2)] px-4 py-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-black text-sm text-[var(--text)]">{T('ed_ia_master_title')}</h3>
+                  <p className="text-xs text-[var(--text2)] mt-1.5 leading-relaxed max-w-2xl">{T('ed_ia_master_sub')}</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={editorIaApiEnabled}
+                  onClick={() => setEditorIaApiEnabledPersist(!editorIaApiEnabled)}
+                  className={`relative w-14 h-8 rounded-full transition-colors flex-shrink-0 ${
+                    editorIaApiEnabled ? 'bg-emerald-500' : 'bg-[var(--border)]'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                      editorIaApiEnabled ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {!editorIaApiEnabled ? (
+                <p className="text-xs font-semibold text-amber-400/95 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                  {T('ed_ia_genesis_hidden_note')}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {site?.id && user?.id ? (
             <div className="rounded-2xl border-2 border-violet-500/45 bg-gradient-to-br from-violet-500/15 to-[var(--bg2)] px-4 py-4 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="min-w-0">

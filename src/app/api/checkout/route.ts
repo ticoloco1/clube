@@ -27,10 +27,23 @@ export async function POST(req: Request) {
 
     const stripe = new Stripe(secret);
     const body = await req.json();
-    const { items, userId } = body as { items: { id: string; label: string; price: number; type: string }[]; userId: string };
+    const { items, userId, polygonWallet: polygonWalletRaw } = body as {
+      items: { id: string; label: string; price: number; type: string }[];
+      userId: string;
+      /** Carteira Polygon para receber o NFT do slug (opcional). */
+      polygonWallet?: string | null;
+    };
 
     if (!items?.length || !userId) {
       return NextResponse.json({ error: 'Missing items or userId' }, { status: 400 });
+    }
+
+    let polygonWallet: string | null = null;
+    if (typeof polygonWalletRaw === 'string') {
+      const t = polygonWalletRaw.trim();
+      if (t && /^0x[a-fA-F0-9]{40}$/i.test(t)) {
+        polygonWallet = t.toLowerCase();
+      }
     }
 
     const db = getDb();
@@ -88,6 +101,7 @@ export async function POST(req: Request) {
         user_id: userId,
         lines: storedLines,
         stripe_connect_account_id: stripeConnectAccountId,
+        polygon_wallet: polygonWallet,
       })
       .select('id')
       .single();

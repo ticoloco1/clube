@@ -101,10 +101,11 @@ export function MagicPortraitOutOfFrame({
   const [boostAnim, setBoostAnim] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [prepBusy, setPrepBusy] = useState(false);
-  const [mouthOpen, setMouthOpen] = useState(0.25);
   const [trialBlocked, setTrialBlocked] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const portraitImgRef = useRef<HTMLImageElement>(null);
+  const portraitMotionRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number>(0);
@@ -170,8 +171,15 @@ export function MagicPortraitOutOfFrame({
       audioRef.current.pause();
       audioRef.current.src = '';
     }
+    if (portraitImgRef.current) {
+      portraitImgRef.current.style.transform = '';
+      portraitImgRef.current.style.transition = '';
+    }
+    if (portraitMotionRef.current) {
+      portraitMotionRef.current.style.transform = '';
+      portraitMotionRef.current.style.transition = '';
+    }
     setPlaying(false);
-    setMouthOpen(0.25);
   }, []);
 
   const playBoost = useCallback(async () => {
@@ -211,12 +219,24 @@ export function MagicPortraitOutOfFrame({
         let s = 0;
         for (let i = 0; i < 24; i++) s += buf[i];
         const n = Math.min(1, (s / (24 * 255)) * 2.2);
-        setMouthOpen(0.15 + n * 0.95);
+        const scale = 1 + Math.min(0.08, n * 0.14);
+        const el = portraitImgRef.current;
+        if (el) {
+          el.style.transition = 'transform 0.045s ease-out';
+          el.style.transform = `scale(${scale})`;
+        }
+        const mot = portraitMotionRef.current;
+        if (mot) {
+          const ry = Math.min(5, n * 5.5);
+          const rx = Math.min(3.2, n * 3.6);
+          mot.style.transition = 'transform 0.055s ease-out';
+          mot.style.transform = `rotateY(${ry}deg) rotateX(${-rx * 0.5}deg)`;
+        }
         rafRef.current = requestAnimationFrame(loop);
       };
       loop();
     } catch {
-      setMouthOpen(0.35);
+      /* mantém só movimento do rato + partículas */
     }
 
     a.onended = () => {
@@ -280,8 +300,24 @@ export function MagicPortraitOutOfFrame({
       <style
         dangerouslySetInnerHTML={{
           __html: `
-          @keyframes magic-blink { 0%,92%,100%{transform:scaleY(1)} 96%{transform:scaleY(0.08)} }
           @keyframes magic-lean { from{ transform:rotate(-8deg) translateY(12px); opacity:0.5 } to{ transform:rotate(-18deg) translateY(-8px); opacity:1 } }
+          @keyframes magic-portrait-breathe {
+            0%, 100% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.02) translateY(-3px); }
+          }
+          .magic-portrait-img-idle {
+            animation: magic-portrait-breathe 3.8s ease-in-out infinite;
+          }
+          @keyframes magic-portrait-inner-sway {
+            0%, 100% { transform: rotateY(-2.5deg) rotateX(0.7deg) translateY(0); }
+            25% { transform: rotateY(3.2deg) rotateX(-0.9deg) translateY(-1px); }
+            55% { transform: rotateY(-1.5deg) rotateX(1.1deg) translateY(0); }
+            78% { transform: rotateY(3.8deg) rotateX(0.3deg) translateY(-1px); }
+          }
+          .magic-portrait-inner-sway {
+            animation: magic-portrait-inner-sway 6s ease-in-out infinite;
+            transform-origin: 50% 38%;
+          }
         `,
         }}
       />
@@ -344,36 +380,25 @@ export function MagicPortraitOutOfFrame({
             right: '10%',
             top: '10%',
             bottom: '18%',
-            transform: `perspective(400px) rotateY(${mouse.x * 10}deg) rotateX(${-mouse.y * 8}deg)`,
-            transition: 'transform 0.12s ease-out',
+            transform: `perspective(420px) rotateY(${mouse.x * 11}deg) rotateX(${-mouse.y * 9}deg)`,
+            transition: 'transform 0.14s ease-out',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={data.portraitUrl}
-            alt=""
-            className="w-full h-full object-cover object-top"
-            loading="lazy"
-            decoding="async"
-          />
-          {/* Olhos — piscar CSS */}
           <div
-            className="absolute left-[22%] top-[38%] w-[14%] h-[5%] rounded-full bg-black/75 pointer-events-none"
-            style={{ animation: 'magic-blink 4.2s infinite' }}
-          />
-          <div
-            className="absolute right-[22%] top-[38%] w-[14%] h-[5%] rounded-full bg-black/75 pointer-events-none"
-            style={{ animation: 'magic-blink 4.2s infinite 0.15s' }}
-          />
-          {/* Boca / lipsync */}
-          <div
-            className="absolute left-1/2 -translate-x-1/2 bottom-[28%] w-[18%] rounded-full bg-rose-900/90 origin-center"
-            style={{
-              height: `${Math.max(4, mouthOpen * 14)}px`,
-              transform: 'translateX(-50%) scaleX(1.1)',
-              transition: playing ? 'none' : 'height 0.2s ease',
-            }}
-          />
+            ref={portraitMotionRef}
+            className={`h-full w-full overflow-hidden rounded-[10px] ${playing ? '' : 'magic-portrait-inner-sway'}`}
+          >
+            {/* Só a foto: balanço idle + voz (escala/rotação) — sem desenhar rosto por cima */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={portraitImgRef}
+              src={data.portraitUrl}
+              alt=""
+              className={`h-full w-full object-cover object-top ${playing ? '' : 'magic-portrait-img-idle'}`}
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
         </div>
 
         {/* Braço + produto fora da moldura */}

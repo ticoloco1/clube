@@ -111,7 +111,7 @@ export function FloatingAgentCharacter({
 
   const card3d = reduceMotion
     ? undefined
-    : `rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotateZ(${tiltZ}deg) translateZ(8px)`;
+    : `rotateX(${tiltX}deg) rotateY(${tiltY}deg) rotateZ(${tiltZ}deg) translateZ(12px)`;
 
   return (
     <div
@@ -119,7 +119,7 @@ export function FloatingAgentCharacter({
       className="pointer-events-none select-none fixed z-[92] bottom-[5.5rem] right-6 w-[88px] h-[88px] md:bottom-[6rem] md:right-8 md:w-[100px] md:h-[100px]"
       style={{
         animation: rootMotion,
-        perspective: reduceMotion ? undefined : 520,
+        perspective: reduceMotion ? undefined : 640,
         transformStyle: 'preserve-3d',
       }}
     >

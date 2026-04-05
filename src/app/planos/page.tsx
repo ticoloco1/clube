@@ -111,6 +111,7 @@ export default function PlanosPage() {
         <div className="text-center mb-10">
           <h1 className="font-black text-4xl text-[var(--text)] mb-3">{T('plans_title')}</h1>
           <p className="text-[var(--text2)] text-lg">{T('plans_subtitle')}</p>
+          <p className="text-xs text-[var(--text2)] mt-2 font-medium tracking-wide uppercase">{T('plans_all_usd')}</p>
           <p className="text-sm text-[var(--text2)] mt-4">{T('plans_pro_only_note')}</p>
           <div className="flex items-center justify-center gap-3 mt-6">
             <span className={`text-sm font-semibold ${!annual ? 'text-[var(--text)]' : 'text-[var(--text2)]'}`}>{T('plans_monthly')}</span>
@@ -143,9 +144,17 @@ export default function PlanosPage() {
                 {proPlan.name || 'Pro'}
               </h2>
               <div className="flex flex-wrap items-end gap-2 mt-3">
-                <span className="text-4xl font-black text-[var(--text)]">${total.toFixed(2)}</span>
+                <span className="text-4xl font-black text-[var(--text)]">US${total.toFixed(2)}</span>
                 <span className="text-[var(--text2)] mb-1">{period}</span>
               </div>
+              {!iaOn && (
+                <p className="text-sm text-[var(--text2)] mt-2 font-medium">
+                  {T('plans_price_if_ia_toggle').replace(
+                    '{price}',
+                    (annual ? PRO_Y + IA_ADD_Y : PRO_M + IA_ADD_M).toFixed(2),
+                  )}
+                </p>
+              )}
               {iaOn && (
                 <p className="text-xs text-cyan-400/90 font-semibold mt-2">
                   {T('plans_ia_price_breakdown')
@@ -188,7 +197,8 @@ export default function PlanosPage() {
                   </p>
                   <p className="text-xs text-[var(--text2)] mt-1 leading-relaxed">{T('plans_ia_toggle_sub')}</p>
                   <p className="text-xs font-bold text-cyan-400 mt-2">
-                    +${addon.toFixed(2)} USD {annual ? T('plans_ia_per_year') : T('plans_ia_per_month')}
+                    +US${addon.toFixed(2)}
+                    {annual ? T('plans_ia_per_year') : T('plans_ia_per_month')} · USD
                   </p>
                 </div>
               </label>

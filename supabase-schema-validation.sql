@@ -39,6 +39,7 @@ WITH esperadas(tabela, script_sugestao) AS (
     ('platform_plans', 'supabase-additions.sql ou schema-completo'),
     ('platform_settings', 'supabase-schema-completo.sql'),
     ('checkout_pending', 'supabase-stripe-tables.sql ou minisite-mystic ou schema-completo'),
+    ('slug_nft_mints', 'supabase-slug-nft-thirdweb.sql'),
     ('stripe_webhook_events', 'supabase-stripe-tables.sql ou minisite-mystic ou schema-completo'),
     ('credit_wallets', 'supabase-schema-completo.sql'),
     ('credit_transactions', 'supabase-schema-completo.sql'),

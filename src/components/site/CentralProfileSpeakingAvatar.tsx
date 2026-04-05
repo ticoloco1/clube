@@ -18,18 +18,6 @@ const CARTOON_MOUTH: Record<VisemeShape, { ry: number; rx: number; cy: number }>
   wide: { ry: 7, rx: 20, cy: 52 },
 };
 
-/** Boca sobreposta à foto real (coordenadas % do viewBox). */
-const PHOTO_MOUTH: Record<VisemeShape, { ry: number; rx: number; cy: number }> = {
-  sil: { ry: 1.4, rx: 7.5, cy: 71 },
-  neutral: { ry: 2.2, rx: 9.5, cy: 71 },
-  open: { ry: 10, rx: 11, cy: 73 },
-  round: { ry: 8, rx: 9, cy: 72.5 },
-  smile: { ry: 2.8, rx: 12, cy: 70 },
-  fricative: { ry: 2.8, rx: 11, cy: 71 },
-  plosive: { ry: 1.2, rx: 9, cy: 71 },
-  wide: { ry: 5, rx: 11, cy: 71.5 },
-};
-
 type Props = {
   slug: string;
   siteName: string;
@@ -75,13 +63,20 @@ export function CentralProfileSpeakingAvatar({
     null,
   );
   const wrapRef = useRef<HTMLDivElement>(null);
+  const photoMotionRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const pulseRafRef = useRef<number | null>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   const usePhoto = Boolean(photoSrc && photoSrc.trim());
-  const mouthMap = usePhoto ? PHOTO_MOUTH : CARTOON_MOUTH;
-  const m = mouthMap[mouth];
+  const m = CARTOON_MOUTH[mouth];
 
   const stopLipSync = useCallback(() => {
+    if (pulseRafRef.current != null) {
+      cancelAnimationFrame(pulseRafRef.current);
+      pulseRafRef.current = null;
+    }
+    if (imgRef.current) imgRef.current.style.transform = 'scale(1)';
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     lipSyncRef.current = null;
@@ -147,26 +142,87 @@ export function CentralProfileSpeakingAvatar({
     async (text: string, arrayBuffer: ArrayBuffer): Promise<void> => {
       const ctx = await ensureAudioCtx();
       const buf = await ctx.decodeAudioData(arrayBuffer.slice(0));
-      const dur = buf.duration;
-      const keys = buildVisemeKeyframes(text, dur);
-      runLipSync(keys, dur);
+      if (usePhoto) {
+        if (pulseRafRef.current != null) {
+          cancelAnimationFrame(pulseRafRef.current);
+          pulseRafRef.current = null;
+        }
+        if (rafRef.current != null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+        lipSyncRef.current = null;
+        setMouth('sil');
+        setSpeaking(true);
+        if (imgRef.current) imgRef.current.style.transform = 'scale(1)';
+        if (photoMotionRef.current) {
+          photoMotionRef.current.style.transform = '';
+          photoMotionRef.current.style.transition = '';
+        }
+      } else {
+        const dur = buf.duration;
+        const keys = buildVisemeKeyframes(text, dur);
+        runLipSync(keys, dur);
+      }
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.65;
+      const freq = new Uint8Array(analyser.frequencyBinCount);
+
+      const tickPulse = () => {
+        analyser.getByteFrequencyData(freq);
+        let e = 0;
+        for (let i = 0; i < freq.length; i++) e += freq[i] * freq[i];
+        const rms = Math.sqrt(e / (freq.length * 255 * 255));
+        /** Pulso suave ligado à voz (sensação “humana”, não 3D pesado). */
+        const pulse = 1 + Math.min(0.055, rms * 0.14);
+        if (imgRef.current) {
+          imgRef.current.style.transform = `scale(${pulse})`;
+        }
+        if (usePhoto && photoMotionRef.current) {
+          const ry = Math.min(4.2, rms * 32);
+          const rx = Math.min(2.8, rms * 22);
+          photoMotionRef.current.style.transition = 'transform 0.07s ease-out';
+          photoMotionRef.current.style.transform = `rotateY(${ry}deg) rotateX(${-rx * 0.55}deg)`;
+        }
+        pulseRafRef.current = requestAnimationFrame(tickPulse);
+      };
+
       await new Promise<void>((resolve) => {
         const src = ctx.createBufferSource();
         src.buffer = buf;
-        src.connect(ctx.destination);
+        src.connect(analyser);
+        analyser.connect(ctx.destination);
         src.onended = () => {
+          if (pulseRafRef.current != null) {
+            cancelAnimationFrame(pulseRafRef.current);
+            pulseRafRef.current = null;
+          }
+          if (imgRef.current) imgRef.current.style.transform = 'scale(1)';
+          if (photoMotionRef.current) {
+            photoMotionRef.current.style.transform = '';
+            photoMotionRef.current.style.transition = '';
+          }
           stopLipSync();
           resolve();
         };
         try {
           src.start(0);
+          pulseRafRef.current = requestAnimationFrame(tickPulse);
         } catch {
           resolve();
         }
       });
     },
-    [ensureAudioCtx, runLipSync, stopLipSync],
+    [ensureAudioCtx, runLipSync, stopLipSync, usePhoto],
   );
+
+  const photoMotionClass = usePhoto
+    ? speaking
+      ? ''
+      : 'cp-prof-photo-sway'
+    : '';
 
   const fetchOpenAiTts = useCallback(
     async (t: string) => {
@@ -261,12 +317,14 @@ export function CentralProfileSpeakingAvatar({
         width: svgSize,
         height: svgSize,
         borderRadius: 'inherit',
-        transform: `perspective(480px) rotateY(${tilt.x * 10}deg) rotateX(${-tilt.y * 8}deg)`,
-        transition: 'transform 0.14s ease-out',
+        transform: `perspective(640px) rotateY(${tilt.x * 9}deg) rotateX(${-tilt.y * 7}deg)`,
+        transition: 'transform 0.16s ease-out',
+        transformStyle: 'preserve-3d',
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        ref={imgRef}
         src={photoSrc!.trim()}
         alt=""
         width={svgSize}
@@ -274,29 +332,14 @@ export function CentralProfileSpeakingAvatar({
         draggable={false}
         className="block w-full h-full object-cover"
         style={{
-          objectPosition: '50% 28%',
-          transform: speaking ? 'scale(1.03)' : 'scale(1)',
-          transition: 'transform 0.15s ease-out',
+          objectPosition: '50% 32%',
+          transform: 'scale(1)',
+          transition: 'transform 0.05s ease-out',
+          willChange: 'transform',
         }}
       />
-      <svg
-        className="pointer-events-none absolute inset-0 h-full w-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="xMidYMid slice"
-        aria-hidden
-        style={{ mixBlendMode: 'multiply' }}
-      >
-        <ellipse
-          cx={50}
-          cy={m.cy}
-          rx={m.rx}
-          ry={m.ry}
-          fill="rgba(35,18,22,0.62)"
-          style={{ transition: 'none' }}
-        />
-      </svg>
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[38%] bg-gradient-to-t from-black/25 to-transparent opacity-80"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[36%] bg-gradient-to-t from-black/18 to-transparent opacity-90"
         aria-hidden
       />
     </div>
@@ -337,6 +380,30 @@ export function CentralProfileSpeakingAvatar({
       }
       aria-label={speechTap.trim() ? 'Avatar — tocar para ouvir' : 'Avatar animado'}
     >
+      {usePhoto ? (
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+@keyframes cp-prof-sway {
+  0%, 100% { transform: rotateY(-3deg) rotateX(0.9deg) translateY(0); }
+  20% { transform: rotateY(2.5deg) rotateX(-1.1deg) translateY(-1px); }
+  45% { transform: rotateY(4deg) rotateX(0.4deg) translateY(0); }
+  72% { transform: rotateY(-1.2deg) rotateX(1.4deg) translateY(-1px); }
+}
+.cp-prof-photo-sway {
+  animation: cp-prof-sway 5.8s ease-in-out infinite;
+}
+@keyframes cp-prof-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.028); }
+}
+.cp-prof-photo-breathe {
+  animation: cp-prof-breathe 3.4s ease-in-out infinite;
+}
+`,
+          }}
+        />
+      ) : null}
       {photoInner}
       {speechTap.trim() ? (
         <span

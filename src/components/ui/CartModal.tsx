@@ -2,10 +2,25 @@
 import { useCart } from '@/store/cart';
 import { useAuth } from '@/hooks/useAuth';
 import { X, Coins, Check, Loader2, ShoppingCart, ExternalLink, Zap } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
+
+const POLYGON_WALLET_LS = 'tb_checkout_polygon_wallet';
+
+function cartHasSlugNftEligibleItem(items: { id: string; type: string }[]): boolean {
+  return items.some((i) => {
+    if (i.type === 'slug') return true;
+    if (i.id.startsWith('slug_bid_')) return false;
+    return (
+      i.id.startsWith('slug_market_') ||
+      i.id.startsWith('slug_auction_pay_') ||
+      /^slug_prem_/i.test(i.id) ||
+      /^slug_[a-z0-9]/i.test(i.id)
+    );
+  });
+}
 
 export function CartModal() {
   const T = useT();
@@ -13,6 +28,18 @@ export function CartModal() {
   const { user } = useAuth();
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<'cart' | 'paying' | 'done'>('cart');
+  const [polygonWallet, setPolygonWallet] = useState('');
+
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(POLYGON_WALLET_LS);
+      if (s) setPolygonWallet(s);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const slugNftCart = cartHasSlugNftEligibleItem(items);
   const CHECKOUT_FALLBACK_BASE = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
   const isAdminBypass = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
 
@@ -32,7 +59,24 @@ export function CartModal() {
     }
     setProcessing(true);
     try {
-      const payload = JSON.stringify({ userId: user.id, items });
+      const pw = polygonWallet.trim();
+      if (slugNftCart && pw && !/^0x[a-fA-F0-9]{40}$/i.test(pw)) {
+        toast.error('Polygon: use um endereço 0x com 40 caracteres hexadecimais.');
+        setProcessing(false);
+        return;
+      }
+      if (slugNftCart && pw) {
+        try {
+          localStorage.setItem(POLYGON_WALLET_LS, pw.toLowerCase());
+        } catch {
+          /* ignore */
+        }
+      }
+      const payload = JSON.stringify({
+        userId: user.id,
+        items,
+        ...(slugNftCart && pw ? { polygonWallet: pw } : {}),
+      });
       const urls = ['/api/checkout', CHECKOUT_FALLBACK_BASE ? `${CHECKOUT_FALLBACK_BASE}/api/checkout` : ''].filter(Boolean);
       let data: any = {};
       let lastErr: any = null;
@@ -133,6 +177,24 @@ export function CartModal() {
                   </p>
                   <p>{T('cart_secure_body')}</p>
                 </div>
+
+                {slugNftCart ? (
+                  <div className="mb-4 space-y-1.5">
+                    <label className="block text-xs font-bold text-[var(--text)]" htmlFor="tb-cart-polygon-wallet">
+                      {T('cart_polygon_wallet_label')}
+                    </label>
+                    <input
+                      id="tb-cart-polygon-wallet"
+                      value={polygonWallet}
+                      onChange={(e) => setPolygonWallet(e.target.value)}
+                      className="input w-full text-sm font-mono"
+                      placeholder={T('cart_polygon_wallet_ph')}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <p className="text-[10px] text-[var(--text2)] leading-relaxed">{T('cart_polygon_wallet_hint')}</p>
+                  </div>
+                ) : null}
 
                 <button onClick={handleCheckout} disabled={processing}
                   className="btn-primary w-full justify-center py-3.5 text-base gap-2">

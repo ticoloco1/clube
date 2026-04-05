@@ -2,6 +2,35 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { getMiniSiteStripeForUser, releaseMiniSiteSlugFromSeller } from '@/lib/stripeConnectSite';
 import { PLATFORM_USD, boostPositionsFromAmountUsd } from '@/lib/platformPricing';
+import {
+  isValidEvmAddress,
+  mintTrustBankSlugCertificateIfConfigured,
+} from '@/lib/slugNftThirdwebMint';
+
+/** Contexto opcional vindo do checkout (ex.: carteira Polygon para NFT do slug). */
+export type FulfillmentContext = {
+  polygonWallet?: string | null;
+};
+
+async function maybeMintSlugCertificateNft(
+  db: SupabaseClient,
+  ctx: FulfillmentContext | undefined,
+  paymentRef: string,
+  userId: string,
+  slug: string,
+) {
+  const w = ctx?.polygonWallet?.trim();
+  if (!w || !isValidEvmAddress(w)) return;
+  const r = await mintTrustBankSlugCertificateIfConfigured(db, {
+    slug,
+    recipient: w,
+    userId,
+    paymentRef,
+  });
+  if (!r.ok && r.reason !== 'mint_not_configured') {
+    console.warn('[Fulfill] slug NFT:', r);
+  }
+}
 
 /** Revenue splits (USD) — paywall vídeo 85/15, CV 50/50 */
 export const PAYMENT_SPLITS = {
@@ -89,7 +118,12 @@ function priceApproxEqual(paid: number, expected: number) {
 /**
  * Apply one paid line (Stripe webhook or tests).
  */
-export async function fulfillLine(db: SupabaseClient, line: FulfillmentLine, paymentRef: string): Promise<void> {
+export async function fulfillLine(
+  db: SupabaseClient,
+  line: FulfillmentLine,
+  paymentRef: string,
+  ctx?: FulfillmentContext,
+): Promise<void> {
   const { kind, userId, amountUsd, itemId, planId, billingPeriod, targetType, faceValueUsd, mysticService } = line;
 
   switch (kind) {
@@ -381,6 +415,7 @@ export async function fulfillLine(db: SupabaseClient, line: FulfillmentLine, pay
           console.error('[Fulfill] Stripe transfer (slug_market)', err);
         }
       }
+      await maybeMintSlugCertificateNft(db, ctx, paymentRef, userId, itemId);
       break;
     }
     case 'slug_auction_settle': {
@@ -434,6 +469,7 @@ export async function fulfillLine(db: SupabaseClient, line: FulfillmentLine, pay
       }
 
       await db.from('slug_auctions' as any).update({ status: 'settled' }).eq('id', itemId);
+      await maybeMintSlugCertificateNft(db, ctx, paymentRef, userId, slugStr);
       break;
     }
     case 'slug': {
@@ -451,6 +487,7 @@ export async function fulfillLine(db: SupabaseClient, line: FulfillmentLine, pay
       if (prem) {
         await db.from('premium_slugs' as any).update({ sold_to: userId, active: false }).eq('slug', itemId);
       }
+      await maybeMintSlugCertificateNft(db, ctx, paymentRef, userId, itemId);
       break;
     }
     case 'classified': {

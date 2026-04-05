@@ -1786,7 +1786,7 @@ comment on column public.mini_sites.cv_contact_locked is
 -- FILE: supabase-plan-studio.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Linha legado `studio` em platform_plans (metadados / admin). O produto atual é Pro + toggle IA (+US$10) → plano `pro_ia`.
+-- Linha legado `studio` em platform_plans (metadados / admin). O produto atual é Pro + toggle IA (+US$13) → plano `pro_ia`.
 -- Mantém active = false para não voltar a mostrar cartão Studio na UI antiga. Bónus IA em pagamentos: `pro_ia` ou `studio` no webhook.
 
 insert into platform_plans (name, slug, price_monthly, price_yearly, color, emoji, features, active, sort_order)
@@ -1822,7 +1822,7 @@ select 'platform_plans studio: upsert OK (active=false — usar Pro + IA em /pla
 -- FILE: supabase-deactivate-studio-plan.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Cartão "Studio" separado desligado: o pack IA passa a ser +US$10/mês no mesmo plano Pro (`pro_ia`).
+-- Cartão "Studio" separado desligado: o pack IA passa a ser +US$13/mês no mesmo plano Pro (`pro_ia`).
 update platform_plans set active = false where lower(slug) = 'studio';
 select 'studio plan card deactivated — use Pro + IA toggle on /planos' as status;
 
@@ -1831,16 +1831,16 @@ select 'studio plan card deactivated — use Pro + IA toggle on /planos' as stat
 -- FILE: supabase-plan-pro-pricing.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Pro: preços alinhados a `src/lib/platformPricing.ts` (Pro US$39,90/mês + toggle IA +US$10 na UI /planos).
+-- Pro: alinhado a `src/lib/platformPricing.ts` — base US$26,90/mês; com IA US$39,90 (+US$13 na UI /planos).
 -- Só a linha `pro` fica activa para o cartão na home; o pack IA é o item `pro_ia` no checkout.
 
 update platform_plans
-set price_monthly = 39.90, price_yearly = 398.99, active = true
+set price_monthly = 26.90, price_yearly = 269.90, active = true
 where lower(slug) = 'pro';
 
 update platform_plans set active = false where lower(slug) <> 'pro';
 
-select 'platform_plans pro: US$39.90/mo, US$398.99/yr — usar /planos com IA +US$10 (pro_ia)' as status;
+select 'platform_plans pro: US$26.90/mo base, US$269.90/yr — Pro+IA US$39.90 (pro_ia)' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

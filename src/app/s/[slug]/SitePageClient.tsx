@@ -21,8 +21,6 @@ import { SiteSlugMarketPanel } from '@/components/site/SiteSlugMarketPanel';
 import { SiteClassifiedsPanel } from '@/components/site/SiteClassifiedsPanel';
 import { resolvePublicSiteFaceUrl } from '@/lib/floatingAgentImage';
 import { normalizeLivelyTtsProvider } from '@/lib/livelyTtsPreference';
-import { resolveLivelyProfileImageUrl, livelyProfileUsesPupilOverlay } from '@/lib/livelyProfileImage';
-import { CentralProfileLivelyPhoto } from '@/components/site/CentralProfileLivelyPhoto';
 import { CentralProfileSpeakingAvatar } from '@/components/site/CentralProfileSpeakingAvatar';
 import { CVView } from '@/components/editor/CVEditor';
 import { useT } from '@/lib/i18n';
@@ -493,19 +491,9 @@ export default function SitePageClient({
   const livelySpeechBeforeReply =
     typeof (site as any)?.lively_profile_speech_before_reply === 'string' ? (site as any).lively_profile_speech_before_reply : '';
   const showProfileSpeakingAvatar = floatingLivelyActive && livelyProfileAsAvatar;
-  const livelyProfileImageUrl = site
-    ? resolveLivelyProfileImageUrl({
-        livelyCentralMagic,
-        livelyAvatarEnabled: !!(site as any)?.lively_avatar_enabled,
-        magicPortraitEnabled,
-        identityPortraitUrl: (site as any)?.identity_portrait_url,
-        avatarUrl: site.avatar_url,
-      })
-    : null;
-  const livelyProfilePupils = livelyProfileUsesPupilOverlay(
-    (site as any)?.identity_portrait_url,
-    site?.avatar_url,
-  );
+  /** Sempre a foto de perfil real no círculo do topo — nunca o retrato IA (evita “duas caras”). */
+  const centerProfilePhotoUrl =
+    typeof site?.avatar_url === 'string' && site.avatar_url.trim() ? site.avatar_url.trim() : null;
   const floatingAgentImageUrl = site
     ? resolvePublicSiteFaceUrl({
         avatarUrl: site.avatar_url,
@@ -513,8 +501,8 @@ export default function SitePageClient({
         magicPortraitEnabled,
       })
     : null;
-  /** Foto para o avatar falante no perfil (não exige “central magic”). */
-  const speakingProfilePhotoUrl = floatingAgentImageUrl;
+  /** Avatar falante = só foto de perfil do utilizador. */
+  const speakingProfilePhotoUrl = centerProfilePhotoUrl;
   const livelyTtsProvider = normalizeLivelyTtsProvider((site as any)?.lively_tts_provider);
   const profilePhotoRadiusCss =
     site?.photo_shape === 'round'
@@ -523,7 +511,7 @@ export default function SitePageClient({
         ? `${Math.round(avatarSize * 0.16)}px`
         : `${Math.round(avatarSize * 0.28)}px`;
 
-  const shareAvatarUrl = livelyProfileImageUrl || floatingAgentImageUrl || null;
+  const shareAvatarUrl = centerProfilePhotoUrl || floatingAgentImageUrl || null;
   const ownerWhatsappDigits = String((site as any).contact_phone || '').replace(/\D/g, '');
 
   return (
@@ -617,7 +605,9 @@ export default function SitePageClient({
           }}
         >
           <CentralProfileMagicAvatar
-            enabled={floatingLivelyActive && livelyCentralMagic && magicPortraitEnabled}
+            enabled={
+              floatingLivelyActive && livelyCentralMagic && magicPortraitEnabled && !livelyProfileAsAvatar
+            }
             accent={accent}
           >
             <AvatarTiltShell enabled={floatingLivelyActive}>
@@ -653,19 +643,9 @@ export default function SitePageClient({
                     border={`2px solid ${t.border}`}
                     pageBg={pageBg}
                   />
-                ) : livelyProfileImageUrl ? (
-                  <CentralProfileLivelyPhoto
-                    src={livelyProfileImageUrl}
-                    alt={site.site_name}
-                    width={avatarSize}
-                    height={avatarSize}
-                    borderRadius={profilePhotoRadiusCss}
-                    border={`2px solid ${t.border}`}
-                    pupilOverlay={livelyProfilePupils}
-                  />
-                ) : floatingAgentImageUrl ? (
+                ) : centerProfilePhotoUrl ? (
                   <img
-                    src={floatingAgentImageUrl}
+                    src={centerProfilePhotoUrl}
                     alt={site.site_name}
                     style={{
                       width: avatarSize,
@@ -677,6 +657,7 @@ export default function SitePageClient({
                             ? Math.round(avatarSize * 0.16)
                             : Math.round(avatarSize * 0.28),
                       objectFit: 'cover',
+                      objectPosition: '50% 35%',
                       display: 'block',
                       border: `2px solid ${t.border}`,
                     }}
@@ -874,13 +855,15 @@ export default function SitePageClient({
             </div>
           )}
 
-          <MagicPortraitOutOfFrame
-            slug={slug}
-            isOwner={isOwner}
-            accentColor={accent}
-            nftOk={livelyNftOk}
-            openBeta={livelyOpenBeta}
-          />
+          {!livelyProfileAsAvatar ? (
+            <MagicPortraitOutOfFrame
+              slug={slug}
+              isOwner={isOwner}
+              accentColor={accent}
+              nftOk={livelyNftOk}
+              openBeta={livelyOpenBeta}
+            />
+          ) : null}
         </div>
 
         {/* ── Separadores de páginas: legado se ainda não usas o módulo "pages" na ordem ── */}

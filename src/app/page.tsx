@@ -308,7 +308,7 @@ export default function HomePage() {
                   <div className="text-2xl mb-2">{plan.emoji}</div>
                   <h3 className="font-black text-lg mb-1" style={{ color: plan.color || 'var(--text)' }}>{plan.name}</h3>
                   <div className="text-3xl font-black text-[var(--text)] mb-1">
-                    ${PLATFORM_USD.proMonthly.toFixed(2)}
+                    US${PLATFORM_USD.proMonthly.toFixed(2)}
                     <span className="text-sm text-[var(--text2)] font-normal">{T('home_slash_mo')}</span>
                   </div>
                   <p className="text-xs text-[var(--text2)] mb-4">{T('home_pricing_ia_hint')}</p>
