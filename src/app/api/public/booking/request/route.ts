@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     const slotMinutes = Math.max(15, Math.min(180, Number(row.booking_slot_minutes) || 30));
     const weekly = parseWeeklyHours(row.booking_weekly_hours);
 
-    const dateStr = format(start, 'yyyy-MM-dd', { timeZone: tz });
+    const dateStr = formatInTimeZone(start, tz, 'yyyy-MM-dd');
 
     const dayStart = toDate(`${dateStr}T00:00:00`, { timeZone: tz });
     const dayEnd = addMinutes(dayStart, 24 * 60);

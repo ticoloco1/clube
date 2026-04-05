@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { openAiCompatibleChat, resolveAiRuntime, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { openAiCompatibleChat, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { pickAiRuntimeForSite } from '@/lib/byokRuntime';
 import { getLivelySiteForApi, getServiceDb, getViewerUserId, rateLimitLively } from '@/lib/livelyAvatarServer';
 import { applySiteAiBudgetDeduction, assertOwnerAiBudgetUsd, IA_USD, readSiteAiBudget } from '@/lib/aiUsdBudget';
 import { iaUsdBillingApplies } from '@/lib/iaBillingSubscription';
@@ -49,22 +50,32 @@ export async function POST(req: NextRequest) {
 
     const db = getServiceDb();
     const dbAi = await loadAiConfig(db);
-    const runtime = resolveAiRuntime(dbAi);
-    if (!runtime) {
-      return NextResponse.json({ error: 'IA não configurada (DEEPSEEK_API_KEY ou Admin).' }, { status: 503 });
+    const picked = await pickAiRuntimeForSite(db, site.id, dbAi);
+    if (!picked) {
+      return NextResponse.json(
+        { error: 'IA não configurada: chave DeepSeek no mini-site, DEEPSEEK_API_KEY ou Admin.' },
+        { status: 503 },
+      );
     }
+    const { runtime, useSiteUsdBudget } = picked;
 
-    const { freeUsd, paidUsd } = readSiteAiBudget(site);
-    const costUsd = IA_USD.suggest_welcome();
-    const billingApplies = site.user_id
-      ? await iaUsdBillingApplies(db, {
-          user_id: site.user_id,
-          trial_publish_until: site.trial_publish_until,
-        })
-      : true;
-    const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
-    if (!bud.ok) {
-      return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+    let deductFreeUsd = 0;
+    let deductPaidUsd = 0;
+    if (useSiteUsdBudget) {
+      const { freeUsd, paidUsd } = readSiteAiBudget(site);
+      const costUsd = IA_USD.suggest_welcome();
+      const billingApplies = site.user_id
+        ? await iaUsdBillingApplies(db, {
+            user_id: site.user_id,
+            trial_publish_until: site.trial_publish_until,
+          })
+        : true;
+      const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
+      if (!bud.ok) {
+        return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+      }
+      deductFreeUsd = bud.deductFreeUsd;
+      deductPaidUsd = bud.deductPaidUsd;
     }
 
     const userPrompt = topic
@@ -83,7 +94,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Falha ao gerar texto' }, { status: 502 });
     }
 
-    const debOk = await applySiteAiBudgetDeduction(db, site.id, bud.deductFreeUsd, bud.deductPaidUsd);
+    const debOk = await applySiteAiBudgetDeduction(db, site.id, deductFreeUsd, deductPaidUsd);
     if (!debOk) {
       return NextResponse.json({ error: 'Falha ao debitar orçamento IA' }, { status: 402 });
     }

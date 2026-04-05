@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { openAiCompatibleChat, resolveAiRuntime, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { openAiCompatibleChat, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { pickAiRuntimeForSite } from '@/lib/byokRuntime';
 import {
   applySiteAiBudgetDeduction,
   assertOwnerAiBudgetUsd,
@@ -220,23 +221,30 @@ export async function POST(req: NextRequest) {
     }
 
     const aiConfig = await loadAiConfig(db);
-    const runtime = resolveAiRuntime(aiConfig);
-    if (!runtime) {
+    const picked = await pickAiRuntimeForSite(db, siteId, aiConfig);
+    if (!picked) {
       return NextResponse.json(
-        { error: 'IA não configurada. Define DEEPSEEK_API_KEY ou chave no Admin.' },
+        { error: 'IA não configurada: chave DeepSeek no mini-site, DEEPSEEK_API_KEY ou Admin.' },
         { status: 503 },
       );
     }
+    const { runtime, useSiteUsdBudget } = picked;
 
-    const { freeUsd, paidUsd } = readSiteAiBudget(site);
-    const costUsd = IA_USD.site_copilot_task();
-    const billingApplies = await iaUsdBillingApplies(db, {
-      user_id: row.user_id,
-      trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
-    });
-    const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
-    if (!bud.ok) {
-      return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+    let deductFreeUsd = 0;
+    let deductPaidUsd = 0;
+    if (useSiteUsdBudget) {
+      const { freeUsd, paidUsd } = readSiteAiBudget(site);
+      const costUsd = IA_USD.site_copilot_task();
+      const billingApplies = await iaUsdBillingApplies(db, {
+        user_id: row.user_id,
+        trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
+      });
+      const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
+      if (!bud.ok) {
+        return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+      }
+      deductFreeUsd = bud.deductFreeUsd;
+      deductPaidUsd = bud.deductPaidUsd;
     }
 
     const ctxObj: Record<string, unknown> = {
@@ -281,7 +289,7 @@ export async function POST(req: NextRequest) {
       text = text.slice(0, 157).trim() + '…';
     }
 
-    const debOk = await applySiteAiBudgetDeduction(db, siteId, bud.deductFreeUsd, bud.deductPaidUsd);
+    const debOk = await applySiteAiBudgetDeduction(db, siteId, deductFreeUsd, deductPaidUsd);
     if (!debOk) {
       return NextResponse.json({ error: 'Falha ao debitar orçamento IA' }, { status: 402 });
     }

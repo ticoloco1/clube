@@ -8,6 +8,7 @@ import { Coins, ArrowRight, ArrowLeft, History, Wallet, Info, CheckCircle, Exter
 import { toast } from 'sonner';
 import { useI18n, useT } from '@/lib/i18n';
 import { iaTopupChargeUsd, readSiteAiBudget } from '@/lib/aiUsdBudget';
+import { estimatedCoachCopilotTurnsRemaining } from '@/lib/aiEconomics';
 
 const CREDIT_PACKS = [
   { credits: 100, usdc: 1.0, bonus: 0 },
@@ -17,7 +18,7 @@ const CREDIT_PACKS = [
   { credits: 10000, usdc: 100.0, bonus: 1500 },
 ];
 
-const IA_FACE_PACKS = [10, 25, 50, 100] as const;
+const IA_FACE_PACKS = [5, 10, 25, 50, 100] as const;
 
 type AiSiteRow = {
   id: string;
@@ -172,7 +173,10 @@ export default function CreditosPage() {
         <h2 className="font-black text-[var(--text)] text-xl mb-2 flex items-center gap-2">
           <Info className="w-5 h-5 text-violet-400" /> {T('credits_ia_topup_title')}
         </h2>
-        <p className="text-[var(--text2)] text-sm mb-5 leading-relaxed">{T('credits_ia_topup_blurb')}</p>
+        <p className="text-[var(--text2)] text-sm mb-3 leading-relaxed">{T('credits_ia_topup_blurb')}</p>
+        <p className="text-[var(--text2)] text-xs mb-5 leading-relaxed border border-[var(--border)] rounded-xl p-3 bg-[var(--bg2)]/80">
+          {T('credits_ia_deepseek_note')}
+        </p>
         {aiSites.length === 0 ? (
           <div className="card p-5 mb-8 border border-amber-500/20 bg-amber-500/5">
             <p className="text-sm text-amber-200 mb-3">{T('credits_ia_no_site')}</p>
@@ -182,6 +186,7 @@ export default function CreditosPage() {
           <div className="space-y-8 mb-10">
             {aiSites.map((s) => {
               const b = readSiteAiBudget(s);
+              const est = estimatedCoachCopilotTurnsRemaining(b.freeUsd, b.paidUsd);
               return (
                 <div key={s.id} className="card p-5 border border-violet-500/20 bg-violet-500/5">
                   <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
@@ -197,6 +202,9 @@ export default function CreditosPage() {
                         .replace('{paid}', b.paidUsd.toFixed(2))}
                     </p>
                   </div>
+                  <p className="text-[11px] text-violet-200/80 mb-4 leading-relaxed">
+                    {T('credits_ia_turns_estimate').replace('{n}', String(est))}
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {IA_FACE_PACKS.map((face) => {
                       const charge = iaTopupChargeUsd(face);

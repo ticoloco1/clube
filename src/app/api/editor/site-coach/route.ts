@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { openAiCompatibleChatMessages, resolveAiRuntime, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { openAiCompatibleChatMessages, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { pickAiRuntimeForSite } from '@/lib/byokRuntime';
 import {
   applySiteAiBudgetDeduction,
   assertOwnerAiBudgetUsd,
@@ -111,23 +112,30 @@ export async function POST(req: NextRequest) {
     }
 
     const aiConfig = await loadAiConfig(db);
-    const runtime = resolveAiRuntime(aiConfig);
-    if (!runtime) {
+    const picked = await pickAiRuntimeForSite(db, siteId, aiConfig);
+    if (!picked) {
       return NextResponse.json(
-        { error: 'IA não configurada (DEEPSEEK_API_KEY ou Admin).' },
+        { error: 'IA não configurada: chave DeepSeek no mini-site, DEEPSEEK_API_KEY ou Admin.' },
         { status: 503 },
       );
     }
+    const { runtime, useSiteUsdBudget } = picked;
 
-    const { freeUsd, paidUsd } = readSiteAiBudget(site);
-    const costUsd = IA_USD.site_coach_turn();
-    const billingApplies = await iaUsdBillingApplies(db, {
-      user_id: (site as { user_id: string }).user_id,
-      trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
-    });
-    const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
-    if (!bud.ok) {
-      return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+    let deductFreeUsd = 0;
+    let deductPaidUsd = 0;
+    if (useSiteUsdBudget) {
+      const { freeUsd, paidUsd } = readSiteAiBudget(site);
+      const costUsd = IA_USD.site_coach_turn();
+      const billingApplies = await iaUsdBillingApplies(db, {
+        user_id: (site as { user_id: string }).user_id,
+        trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
+      });
+      const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
+      if (!bud.ok) {
+        return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+      }
+      deductFreeUsd = bud.deductFreeUsd;
+      deductPaidUsd = bud.deductPaidUsd;
     }
 
     const messages: Msg[] = rawMessages
@@ -149,6 +157,8 @@ export async function POST(req: NextRequest) {
 
 REGRAS:
 - Lê o snapshot JSON (estado actual: nome, bio, links, vídeos, CV, SEO, páginas, feed). Pode estar desactualizado em segundos — usa como guia.
+- Modo “fácil”: guia passo a passo — uma decisão de cada vez (quem és, o que vendes, tom, links principais, CTA). Não atropela o utilizador com listas longas.
+- O assistente Lively no site público usa instruções que o criador pode editar; quando fizer sentido, sugere 1–2 frases prontas para colar nas instruções do agente (tom, FAQs, o que não prometer).
 - Responde em português, tom encorajador, directo, futurista mas claro.
 - Cada mensagem: no máximo 2–3 parágrafos curtos OU lista com 3–5 bullets. Evita blocos gigantes.
 - Faz UMA pergunta principal no fim quando estiveres a guiar (nome, links, temas de posts, paywall, SEO).
@@ -180,7 +190,7 @@ ${snapStr}`;
       return NextResponse.json({ error: 'Falha da IA' }, { status: 502 });
     }
 
-    const debOk = await applySiteAiBudgetDeduction(db, siteId, bud.deductFreeUsd, bud.deductPaidUsd);
+    const debOk = await applySiteAiBudgetDeduction(db, siteId, deductFreeUsd, deductPaidUsd);
     if (!debOk) {
       return NextResponse.json({ error: 'Falha ao debitar orçamento IA' }, { status: 402 });
     }

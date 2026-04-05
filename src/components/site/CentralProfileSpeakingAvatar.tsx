@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { resolveLivelyModel } from '@/lib/livelyAvatarModels';
 import { buildVisemeKeyframes, visemeAtTime, type VisemeShape } from '@/lib/visemesFromText';
 import { defaultElevenVoice } from '@/lib/elevenLabsTts';
+import type { LivelyTtsProvider } from '@/lib/livelyTtsPreference';
 
-const MOUTH: Record<VisemeShape, { ry: number; rx: number; cy: number }> = {
+/** Boca desenhada no rosto cartoon (SVG). */
+const CARTOON_MOUTH: Record<VisemeShape, { ry: number; rx: number; cy: number }> = {
   sil: { ry: 3, rx: 14, cy: 52 },
   neutral: { ry: 5, rx: 18, cy: 51 },
   open: { ry: 14, rx: 16, cy: 54 },
@@ -14,6 +16,18 @@ const MOUTH: Record<VisemeShape, { ry: number; rx: number; cy: number }> = {
   fricative: { ry: 5, rx: 20, cy: 51 },
   plosive: { ry: 2, rx: 16, cy: 51 },
   wide: { ry: 7, rx: 20, cy: 52 },
+};
+
+/** Boca sobreposta à foto real (coordenadas % do viewBox). */
+const PHOTO_MOUTH: Record<VisemeShape, { ry: number; rx: number; cy: number }> = {
+  sil: { ry: 1.4, rx: 7.5, cy: 71 },
+  neutral: { ry: 2.2, rx: 9.5, cy: 71 },
+  open: { ry: 10, rx: 11, cy: 73 },
+  round: { ry: 8, rx: 9, cy: 72.5 },
+  smile: { ry: 2.8, rx: 12, cy: 70 },
+  fricative: { ry: 2.8, rx: 11, cy: 71 },
+  plosive: { ry: 1.2, rx: 9, cy: 71 },
+  wide: { ry: 5, rx: 11, cy: 71.5 },
 };
 
 type Props = {
@@ -25,6 +39,10 @@ type Props = {
   modelId?: string | null;
   accent: string;
   voiceAgent: string;
+  /** Preferência de TTS (guardada no mini-site). */
+  ttsProvider?: LivelyTtsProvider;
+  /** Foto de perfil ou retrato — quando existe, mostra a foto a “falar” em vez do rosto redondo cartoon. */
+  photoSrc?: string | null;
   size: number;
   borderRadius: string;
   border: string;
@@ -40,6 +58,8 @@ export function CentralProfileSpeakingAvatar({
   modelId,
   accent,
   voiceAgent,
+  ttsProvider = 'auto',
+  photoSrc,
   size,
   borderRadius,
   border,
@@ -54,6 +74,12 @@ export function CentralProfileSpeakingAvatar({
   const lipSyncRef = useRef<{ keys: ReturnType<typeof buildVisemeKeyframes>; start: number; end: number } | null>(
     null,
   );
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  const usePhoto = Boolean(photoSrc && photoSrc.trim());
+  const mouthMap = usePhoto ? PHOTO_MOUTH : CARTOON_MOUTH;
+  const m = mouthMap[mouth];
 
   const stopLipSync = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -64,6 +90,26 @@ export function CentralProfileSpeakingAvatar({
   }, []);
 
   useEffect(() => () => stopLipSync(), [stopLipSync]);
+
+  const onMovePhoto = useCallback((e: MouseEvent) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const nx = (e.clientX - cx) / Math.max(r.width * 0.5, 1);
+    const ny = (e.clientY - cy) / Math.max(r.height * 0.5, 1);
+    setTilt({
+      x: Math.max(-1, Math.min(1, nx)),
+      y: Math.max(-1, Math.min(1, ny)),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!usePhoto) return;
+    window.addEventListener('mousemove', onMovePhoto);
+    return () => window.removeEventListener('mousemove', onMovePhoto);
+  }, [usePhoto, onMovePhoto]);
 
   const ensureAudioCtx = useCallback(async () => {
     const AC =
@@ -122,38 +168,70 @@ export function CentralProfileSpeakingAvatar({
     [ensureAudioCtx, runLipSync, stopLipSync],
   );
 
+  const fetchOpenAiTts = useCallback(
+    async (t: string) => {
+      const res = await fetch('/api/lively-avatar/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, text: t }),
+      });
+      if (!res.ok || !res.headers.get('Content-Type')?.includes('audio')) return null;
+      return res.arrayBuffer();
+    },
+    [slug],
+  );
+
+  const fetchElevenTts = useCallback(
+    async (t: string, voiceId: string) => {
+      const res = await fetch('/api/lively-avatar/tts-eleven', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, text: t, voiceId }),
+      });
+      if (!res.ok || !res.headers.get('Content-Type')?.includes('audio')) return null;
+      return res.arrayBuffer();
+    },
+    [slug],
+  );
+
   const playLine = useCallback(
     async (text: string) => {
       const t = text.replace(/\s+/g, ' ').trim().slice(0, 2500);
       if (!t) return;
       const vid = voiceAgent.trim() || defaultElevenVoice('agent');
       try {
+        if (ttsProvider === 'openai') {
+          const buf = await fetchOpenAiTts(t);
+          if (buf) await playAudioWithVisemes(t, buf);
+          return;
+        }
+        if (ttsProvider === 'elevenlabs') {
+          if (vid) {
+            const buf = await fetchElevenTts(t, vid);
+            if (buf) {
+              await playAudioWithVisemes(t, buf);
+              return;
+            }
+          }
+          const fallback = await fetchOpenAiTts(t);
+          if (fallback) await playAudioWithVisemes(t, fallback);
+          return;
+        }
+        // auto: ElevenLabs se houver voice id e API ok, senão OpenAI
         if (vid) {
-          const res = await fetch('/api/lively-avatar/tts-eleven', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ slug, text: t, voiceId: vid }),
-          });
-          if (res.ok && res.headers.get('Content-Type')?.includes('audio')) {
-            const buf = await res.arrayBuffer();
+          const buf = await fetchElevenTts(t, vid);
+          if (buf) {
             await playAudioWithVisemes(t, buf);
             return;
           }
         }
-        const res2 = await fetch('/api/lively-avatar/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug, text: t }),
-        });
-        if (res2.ok && res2.headers.get('Content-Type')?.includes('audio')) {
-          const buf = await res2.arrayBuffer();
-          await playAudioWithVisemes(t, buf);
-        }
+        const buf2 = await fetchOpenAiTts(t);
+        if (buf2) await playAudioWithVisemes(t, buf2);
       } catch {
         stopLipSync();
       }
     },
-    [slug, voiceAgent, playAudioWithVisemes, stopLipSync],
+    [voiceAgent, ttsProvider, fetchOpenAiTts, fetchElevenTts, playAudioWithVisemes, stopLipSync],
   );
 
   const entryText =
@@ -173,8 +251,75 @@ export function CentralProfileSpeakingAvatar({
     if (tap) void playLine(tap);
   };
 
-  const m = MOUTH[mouth];
-  const svgSize = Math.min(size, 200);
+  const svgSize = Math.min(size, 320);
+
+  const photoInner = usePhoto ? (
+    <div
+      ref={wrapRef}
+      className="relative overflow-hidden"
+      style={{
+        width: svgSize,
+        height: svgSize,
+        borderRadius: 'inherit',
+        transform: `perspective(480px) rotateY(${tilt.x * 10}deg) rotateX(${-tilt.y * 8}deg)`,
+        transition: 'transform 0.14s ease-out',
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={photoSrc!.trim()}
+        alt=""
+        width={svgSize}
+        height={svgSize}
+        draggable={false}
+        className="block w-full h-full object-cover"
+        style={{
+          objectPosition: '50% 28%',
+          transform: speaking ? 'scale(1.03)' : 'scale(1)',
+          transition: 'transform 0.15s ease-out',
+        }}
+      />
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden
+        style={{ mixBlendMode: 'multiply' }}
+      >
+        <ellipse
+          cx={50}
+          cy={m.cy}
+          rx={m.rx}
+          ry={m.ry}
+          fill="rgba(35,18,22,0.62)"
+          style={{ transition: 'none' }}
+        />
+      </svg>
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[38%] bg-gradient-to-t from-black/25 to-transparent opacity-80"
+        aria-hidden
+      />
+    </div>
+  ) : (
+    <svg
+      width={svgSize}
+      height={svgSize}
+      viewBox="0 0 100 100"
+      aria-hidden
+      style={{ display: 'block', borderRadius: 'inherit' }}
+    >
+      <defs>
+        <linearGradient id="cp-lg-face" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={model.skin} />
+          <stop offset="100%" stopColor={model.accent} />
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="50" r="44" fill="url(#cp-lg-face)" stroke={model.accent} strokeWidth="2" />
+      <ellipse cx="38" cy="42" rx="5" ry="7" fill={model.mouthStroke} opacity="0.85" />
+      <ellipse cx="62" cy="42" rx="5" ry="7" fill={model.mouthStroke} opacity="0.85" />
+      <ellipse cx="50" cy={m.cy} rx={m.rx * 0.45} ry={m.ry * 0.45} fill={model.mouthStroke} />
+    </svg>
+  );
 
   return (
     <button
@@ -192,28 +337,11 @@ export function CentralProfileSpeakingAvatar({
       }
       aria-label={speechTap.trim() ? 'Avatar — tocar para ouvir' : 'Avatar animado'}
     >
-      <svg
-        width={svgSize}
-        height={svgSize}
-        viewBox="0 0 100 100"
-        aria-hidden
-        style={{ display: 'block', borderRadius: 'inherit' }}
-      >
-        <defs>
-          <linearGradient id="cp-lg-face" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={model.skin} />
-            <stop offset="100%" stopColor={model.accent} />
-          </linearGradient>
-        </defs>
-        <circle cx="50" cy="50" r="44" fill="url(#cp-lg-face)" stroke={model.accent} strokeWidth="2" />
-        <ellipse cx="38" cy="42" rx="5" ry="7" fill={model.mouthStroke} opacity="0.85" />
-        <ellipse cx="62" cy="42" rx="5" ry="7" fill={model.mouthStroke} opacity="0.85" />
-        <ellipse cx="50" cy={m.cy} rx={m.rx * 0.45} ry={m.ry * 0.45} fill={model.mouthStroke} />
-      </svg>
+      {photoInner}
       {speechTap.trim() ? (
         <span
-          className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold px-2 py-0.5 rounded-full"
-          style={{ background: `${accent}33`, color: accent }}
+          className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold px-2 py-0.5 rounded-full z-10"
+          style={{ background: `${accent}44`, color: accent }}
         >
           ▶
         </span>

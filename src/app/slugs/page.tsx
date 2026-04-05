@@ -479,14 +479,79 @@ export default function SlugsPage() {
           {T('slug_market_page_intro')}
         </p>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg2)]/80 p-4 sm:p-6 mb-10">
-          <h2 className="font-black text-lg text-[var(--text)] mb-1 flex items-center justify-center gap-2">
-            <Globe className="w-5 h-5 text-brand" /> {T('slug_market_section_title')}
-          </h2>
-          <p className="text-center text-xs text-[var(--text2)] mb-5">{T('slug_market_section_sub')}</p>
+        <div className="flex flex-col lg:flex-row lg:items-stretch gap-8 lg:gap-10 mb-10">
+          {/* Coluna 1: registo sempre visível (em cima no mobile, à esquerda no desktop) */}
+          <div className="w-full lg:max-w-[440px] lg:flex-shrink-0">
+            <h2 className="font-black text-xl text-[var(--text)] mb-3 text-center lg:text-left">
+              {T('slug_section_claim_title')}
+            </h2>
+            <div className="card p-6 lg:sticky lg:top-24">
+          <label className="text-sm font-bold text-[var(--text2)] uppercase tracking-wider mb-2 block">
+            {T('slug_verify_avail')}
+          </label>
+          <p className="text-sm text-[var(--text2)] mb-3">
+            {T('slug_rules_blurb')}
+          </p>
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text2)] font-mono text-sm">/</span>
+              <input value={search}
+                onChange={e => setSearch(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                className="input pl-7 font-mono text-lg"
+                placeholder="myslug" maxLength={30} />
+              {checking && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[var(--text2)]" />}
+              {!checking && available === true && !reservedBlock && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
+              {!checking && available === true && reservedBlock && <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />}
+              {!checking && available === false && <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />}
+            </div>
+            <button onClick={handleClaim} disabled={!search || available === false || reservedBlock}
+              className="px-6 py-2.5 rounded-xl font-bold text-base text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
+              {available === false ? T('slug_taken') : reservedBlock ? T('slug_reserved_label') : T('slug_register')}
+            </button>
+          </div>
+          {search && (
+            <div className="mt-2 text-xs text-[var(--text2)]">
+              Estimated price now: <span className="font-bold text-[var(--text)]">${claimDue} USD</span>
+            </div>
+          )}
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-[var(--border)]">
+          {search && available !== null && (
+            <div className={`mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-xl border ${
+              reservedBlock ? 'bg-amber-500/10 border-amber-500/25'
+              : available ? 'bg-green-500/10 border-green-500/20'
+              : 'bg-red-500/10 border-red-500/20'
+            }`}>
+              <div className="flex items-center gap-2 min-w-0">
+                {reservedBlock ? (
+                  <><span className="text-lg flex-shrink-0">🔒</span><span className="text-sm font-semibold text-amber-400">{T('slug_reserved_label')}: <span className="font-mono">{search}.trustbank.xyz</span></span></>
+                ) : available ? (
+                  <><CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" /><span className="text-sm font-semibold text-green-400"><span className="font-mono">{search}.trustbank.xyz</span> · {T('slug_available')}</span></>
+                ) : (
+                  <><XCircle className="w-4 h-4 text-red-500 flex-shrink-0" /><span className="text-sm font-semibold text-red-400"><span className="font-mono">{search}.trustbank.xyz</span> · {T('slug_taken')}</span></>
+                )}
+              </div>
+              {!reservedBlock && available && tier && (
+                <div className="text-right flex-shrink-0">
+                  <div className="font-black text-[var(--text)]">${claimDue} USD</div>
+                  {slugLengthTierUsd(search) === 0 && claimDue === 0 && (
+                    <div className="text-[10px] text-[var(--text2)]">{T('slug_tier_included_first')}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+            </div>
+          </div>
+
+          {/* Coluna 2: mercado com scroll interno — listas longas não empurram o registo para baixo */}
+          <div className="flex-1 min-w-0 flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--bg2)]/80 p-4 sm:p-6 min-h-0">
+            <h2 className="font-black text-lg text-[var(--text)] mb-1 flex items-center justify-center gap-2 shrink-0">
+              <Globe className="w-5 h-5 text-brand" /> {T('slug_market_section_title')}
+            </h2>
+            <p className="text-center text-xs text-[var(--text2)] mb-5 shrink-0">{T('slug_market_section_sub')}</p>
+
+            <div className="flex gap-2 mb-4 border-b border-[var(--border)] shrink-0 flex-wrap">
           {[
             { id: 'premium', label: T('slug_tab_premium'), icon: <Star className="w-3.5 h-3.5" />, count: premiumTotal },
             { id: 'auctions', label: T('slug_tab_auctions'), icon: <Gavel className="w-3.5 h-3.5" />, count: auctionsTotal },
@@ -500,8 +565,9 @@ export default function SlugsPage() {
               {t.count > 0 && <span className="text-sm bg-[var(--bg)] px-1.5 py-0.5 rounded-full">{t.count}</span>}
             </button>
           ))}
-        </div>
+            </div>
 
+            <div className="flex-1 min-h-0 max-h-[min(52vh,520px)] lg:max-h-[min(70vh,720px)] overflow-y-auto overflow-x-hidden overscroll-contain pb-1">
         {/* Premium */}
         {tab === 'premium' && (
           <div>
@@ -588,69 +654,8 @@ export default function SlugsPage() {
             )}
           </div>
         )}
-        </div>
-
-        <h2 className="font-black text-xl text-[var(--text)] mb-3 text-center md:text-left">
-          {T('slug_section_claim_title')}
-        </h2>
-
-        {/* Search & claim */}
-        <div className="card p-6 mb-8">
-          <label className="text-sm font-bold text-[var(--text2)] uppercase tracking-wider mb-2 block">
-            {T('slug_verify_avail')}
-          </label>
-          <p className="text-sm text-[var(--text2)] mb-3">
-            {T('slug_rules_blurb')}
-          </p>
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text2)] font-mono text-sm">/</span>
-              <input value={search}
-                onChange={e => setSearch(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                className="input pl-7 font-mono text-lg"
-                placeholder="myslug" maxLength={30} />
-              {checking && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[var(--text2)]" />}
-              {!checking && available === true && !reservedBlock && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
-              {!checking && available === true && reservedBlock && <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />}
-              {!checking && available === false && <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />}
             </div>
-            <button onClick={handleClaim} disabled={!search || available === false || reservedBlock}
-              className="px-6 py-2.5 rounded-xl font-bold text-base text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
-              {available === false ? T('slug_taken') : reservedBlock ? T('slug_reserved_label') : T('slug_register')}
-            </button>
           </div>
-          {search && (
-            <div className="mt-2 text-xs text-[var(--text2)]">
-              Estimated price now: <span className="font-bold text-[var(--text)]">${claimDue} USD</span>
-            </div>
-          )}
-
-          {search && available !== null && (
-            <div className={`mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-xl border ${
-              reservedBlock ? 'bg-amber-500/10 border-amber-500/25'
-              : available ? 'bg-green-500/10 border-green-500/20'
-              : 'bg-red-500/10 border-red-500/20'
-            }`}>
-              <div className="flex items-center gap-2 min-w-0">
-                {reservedBlock ? (
-                  <><span className="text-lg flex-shrink-0">🔒</span><span className="text-sm font-semibold text-amber-400">{T('slug_reserved_label')}: <span className="font-mono">{search}.trustbank.xyz</span></span></>
-                ) : available ? (
-                  <><CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" /><span className="text-sm font-semibold text-green-400"><span className="font-mono">{search}.trustbank.xyz</span> · {T('slug_available')}</span></>
-                ) : (
-                  <><XCircle className="w-4 h-4 text-red-500 flex-shrink-0" /><span className="text-sm font-semibold text-red-400"><span className="font-mono">{search}.trustbank.xyz</span> · {T('slug_taken')}</span></>
-                )}
-              </div>
-              {!reservedBlock && available && tier && (
-                <div className="text-right flex-shrink-0">
-                  <div className="font-black text-[var(--text)]">${claimDue} USD</div>
-                  {slugLengthTierUsd(search) === 0 && claimDue === 0 && (
-                    <div className="text-[10px] text-[var(--text2)]">{T('slug_tier_included_first')}</div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {user && (

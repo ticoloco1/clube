@@ -1,5 +1,5 @@
+-- Cópia com nome em PT (conteúdo = supabase-schema-validation.sql).
 -- TrustBank — Validação de schema (somente leitura)
--- (Cópia PT do mesmo ficheiro: supabase-validacao-schema.sql)
 -- Roda no SQL Editor do Supabase. Não altera dados.
 -- Se alguma linha aparecer abaixo, aplica o script em "sugestao".
 --

@@ -17,6 +17,9 @@ import {
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
+import { readSiteAiBudget } from '@/lib/aiUsdBudget';
+import { estimatedCoachCopilotTurnsRemaining } from '@/lib/aiEconomics';
+import { subscriptionPlanLabel } from '@/lib/subscriptionPlan';
 
 type SlugRow = {
   id: string; slug: string; status: string;
@@ -98,7 +101,11 @@ export default function DashboardPage() {
   const [visitCount, setVisitCount] = useState<number | null>(null);
   const [clickCount, setClickCount] = useState<number | null>(null);
   const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
-  const [subscription, setSubscription] = useState<{ status: string; expires_at: string | null } | null>(null);
+  const [subscription, setSubscription] = useState<{
+    status: string;
+    expires_at: string | null;
+    plan?: string | null;
+  } | null>(null);
   const [cancelingSub, setCancelingSub] = useState(false);
   const [tab, setTab] = useState<'overview' | 'slugs' | 'feed' | 'listings'>('overview');
   const [auctionWinsPending, setAuctionWinsPending] = useState<any[]>([]);
@@ -154,7 +161,7 @@ export default function DashboardPage() {
     // listings
     (supabase as any).from('classified_listings').select('*').eq('user_id', user.id)
       .order('created_at', { ascending: false }).then(({ data }: any) => setListings(data || []));
-    (supabase as any).from('subscriptions').select('status, expires_at').eq('user_id', user.id).maybeSingle()
+    (supabase as any).from('subscriptions').select('status, expires_at, plan').eq('user_id', user.id).maybeSingle()
       .then(({ data }: any) => setSubscription(data || null));
   }, [user]);
 
@@ -359,6 +366,25 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {site?.id && (() => {
+              const aiB = readSiteAiBudget(site);
+              const est = estimatedCoachCopilotTurnsRemaining(aiB.freeUsd, aiB.paidUsd);
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-2.5 text-xs">
+                  <span className="font-semibold text-[var(--text2)]">{T('dash_ia_strip_title')}</span>
+                  <span className="text-violet-300/95 tabular-nums font-bold">
+                    {T('dash_ia_strip_est').replace('{n}', String(est))}
+                  </span>
+                  <span className="text-[var(--text2)] tabular-nums">
+                    {T('dash_ia_strip_bal')
+                      .replace('{free}', aiB.freeUsd.toFixed(2))
+                      .replace('{paid}', aiB.paidUsd.toFixed(2))}
+                  </span>
+                  <Link href="/creditos" className="font-bold text-brand hover:underline">{T('dash_ia_strip_cta')}</Link>
+                </div>
+              );
+            })()}
+
             {/* Earnings */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               {[
@@ -483,6 +509,10 @@ export default function DashboardPage() {
               <p className="text-sm font-bold text-[var(--text)] mb-2">{T('dash_plan_title')}</p>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-[var(--text2)]">
+                  <span className="text-[var(--text)] font-semibold">
+                    {T('dash_plan_kind')}: {subscriptionPlanLabel(subscription?.plan, T)}
+                  </span>
+                  {' · '}
                   {subscription?.status === 'cancelled' ? T('dash_plan_status_cancelled') : T('dash_plan_status_active')}
                   {subscription?.expires_at ? ` · ${new Date(subscription.expires_at).toLocaleDateString()}` : ''}
                 </div>
@@ -499,7 +529,7 @@ export default function DashboardPage() {
                       .upsert({ user_id: user.id, status: 'cancelled', expires_at: end, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
                     setCancelingSub(false);
                     if (error) { toast.error(error.message); return; }
-                    setSubscription({ status: 'cancelled', expires_at: end });
+                    setSubscription((prev) => ({ ...(prev || {}), status: 'cancelled', expires_at: end }));
                     toast.success(T('dash_cancel_plan_done').replace('{date}', new Date(end).toLocaleDateString()));
                   }}
                   className="btn-secondary text-sm py-2 disabled:opacity-50"

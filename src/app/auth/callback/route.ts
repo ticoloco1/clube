@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { sanitizeAppRedirect } from '@/lib/sanitizeAppRedirect';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -14,6 +15,6 @@ export async function GET(request: NextRequest) {
     );
     await supabase.auth.exchangeCodeForSession(code);
   }
-  const redirectTo = searchParams.get('next') || '/editor';
+  const redirectTo = sanitizeAppRedirect(searchParams.get('next'), '/editor');
   return NextResponse.redirect(new URL(redirectTo, request.url));
 }

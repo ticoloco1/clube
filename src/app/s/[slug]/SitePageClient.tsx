@@ -18,7 +18,9 @@ import { CentralProfileMagicAvatar } from '@/components/site/CentralProfileMagic
 import { MagicPortraitOutOfFrame } from '@/components/site/MagicPortraitOutOfFrame';
 import { SiteBookingWidget } from '@/components/site/SiteBookingWidget';
 import { SiteSlugMarketPanel } from '@/components/site/SiteSlugMarketPanel';
+import { SiteClassifiedsPanel } from '@/components/site/SiteClassifiedsPanel';
 import { resolveFloatingAgentImageUrl } from '@/lib/floatingAgentImage';
+import { normalizeLivelyTtsProvider } from '@/lib/livelyTtsPreference';
 import { resolveLivelyProfileImageUrl, livelyProfileUsesPupilOverlay } from '@/lib/livelyProfileImage';
 import { CentralProfileLivelyPhoto } from '@/components/site/CentralProfileLivelyPhoto';
 import { CentralProfileSpeakingAvatar } from '@/components/site/CentralProfileSpeakingAvatar';
@@ -211,13 +213,14 @@ export default function SitePageClient({
             ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
             mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
             slug_market: [1,2,3].includes(Number(raw?.moduleColumns?.slug_market)) ? Number(raw.moduleColumns.slug_market) as 1|2|3 : 1,
+            classified: [1,2,3].includes(Number(raw?.moduleColumns?.classified)) ? Number(raw.moduleColumns.classified) as 1|2|3 : 1,
             booking: [1,2,3].includes(Number(raw?.moduleColumns?.booking)) ? Number(raw.moduleColumns.booking) as 1|2|3 : 1,
           };
         });
         return out;
       }
     } catch {}
-    return { home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 } };
+    return { home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 } };
   })();
   const sitePages: {id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[] = (() => {
     try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home","template":"default"}]'); }
@@ -229,7 +232,7 @@ export default function SitePageClient({
     (m) => m !== 'mystic',
   );
   const activeColumns = pageColumnsMap[activePage] || 1;
-  const activeModuleCols = pageModuleColumnsMap[activePage] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 };
+  const activeModuleCols = pageModuleColumnsMap[activePage] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 };
   const pageTabsNav =
     sitePages.length > 1 ? (
       <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -507,6 +510,9 @@ export default function SitePageClient({
         identityPortraitUrl: (site as any)?.identity_portrait_url,
       })
     : null;
+  /** Foto para o avatar falante no perfil (não exige “central magic”). */
+  const speakingProfilePhotoUrl = floatingAgentImageUrl;
+  const livelyTtsProvider = normalizeLivelyTtsProvider((site as any)?.lively_tts_provider);
   const profilePhotoRadiusCss =
     site?.photo_shape === 'round'
       ? '50%'
@@ -637,6 +643,8 @@ export default function SitePageClient({
                     modelId={(site as any).lively_avatar_model}
                     accent={accent}
                     voiceAgent={typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : ''}
+                    ttsProvider={livelyTtsProvider}
+                    photoSrc={speakingProfilePhotoUrl}
                     size={avatarSize}
                     borderRadius={profilePhotoRadiusCss}
                     border={`2px solid ${t.border}`}
@@ -1220,6 +1228,21 @@ export default function SitePageClient({
               />
             );
           }
+          if (mod === 'classified') {
+            return (
+              <SiteClassifiedsPanel
+                key="classified"
+                siteId={site.id}
+                accentColor={accent}
+                textColor={t.text}
+                textMuted={t.text2}
+                borderColor={t.border}
+                bgCard={t.btn}
+                radius={r}
+                maxContentWidth={Math.min(640, pageMaxWidth)}
+              />
+            );
+          }
           return null;
           };
 
@@ -1357,6 +1380,7 @@ export default function SitePageClient({
             floatingExpressiveGestures={(site as any).lively_floating_expressive === true}
             identityPortraitUrl={(site as any).identity_portrait_url ?? null}
             requestOpen={livelyAssistKick}
+            ttsProvider={livelyTtsProvider}
           />
         )}
       </div>

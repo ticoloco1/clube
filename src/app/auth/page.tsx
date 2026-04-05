@@ -4,13 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { sanitizeAppRedirect } from '@/lib/sanitizeAppRedirect';
 import { Mail, Lock, Eye, EyeOff, Loader2, Shield, Coins, Zap } from 'lucide-react';
 
 function AuthForm() {
   const { user, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get('redirect') || '/editor';
+  const redirect = sanitizeAppRedirect(params.get('redirect'), '/editor');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,11 +19,12 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const T = useT();
 
-  useEffect(() => { if (user) router.push(redirect); }, [user]);
+  useEffect(() => {
+    if (user) router.replace(redirect);
+  }, [user, redirect, router]);
 
   const handleGoogle = () => {
-    // Google Auth — wallet is created silently on first login via webhook
-    signInWithGoogle();
+    signInWithGoogle(redirect);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,7 +36,7 @@ function AuthForm() {
         : await signUpWithEmail(email, password);
       if (error) throw error;
       toast.success(mode === 'signin' ? T('toast_auth_welcome') : T('toast_auth_created'));
-      router.push(redirect);
+      router.replace(redirect);
     } catch (e: any) {
       toast.error(e.message);
     } finally {

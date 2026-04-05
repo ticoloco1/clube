@@ -256,10 +256,11 @@ export async function fulfillLine(db: SupabaseClient, line: FulfillmentLine, pay
     case 'subscription': {
       const billing = (billingPeriod || 'monthly') as string;
       const days = billing === 'yearly' || billing === 'annual' ? 365 : 30;
+      const resolvedPlan = planId || 'pro';
       await db.from('subscriptions' as any).upsert(
         {
           user_id: userId,
-          plan: planId || 'pro',
+          plan: resolvedPlan,
           status: 'active',
           expires_at: new Date(Date.now() + days * 24 * 3600 * 1000).toISOString(),
           updated_at: new Date().toISOString(),
@@ -267,6 +268,24 @@ export async function fulfillLine(db: SupabaseClient, line: FulfillmentLine, pay
         { onConflict: 'user_id' },
       );
       await db.from('mini_sites').update({ published: true }).eq('user_id', userId);
+      /** Pro + IA (`pro_ia`) ou legado `studio`: crédito IA USD extra por ciclo. Env: IA_STUDIO_BONUS_USD_PER_CYCLE */
+      if (resolvedPlan === 'studio' || resolvedPlan === 'pro_ia') {
+        const bonus = parseFloat(process.env.IA_STUDIO_BONUS_USD_PER_CYCLE || '5');
+        if (Number.isFinite(bonus) && bonus > 0) {
+          const { data: sites } = await db
+            .from('mini_sites' as any)
+            .select('id, ai_free_usd_remaining')
+            .eq('user_id', userId);
+          for (const s of sites || []) {
+            const cur = Number((s as { ai_free_usd_remaining?: unknown }).ai_free_usd_remaining);
+            const base = Number.isFinite(cur) ? cur : 0;
+            await db
+              .from('mini_sites' as any)
+              .update({ ai_free_usd_remaining: base + bonus })
+              .eq('id', (s as { id: string }).id);
+          }
+        }
+      }
       break;
     }
     case 'slug_bid': {

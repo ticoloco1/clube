@@ -1,10 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  openAiCompatibleChatMessages,
-  resolveAiRuntime,
-  type AiConfigRow,
-} from '@/lib/aiOpenAiCompatible';
+import { openAiCompatibleChatMessages, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { pickAiRuntimeForSite } from '@/lib/byokRuntime';
 import { getLivelySiteForApi, getServiceDb, getViewerUserId, rateLimitLively } from '@/lib/livelyAvatarServer';
 import { buildSiteKnowledgeJson, type LinkRow } from '@/lib/siteKnowledge';
 import {
@@ -114,31 +111,50 @@ export async function POST(req: NextRequest) {
     }
 
     const visitorTrialing = !isOwner && trialActive(trialStarted);
-    const billingApplies = site.user_id
-      ? await iaUsdBillingApplies(db, {
-          user_id: site.user_id,
-          trial_publish_until: site.trial_publish_until,
-        })
-      : true;
-    const exemptFromUsd = visitorTrialing || !billingApplies;
-    const { freeUsd, paidUsd } = readSiteAiBudget(site);
-    const access = evaluateIaAccessUsd({
-      exemptFromUsdBudget: exemptFromUsd,
-      freeUsd,
-      paidUsd,
-      costUsd: IA_USD.chat(),
-    });
 
-    if (!access.ok) {
+    const dbAi = await loadAiConfig(db);
+    const picked = await pickAiRuntimeForSite(db, site.id, dbAi);
+    if (!picked) {
       return NextResponse.json(
         {
-          error: access.message,
-          code: access.code,
-          trialExpired: 'trialExpired' in access ? Boolean(access.trialExpired) : false,
-          trialEndsAt: trialEndsAtIso(trialStarted),
+          error:
+            'IA não configurada: coloca a tua chave DeepSeek no editor (IA) ou pede à plataforma para configurar a API.',
         },
-        { status: 402 },
+        { status: 503 },
       );
+    }
+    const { runtime, useSiteUsdBudget } = picked;
+
+    let access: { ok: true; deductFreeUsd: number; deductPaidUsd: number };
+    if (!useSiteUsdBudget) {
+      access = { ok: true, deductFreeUsd: 0, deductPaidUsd: 0 };
+    } else {
+      const billingApplies = site.user_id
+        ? await iaUsdBillingApplies(db, {
+            user_id: site.user_id,
+            trial_publish_until: site.trial_publish_until,
+          })
+        : true;
+      const exemptFromUsd = visitorTrialing || !billingApplies;
+      const { freeUsd, paidUsd } = readSiteAiBudget(site);
+      const checked = evaluateIaAccessUsd({
+        exemptFromUsdBudget: exemptFromUsd,
+        freeUsd,
+        paidUsd,
+        costUsd: IA_USD.chat(),
+      });
+      if (!checked.ok) {
+        return NextResponse.json(
+          {
+            error: checked.message,
+            code: checked.code,
+            trialExpired: 'trialExpired' in checked ? Boolean(checked.trialExpired) : false,
+            trialEndsAt: trialEndsAtIso(trialStarted),
+          },
+          { status: 402 },
+        );
+      }
+      access = checked;
     }
 
     const { data: linkRows } = await db
@@ -227,15 +243,6 @@ ${styleRules}
 Agendamento: se existir calendário no site (secção de marcação) ou contacto na base de conhecimento, orienta o visitante a usar o calendário ou esse contacto. Não inventes URLs que não estejam no JSON.
 
 Patrocínio / tom comercial: se as diretrizes do criador pedirem menções a marcas ou “experiência” patrocinada, integra com naturalidade, curto e amigável. Nunca afirmes que uma marca patrocina o site ou o criador sem isso estar explícito nas diretrizes; podes usar exemplos hipotéticos (“imagina saborear…”) se o criador assim pedir. Cumpre leis de publicidade do teu raciocínio (transparência, não enganar).`;
-
-    const dbAi = await loadAiConfig(db);
-    const runtime = resolveAiRuntime(dbAi);
-    if (!runtime) {
-      return NextResponse.json(
-        { error: 'IA não configurada na plataforma (chave API / Admin).' },
-        { status: 503 },
-      );
-    }
 
     const history: { role: 'system' | 'user' | 'assistant'; content: string }[] = [];
 

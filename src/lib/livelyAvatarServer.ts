@@ -33,6 +33,7 @@ export type LivelySiteRow = {
   lively_agent_instructions?: string | null;
   lively_elevenlabs_voice_owner?: string | null;
   lively_elevenlabs_voice_agent?: string | null;
+  lively_tts_provider?: string | null;
   lively_trial_started_at?: string | null;
   trial_publish_until?: string | null;
   ia_credits_balance?: number | string | null;
@@ -105,6 +106,7 @@ export async function getLivelySiteForApi(slug: string, viewerUserId: string | n
         'lively_agent_instructions',
         'lively_elevenlabs_voice_owner',
         'lively_elevenlabs_voice_agent',
+        'lively_tts_provider',
         'lively_trial_started_at',
         'trial_publish_until',
         'ia_credits_balance',

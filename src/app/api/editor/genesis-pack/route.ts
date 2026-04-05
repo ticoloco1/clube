@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { openAiCompatibleChat, resolveAiRuntime, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { openAiCompatibleChat, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { pickAiRuntimeForSite } from '@/lib/byokRuntime';
 import {
   applySiteAiBudgetDeduction,
   assertOwnerAiBudgetUsd,
@@ -95,6 +96,8 @@ export async function POST(req: NextRequest) {
     const siteId = typeof body.siteId === 'string' ? body.siteId.trim() : '';
     const brief = typeof body.brief === 'string' ? body.brief.trim().slice(0, 2000) : '';
     const snapshot = body.snapshot && typeof body.snapshot === 'object' ? body.snapshot : {};
+    const uiLang = parseUiLang(body.uiLang);
+    const outLang = outputLanguageNameForPrompt(uiLang);
 
     if (!siteId) {
       return NextResponse.json({ error: 'siteId obrigatório' }, { status: 400 });
@@ -118,20 +121,30 @@ export async function POST(req: NextRequest) {
     }
 
     const aiConfig = await loadAiConfig(db);
-    const runtime = resolveAiRuntime(aiConfig);
-    if (!runtime) {
-      return NextResponse.json({ error: 'IA não configurada (DEEPSEEK_API_KEY ou Admin).' }, { status: 503 });
+    const picked = await pickAiRuntimeForSite(db, siteId, aiConfig);
+    if (!picked) {
+      return NextResponse.json(
+        { error: 'IA não configurada: chave DeepSeek no mini-site, DEEPSEEK_API_KEY ou Admin.' },
+        { status: 503 },
+      );
     }
+    const { runtime, useSiteUsdBudget } = picked;
 
-    const { freeUsd, paidUsd } = readSiteAiBudget(site);
-    const costUsd = IA_USD.genesis_pack();
-    const billingApplies = await iaUsdBillingApplies(db, {
-      user_id: (site as { user_id: string }).user_id,
-      trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
-    });
-    const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
-    if (!bud.ok) {
-      return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+    let deductFreeUsd = 0;
+    let deductPaidUsd = 0;
+    if (useSiteUsdBudget) {
+      const { freeUsd, paidUsd } = readSiteAiBudget(site);
+      const costUsd = IA_USD.genesis_pack();
+      const billingApplies = await iaUsdBillingApplies(db, {
+        user_id: (site as { user_id: string }).user_id,
+        trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
+      });
+      const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
+      if (!bud.ok) {
+        return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+      }
+      deductFreeUsd = bud.deductFreeUsd;
+      deductPaidUsd = bud.deductPaidUsd;
     }
 
     const snapStr = JSON.stringify(snapshot).slice(0, 12_000);
@@ -199,7 +212,7 @@ Rules: use the snapshot JSON + creator brief. Do not invent concrete biographica
       return NextResponse.json({ error: 'Pacote vazio' }, { status: 502 });
     }
 
-    const debOk = await applySiteAiBudgetDeduction(db, siteId, bud.deductFreeUsd, bud.deductPaidUsd);
+    const debOk = await applySiteAiBudgetDeduction(db, siteId, deductFreeUsd, deductPaidUsd);
     if (!debOk) {
       return NextResponse.json({ error: 'Falha ao debitar orçamento IA' }, { status: 402 });
     }

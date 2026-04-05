@@ -1,13 +1,22 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-/** Orçamento promocional por mini-site (USD). Default 0 — compra em /creditos. Override: IA_FREE_USD_PER_SITE. */
+/**
+ * Orçamento promocional por mini-site (USD). Default 0 — compra em /creditos.
+ * Env: `IA_FREE_USD_PER_SITE`
+ * Ex.: ~1000 turnos coach/copilot com custo médio ~US$0,04 → `IA_FREE_USD_PER_SITE=40` (ajusta com `IA_USD_COST_*`).
+ */
 export function iaFreeAllowanceUsd(): number {
   const v = parseFloat(process.env.IA_FREE_USD_PER_SITE || '0');
   return Number.isFinite(v) && v >= 0 ? v : 0;
 }
 
-/** Top-up: valor útil mínimo (USD) e preço de venda = face × 2 (100% margem). */
-export const IA_TOPUP_MIN_FACE_USD = 10;
+/**
+ * Top-up: valor útil (face USD) creditado no mini-site; cobrança = face × IA_TOPUP_PRICE_MULTIPLIER (ex.: US$5 úteis → paga US$10).
+ * Mínimo configurável: env `IA_TOPUP_MIN_FACE_USD` (default 5).
+ */
+const _minFace = parseFloat(process.env.IA_TOPUP_MIN_FACE_USD || '5');
+export const IA_TOPUP_MIN_FACE_USD =
+  Number.isFinite(_minFace) && _minFace >= 1 ? _minFace : 5;
 export const IA_TOPUP_PRICE_MULTIPLIER = 2;
 
 export function iaTopupChargeUsd(faceUsd: number): number {

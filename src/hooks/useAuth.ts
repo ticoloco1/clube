@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
+import { sanitizeAppRedirect } from '@/lib/sanitizeAppRedirect';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -24,10 +25,16 @@ export function useAuth() {
     if (typeof window !== 'undefined') window.location.href = '/';
   };
 
-  const signInWithGoogle = () => supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: `${normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)}/auth/callback` },
-  });
+  const signInWithGoogle = (afterLoginPath?: string) => {
+    const base = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+    const next = sanitizeAppRedirect(afterLoginPath ?? null, '/editor');
+    const cb = new URL('/auth/callback', base);
+    cb.searchParams.set('next', next);
+    return supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: cb.toString() },
+    });
+  };
 
   const signInWithEmail = (email: string, password: string) =>
     supabase.auth.signInWithPassword({ email, password });

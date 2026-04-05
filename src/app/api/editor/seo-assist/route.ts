@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { openAiCompatibleChat, resolveAiRuntime, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { openAiCompatibleChat, type AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { pickAiRuntimeForSite } from '@/lib/byokRuntime';
 import { getRootHostname, miniSiteCanonicalUrl } from '@/lib/siteBaseUrl';
 import {
   applySiteAiBudgetDeduction,
@@ -128,23 +129,33 @@ export async function POST(req: NextRequest) {
     }
 
     const aiConfig = await loadAiConfig(db);
-    const runtime = resolveAiRuntime(aiConfig);
-    if (!runtime) {
+    const picked = await pickAiRuntimeForSite(db, siteId, aiConfig);
+    if (!picked) {
       return NextResponse.json(
-        { error: 'IA não configurada. Define DEEPSEEK_API_KEY ou OPENAI_API_KEY (ou chave no Admin).' },
+        {
+          error:
+            'IA não configurada: chave DeepSeek no mini-site, DEEPSEEK_API_KEY / OPENAI_API_KEY ou Admin.',
+        },
         { status: 503 },
       );
     }
+    const { runtime, useSiteUsdBudget } = picked;
 
-    const { freeUsd, paidUsd } = readSiteAiBudget(site);
-    const costUsd = IA_USD.site_copilot_task();
-    const billingApplies = await iaUsdBillingApplies(db, {
-      user_id: (site as { user_id: string }).user_id,
-      trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
-    });
-    const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
-    if (!bud.ok) {
-      return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+    let deductFreeUsd = 0;
+    let deductPaidUsd = 0;
+    if (useSiteUsdBudget) {
+      const { freeUsd, paidUsd } = readSiteAiBudget(site);
+      const costUsd = IA_USD.site_copilot_task();
+      const billingApplies = await iaUsdBillingApplies(db, {
+        user_id: (site as { user_id: string }).user_id,
+        trial_publish_until: (site as { trial_publish_until?: string | null }).trial_publish_until,
+      });
+      const bud = assertOwnerAiBudgetUsd(freeUsd, paidUsd, costUsd, !billingApplies);
+      if (!bud.ok) {
+        return NextResponse.json({ error: bud.message, code: 'IA_PAYWALL' }, { status: 402 });
+      }
+      deductFreeUsd = bud.deductFreeUsd;
+      deductPaidUsd = bud.deductPaidUsd;
     }
 
     const ctx = JSON.stringify(
@@ -225,7 +236,7 @@ Context (JSON): ${ctx}`,
       }
       const seoJsonLd = JSON.stringify(extraNode, null, 2);
 
-      const debPack = await applySiteAiBudgetDeduction(db, siteId, bud.deductFreeUsd, bud.deductPaidUsd);
+      const debPack = await applySiteAiBudgetDeduction(db, siteId, deductFreeUsd, deductPaidUsd);
       if (!debPack) {
         return NextResponse.json({ error: 'Falha ao debitar orçamento IA' }, { status: 402 });
       }
@@ -254,7 +265,7 @@ Context (JSON): ${ctx}`,
       }
       let text = raw.replace(/^["«»]|["«»]$/g, '').replace(/\s+/g, ' ').trim();
       if (text.length > 160) text = text.slice(0, 157).trim() + '…';
-      const debOk = await applySiteAiBudgetDeduction(db, siteId, bud.deductFreeUsd, bud.deductPaidUsd);
+      const debOk = await applySiteAiBudgetDeduction(db, siteId, deductFreeUsd, deductPaidUsd);
       if (!debOk) {
         return NextResponse.json({ error: 'Falha ao debitar orçamento IA' }, { status: 402 });
       }
@@ -283,7 +294,7 @@ Context (JSON): ${ctx}`,
     } catch {
       return NextResponse.json({ error: 'JSON inválido da IA' }, { status: 502 });
     }
-    const debOk2 = await applySiteAiBudgetDeduction(db, siteId, bud.deductFreeUsd, bud.deductPaidUsd);
+    const debOk2 = await applySiteAiBudgetDeduction(db, siteId, deductFreeUsd, deductPaidUsd);
     if (!debOk2) {
       return NextResponse.json({ error: 'Falha ao debitar orçamento IA' }, { status: 402 });
     }

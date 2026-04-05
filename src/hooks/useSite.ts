@@ -96,6 +96,8 @@ export interface MiniSite {
   lively_profile_speak_on_entry?: boolean | null;
   lively_profile_speech_tap?: string | null;
   lively_profile_speech_before_reply?: string | null;
+  /** auto | openai | elevenlabs */
+  lively_tts_provider?: string | null;
   ia_credits_balance?: number | string | null;
   ai_free_usd_remaining?: number | string | null;
   ai_paid_usd_balance?: number | string | null;

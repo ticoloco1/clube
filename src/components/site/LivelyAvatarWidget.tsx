@@ -9,6 +9,7 @@ import { buildVisemeKeyframes, visemeAtTime, type VisemeShape } from '@/lib/vise
 import { FloatingAgentCharacter } from '@/components/site/FloatingAgentCharacter';
 import { LivelyFaceSvg } from '@/components/site/LivelyFaceSvg';
 import { MessageCircle, X, Send, Loader2, Volume2 } from 'lucide-react';
+import type { LivelyTtsProvider } from '@/lib/livelyTtsPreference';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
 type AnimState = 'idle' | 'thinking' | 'interaction';
@@ -35,6 +36,8 @@ export function LivelyAvatarWidget({
   identityPortraitUrl,
   /** Incrementa (ex.: 1,2,3…) para abrir o painel a partir do botão no perfil. */
   requestOpen = 0,
+  /** Voz: automática, só OpenAI TTS, ou só ElevenLabs (com fallback OpenAI se falhar). */
+  ttsProvider = 'auto' as LivelyTtsProvider,
 }: {
   slug: string;
   siteName: string;
@@ -56,6 +59,7 @@ export function LivelyAvatarWidget({
   floatingExpressiveGestures?: boolean;
   identityPortraitUrl?: string | null;
   requestOpen?: number;
+  ttsProvider?: LivelyTtsProvider;
 }) {
   const T = useT();
   const uiLang = getLang();
@@ -233,14 +237,33 @@ export function LivelyAvatarWidget({
     [slug, playAudioWithVisemesAsync, speakWithOpenAiOrClient],
   );
 
+  const speakPreferred = useCallback(
+    async (text: string, voiceId: string) => {
+      const t = text.replace(/\s+/g, ' ').trim();
+      if (!t) return;
+      if (ttsProvider === 'openai') {
+        await speakWithOpenAiOrClient(t);
+        return;
+      }
+      await speakWithEleven(t, voiceId);
+    },
+    [ttsProvider, speakWithOpenAiOrClient, speakWithEleven],
+  );
+
   const speakDual = useCallback(
     async (turns: { speaker: 'owner' | 'agent'; text: string }[], voices: VoicePair) => {
+      if (ttsProvider === 'openai') {
+        for (const t of turns) {
+          await speakWithOpenAiOrClient(t.text.replace(/\s+/g, ' ').trim());
+        }
+        return;
+      }
       for (const t of turns) {
         const vid = t.speaker === 'owner' ? voices.owner : voices.agent;
         await speakWithEleven(t.text, vid);
       }
     },
-    [speakWithEleven],
+    [ttsProvider, speakWithOpenAiOrClient, speakWithEleven],
   );
 
   const triggerInteraction = useCallback(() => {
@@ -263,8 +286,7 @@ export function LivelyAvatarWidget({
         const pre = (speechBeforeReply || '').trim();
         if (pre) {
           const vid = (elevenAgentVoiceId || '').trim() || defaultElevenVoice('agent');
-          if (vid) await speakWithEleven(pre, vid);
-          else await speakWithOpenAiOrClient(pre);
+          await speakPreferred(pre, vid);
         }
       } catch {
         /* pré-fala opcional: não bloqueia o chat */
@@ -346,7 +368,7 @@ export function LivelyAvatarWidget({
         setAnimState('idle');
         if (reply) {
           void runReplyTts(async () => {
-            await speakWithEleven(reply, voices.agent || voices.owner);
+            await speakPreferred(reply, voices.agent || voices.owner);
           });
         }
       }

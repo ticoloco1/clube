@@ -22,7 +22,7 @@ import {
   Save, Eye, Upload, Plus, X, Loader2,
   Globe, Link2, Video, FileText, ChevronDown,
   Image as ImageIcon, Shield, GripVertical, ExternalLink, CreditCard,
-  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone, Trash2,
+  LayoutTemplate, Search, Wand2, Cpu, MessageCircle, Megaphone, Trash2, KeyRound,
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { EarningsWidget } from '@/components/ui/EarningsWidget';
@@ -37,6 +37,7 @@ import { readSiteAiBudget } from '@/lib/aiUsdBudget';
 import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
 import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
 import { DEFAULT_BOOKING_SERVICES, DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSchedule';
+import { normalizeLivelyTtsProvider, type LivelyTtsProvider } from '@/lib/livelyTtsPreference';
 import { PLATFORM_USD } from '@/lib/platformPricing';
 
 const LS_EDITOR_IA_API = 'tb_editor_ia_api_enabled';
@@ -119,6 +120,7 @@ function EditorPageInner() {
       ads: T('ed_mod_ads'),
       mystic: T('ed_mod_mystic'),
       slug_market: T('ed_mod_slug_market'),
+      classified: T('ed_mod_classified'),
       booking: T('ed_mod_booking'),
       pages: T('ed_mod_pages'),
     }),
@@ -161,8 +163,12 @@ function EditorPageInner() {
   const [livelyAgentInstructions, setLivelyAgentInstructions] = useState('');
   const [livelyElevenOwner, setLivelyElevenOwner] = useState('');
   const [livelyElevenAgent, setLivelyElevenAgent] = useState('');
+  const [livelyTtsProvider, setLivelyTtsProvider] = useState<LivelyTtsProvider>('auto');
   const [livelyPremiumVerifyLoading, setLivelyPremiumVerifyLoading] = useState(false);
   const [livelySuggestWelcomeBusy, setLivelySuggestWelcomeBusy] = useState(false);
+  const [byokDeepseekConfigured, setByokDeepseekConfigured] = useState<boolean | null>(null);
+  const [byokDeepseekSaving, setByokDeepseekSaving] = useState(false);
+  const [byokDeepseekKeyDraft, setByokDeepseekKeyDraft] = useState('');
   const [scriptsAdsDialogOpen, setScriptsAdsDialogOpen] = useState(false);
   const [livelyProfileAsAvatar, setLivelyProfileAsAvatar] = useState(false);
   const [livelyProfileSpeakOnEntry, setLivelyProfileSpeakOnEntry] = useState(true);
@@ -217,7 +223,7 @@ function EditorPageInner() {
   const [pagesEditorSelectedId, setPagesEditorSelectedId] = useState<string>('home');
   const [pageColumns, setPageColumns] = useState<Record<string, 1|2|3>>({ home: 1 });
   const [moduleColumns, setModuleColumns] = useState<Record<string, Record<string, 1|2|3>>>({
-    home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
+    home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 },
   });
   const [clearAllArmed, setClearAllArmed] = useState<Record<string, boolean>>({});
   const [adAskingPrice, setAdAskingPrice] = useState('');
@@ -453,6 +459,7 @@ function EditorPageInner() {
     setLivelyAgentInstructions(typeof (site as any).lively_agent_instructions === 'string' ? (site as any).lively_agent_instructions : '');
     setLivelyElevenOwner(typeof (site as any).lively_elevenlabs_voice_owner === 'string' ? (site as any).lively_elevenlabs_voice_owner : '');
     setLivelyElevenAgent(typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : '');
+    setLivelyTtsProvider(normalizeLivelyTtsProvider((site as any).lively_tts_provider));
     setLivelyProfileAsAvatar((site as any).lively_profile_as_avatar === true);
     setLivelyProfileSpeakOnEntry((site as any).lively_profile_speak_on_entry !== false);
     setLivelyProfileSpeechTap(typeof (site as any).lively_profile_speech_tap === 'string' ? (site as any).lively_profile_speech_tap : '');
@@ -564,7 +571,7 @@ function EditorPageInner() {
             if (Array.isArray(raw)) {
               pm[pageId] = raw;
               pc[pageId] = 1;
-              mc[pageId] = { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 };
+              mc[pageId] = { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 };
               return;
             }
             const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
@@ -580,6 +587,7 @@ function EditorPageInner() {
               ads: [1,2,3].includes(Number(raw?.moduleColumns?.ads)) ? Number(raw.moduleColumns.ads) as 1|2|3 : 1,
               mystic: [1,2,3].includes(Number(raw?.moduleColumns?.mystic)) ? Number(raw.moduleColumns.mystic) as 1|2|3 : 1,
               slug_market: [1,2,3].includes(Number(raw?.moduleColumns?.slug_market)) ? Number(raw.moduleColumns.slug_market) as 1|2|3 : 1,
+              classified: [1,2,3].includes(Number(raw?.moduleColumns?.classified)) ? Number(raw.moduleColumns.classified) as 1|2|3 : 1,
               booking: [1,2,3].includes(Number(raw?.moduleColumns?.booking)) ? Number(raw.moduleColumns.booking) as 1|2|3 : 1,
             };
           });
@@ -676,17 +684,30 @@ function EditorPageInner() {
   // We intentionally do NOT auto-create mini-sites anymore.
   // Auto-creation could generate unintended slugs/profiles when loading fails temporarily.
 
-  // ── Autosave ──────────────────────────────────────────────────────────────
+  // ── Autosave (debounce longo: evita “piscar” / reload a cada tecla) ───────
+  /** Mínimo ~2 min após última alteração antes de gravar em silêncio. Gravar manual (barra) é imediato. */
+  const AUTOSAVE_DEBOUNCE_MS = 120_000;
+
   const markDirty = useCallback(() => { isDirty.current = true; }, []);
 
   useEffect(() => {
     if (!site?.id || !isDirty.current) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => { if (isDirty.current) handleSave(true); }, 2500);
+    autosaveTimer.current = setTimeout(() => {
+      if (isDirty.current) void handleSave(true);
+    }, AUTOSAVE_DEBOUNCE_MS);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+    // handleSave muda a cada render mas queremos o último estado no tick; omitido de propósito.
+    // Incluir todos os campos que handleSave persiste em mini_sites para o CV e perfil não “perderem” autosave.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
+      avatarUrl, bannerUrl,
       showCv, cvLocked, cvContactLocked, cvFree, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
-      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, contactWhatsapp, published, seoTitle, seoDescription, seoOgImage, seoSearchTags, seoJsonLd,       livelyAvatarEnabled, livelyAvatarModel, livelyAvatarWelcome, livelyCentralMagic, livelyFloatingExpressive, livelyDualAgent, livelyAgentInstructions, livelyElevenOwner, livelyElevenAgent, identityPortraitUrl, identityStylePreset, identityVoiceEffect, magicPortraitEnabled, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
+      cvExperience, cvEducation, cvProjects, cvLanguages, cvCertificates, sectionOrder,
+      showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, contactWhatsapp, published, seoTitle, seoDescription, seoOgImage, seoSearchTags, seoJsonLd,
+      livelyAvatarEnabled, livelyAvatarModel, livelyAvatarWelcome, livelyCentralMagic, livelyFloatingExpressive, livelyDualAgent, livelyAgentInstructions, livelyElevenOwner, livelyElevenAgent, livelyTtsProvider,
+      livelyProfileAsAvatar, livelyProfileSpeakOnEntry, livelyProfileSpeechTap, livelyProfileSpeechBeforeReply,
+      identityPortraitUrl, identityStylePreset, identityVoiceEffect, magicPortraitEnabled, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
       adAskingPrice, adShowPricePublic, directoryProfileSlug, siteCategorySlug,
       mysticPublicEnabled, mysticTarotPrice, mysticLotteryPrice,
       bookingEnabled, bookingSlotMinutes, bookingTimezone, bookingWeeklyJson, bookingServicesJson, bookingVertical]);
@@ -919,6 +940,88 @@ function EditorPageInner() {
     }
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const id = site?.id;
+    if (!id) {
+      setByokDeepseekConfigured(null);
+      setByokDeepseekKeyDraft('');
+      return;
+    }
+    void (async () => {
+      try {
+        const res = await fetch(`/api/editor/byok-deepseek?siteId=${encodeURIComponent(id)}`, {
+          credentials: 'include',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok && typeof data.configured === 'boolean') {
+          setByokDeepseekConfigured(data.configured);
+        } else {
+          setByokDeepseekConfigured(false);
+        }
+      } catch {
+        if (!cancelled) setByokDeepseekConfigured(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [site?.id]);
+
+  const saveByokDeepseek = async () => {
+    if (!site?.id || byokDeepseekSaving) return;
+    const k = byokDeepseekKeyDraft.trim();
+    if (!k) {
+      toast.error(T('ed_byok_key_empty'));
+      return;
+    }
+    setByokDeepseekSaving(true);
+    try {
+      const res = await fetch('/api/editor/byok-deepseek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ siteId: site.id, apiKey: k }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : 'Erro');
+        return;
+      }
+      setByokDeepseekKeyDraft('');
+      setByokDeepseekConfigured(true);
+      toast.success(T('ed_byok_toast_saved'));
+    } catch {
+      toast.error('Erro');
+    } finally {
+      setByokDeepseekSaving(false);
+    }
+  };
+
+  const removeByokDeepseek = async () => {
+    if (!site?.id || byokDeepseekSaving) return;
+    setByokDeepseekSaving(true);
+    try {
+      const res = await fetch(`/api/editor/byok-deepseek?siteId=${encodeURIComponent(site.id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : 'Erro');
+        return;
+      }
+      setByokDeepseekConfigured(false);
+      setByokDeepseekKeyDraft('');
+      toast.success(T('ed_byok_toast_removed'));
+    } catch {
+      toast.error('Erro');
+    } finally {
+      setByokDeepseekSaving(false);
+    }
+  };
+
   const runSuggestAdPrice = async () => {
     if (!ensureEditorIaOrToast()) return;
     if (!site?.id || suggestingPrice) return;
@@ -959,7 +1062,7 @@ function EditorPageInner() {
         combinedPageModules[p.id] = {
           modules,
           columns: pageColumns[p.id] || 1,
-          moduleColumns: moduleColumns[p.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
+          moduleColumns: moduleColumns[p.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 },
         };
       });
 
@@ -1041,6 +1144,7 @@ function EditorPageInner() {
         lively_agent_instructions: livelyAgentInstructions.trim() || null,
         lively_elevenlabs_voice_owner: livelyElevenOwner.trim() || null,
         lively_elevenlabs_voice_agent: livelyElevenAgent.trim() || null,
+        lively_tts_provider: livelyTtsProvider,
         lively_profile_as_avatar: livelyProfileAsAvatar,
         lively_profile_speak_on_entry: livelyProfileSpeakOnEntry,
         lively_profile_speech_tap: livelyProfileSpeechTap.trim() || null,
@@ -1683,7 +1787,7 @@ function EditorPageInner() {
                       setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
                       setModuleColumns((prev) => ({
                         ...prev,
-                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
+                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 },
                       }));
                       setPagesEditorSelectedId(newId);
                       setActiveTab('pages');
@@ -2422,6 +2526,7 @@ function EditorPageInner() {
                     const labels: Record<string,string> = {
                       pages: `📑 ${modLab.pages}`,
                       links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads', mystic:'🔮 Mystic', slug_market:'🏷️ Slugs',
+                      classified: `🚗 ${modLab.classified}`,
                       booking: `📅 ${modLab.booking}`,
                     };
                     return (
@@ -2586,7 +2691,7 @@ function EditorPageInner() {
                       setPageColumns((prev) => ({ ...prev, [newId]: 1 }));
                       setModuleColumns((prev) => ({
                         ...prev,
-                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 },
+                        [newId]: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 },
                       }));
                       setPagesEditorSelectedId(newId);
                       markDirty();
@@ -2639,7 +2744,7 @@ function EditorPageInner() {
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {(['pages', 'links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'slug_market', 'booking'] as const).map((mod) => {
+                        {(['pages', 'links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'slug_market', 'classified', 'booking'] as const).map((mod) => {
                           const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
                           const enabled = currentModules.includes(mod);
                           return (
@@ -2666,7 +2771,7 @@ function EditorPageInner() {
                                     setModuleColumns((prev) => ({
                                       ...prev,
                                       [page.id]: {
-                                        ...(prev[page.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, booking: 1 }),
+                                        ...(prev[page.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 }),
                                         [mod]: col,
                                       },
                                     }));
@@ -3183,6 +3288,76 @@ function EditorPageInner() {
                     className="input font-mono text-xs"
                     placeholder="voice_id"
                   />
+                </div>
+              </div>
+              <div>
+                <label className="label block mb-1">{T('ed_lively_tts_provider')}</label>
+                <select
+                  value={livelyTtsProvider}
+                  onChange={(e) => {
+                    setLivelyTtsProvider(e.target.value as LivelyTtsProvider);
+                    markDirty();
+                  }}
+                  className="input text-sm max-w-md"
+                >
+                  <option value="auto">{T('ed_lively_tts_auto')}</option>
+                  <option value="openai">{T('ed_lively_tts_openai')}</option>
+                  <option value="elevenlabs">{T('ed_lively_tts_eleven')}</option>
+                </select>
+                <p className="text-[10px] text-[var(--text2)] mt-1 leading-relaxed">{T('ed_lively_tts_hint')}</p>
+              </div>
+              <div className="rounded-xl border border-emerald-500/25 p-4 space-y-3 bg-emerald-500/[0.06]">
+                <div className="flex items-start gap-2">
+                  <KeyRound className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-bold text-[var(--text)]">{T('ed_byok_title')}</p>
+                    <p className="text-xs text-[var(--text2)] leading-relaxed">{T('ed_byok_intro')}</p>
+                  </div>
+                </div>
+                <a
+                  href="https://platform.deepseek.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 hover:underline"
+                >
+                  {T('ed_byok_open_console')}
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+                <p className="text-[11px] font-semibold text-[var(--text2)]">
+                  {byokDeepseekConfigured === true
+                    ? T('ed_byok_status_on')
+                    : byokDeepseekConfigured === false
+                      ? T('ed_byok_status_off')
+                      : '…'}
+                </p>
+                <label className="label block">{T('ed_byok_field_label')}</label>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={byokDeepseekKeyDraft}
+                  onChange={(e) => setByokDeepseekKeyDraft(e.target.value)}
+                  className="input font-mono text-xs"
+                  placeholder="sk-…"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void saveByokDeepseek()}
+                    disabled={byokDeepseekSaving}
+                    className="btn-primary text-sm gap-2"
+                  >
+                    {byokDeepseekSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {T('ed_byok_save')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void removeByokDeepseek()}
+                    disabled={byokDeepseekSaving || !byokDeepseekConfigured}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-[var(--border)] text-[var(--text2)] hover:bg-[var(--bg2)] disabled:opacity-40"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {T('ed_byok_remove')}
+                  </button>
                 </div>
               </div>
               <div className="rounded-xl border border-[var(--border)] p-4 space-y-2 bg-[var(--bg2)]/40">

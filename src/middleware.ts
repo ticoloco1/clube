@@ -67,7 +67,8 @@ export function middleware(request: NextRequest) {
 
   const subdomain = hostname.slice(0, -(`.${rootDomain}`).length);
 
-  const reserved = ['www', 'api', 'admin', 'mail', 'smtp', 'cdn', 'static'];
+  // `editor`: evita que `editor.dominio/...` seja tratado como mini-site com slug "editor" (quebrava a rota `/editor`).
+  const reserved = ['www', 'api', 'admin', 'mail', 'smtp', 'cdn', 'static', 'editor'];
   if (reserved.includes(subdomain)) {
     return NextResponse.next();
   }

@@ -69,12 +69,14 @@ export function cartItemToFulfillmentLine(item: CartItemInput, userId: string): 
   }
 
   if (type === 'plan' && id.startsWith('plan_')) {
-    const m = id.match(/^plan_([^_]+)_(mo|yr)$/);
+    const m = id.match(/^plan_(.+)_(mo|yr)$/);
+    const raw = (m?.[1] || 'pro').toLowerCase();
+    const planId = raw === 'pro' || raw === 'pro_ia' || raw === 'studio' ? raw : 'pro';
     return {
       kind: 'subscription',
       userId,
       amountUsd: price,
-      planId: m?.[1] || 'pro',
+      planId,
       billingPeriod: m?.[2] === 'yr' ? 'yearly' : 'monthly',
     };
   }
