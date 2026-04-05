@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Metadata } from 'next';
 import { getSiteBaseUrl, getProductRootDomain } from '@/lib/siteBaseUrl';
+import { resolvePublicSiteFaceUrl } from '@/lib/floatingAgentImage';
 
 function getDb() {
   return createClient(
@@ -26,13 +27,15 @@ function buildJsonLd(
   },
   description: string,
   url: string,
+  /** Imagem pública do perfil (já respeita retrato mágico on/off). */
+  publicProfileImage?: string | null,
 ): string {
   const personNode: Record<string, unknown> = {
     '@type': 'Person',
     name: site.site_name,
     description,
     url,
-    image: site.avatar_url || undefined,
+    image: (publicProfileImage && publicProfileImage.trim()) || undefined,
     sameAs: [miniSiteUrl(site.slug)],
     knowsAbout: (site.cv_skills || []).slice(0, 5),
   };
@@ -66,7 +69,7 @@ export async function generateMetadata(
   const { data: site } = await getDb()
     .from('mini_sites')
     .select(
-      'site_name, bio, avatar_url, cv_headline, cv_skills, slug, seo_title, seo_description, seo_og_image, seo_search_tags, seo_json_ld, magic_portrait_enabled',
+      'site_name, bio, avatar_url, cv_headline, cv_skills, slug, seo_title, seo_description, seo_og_image, seo_search_tags, seo_json_ld, magic_portrait_enabled, identity_portrait_url',
     )
     .eq('slug', params.slug)
     .eq('published', true)
@@ -95,11 +98,17 @@ export async function generateMetadata(
   const autoOg = `${SITE_BASE}/api/og/site?slug=${encodeURIComponent(params.slug)}`;
 
   const customOg = site.seo_og_image?.trim();
+  const magicOn = (site as { magic_portrait_enabled?: boolean }).magic_portrait_enabled === true;
+  const publicFaceOg = resolvePublicSiteFaceUrl({
+    avatarUrl: site.avatar_url,
+    identityPortraitUrl: (site as { identity_portrait_url?: string | null }).identity_portrait_url,
+    magicPortraitEnabled: magicOn,
+  });
   let ogImageUrl: string;
   if (customOg) {
     ogImageUrl = customOg;
-  } else if (site.avatar_url) {
-    ogImageUrl = site.avatar_url;
+  } else if (publicFaceOg) {
+    ogImageUrl = publicFaceOg;
   } else {
     ogImageUrl = autoOg;
   }
@@ -130,7 +139,12 @@ export async function generateMetadata(
       images: [ogImageUrl],
     },
     other: {
-      'application/ld+json': buildJsonLd(site as typeof site & { seo_json_ld?: string | null }, description, url),
+      'application/ld+json': buildJsonLd(
+        site as typeof site & { seo_json_ld?: string | null },
+        description,
+        url,
+        publicFaceOg,
+      ),
     },
   };
 }

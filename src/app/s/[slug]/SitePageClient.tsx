@@ -523,7 +523,7 @@ export default function SitePageClient({
         ? `${Math.round(avatarSize * 0.16)}px`
         : `${Math.round(avatarSize * 0.28)}px`;
 
-  const shareAvatarUrl = livelyProfileImageUrl || (site.avatar_url as string | null) || null;
+  const shareAvatarUrl = livelyProfileImageUrl || floatingAgentImageUrl || null;
   const ownerWhatsappDigits = String((site as any).contact_phone || '').replace(/\D/g, '');
 
   return (
@@ -663,9 +663,9 @@ export default function SitePageClient({
                     border={`2px solid ${t.border}`}
                     pupilOverlay={livelyProfilePupils}
                   />
-                ) : site.avatar_url ? (
+                ) : floatingAgentImageUrl ? (
                   <img
-                    src={site.avatar_url}
+                    src={floatingAgentImageUrl}
                     alt={site.site_name}
                     style={{
                       width: avatarSize,

@@ -3446,6 +3446,13 @@ function EditorPageInner() {
                   <span className="text-sm font-semibold text-[var(--text)]">{T('ed_magic_portrait_enable')}</span>
                 </label>
                 <p className="text-[11px] text-[var(--text2)] mt-2 pl-7 leading-relaxed">{T('ed_magic_portrait_hint')}</p>
+                {!magicPortraitEnabled ? (
+                  <p className="text-[11px] text-amber-400/95 mt-2 pl-7 leading-relaxed font-semibold">{T('ed_magic_portrait_off_note')}</p>
+                ) : null}
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)]/80 p-4 space-y-2">
+                <p className="text-xs font-black text-[var(--text)]">{T('ed_studio_tiers_title')}</p>
+                <p className="text-[11px] text-[var(--text2)] leading-relaxed">{T('ed_studio_tiers_body')}</p>
               </div>
             </div>
           )}

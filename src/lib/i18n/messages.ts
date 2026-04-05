@@ -749,6 +749,18 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     en: "Shows the AI portrait + active sponsored campaign (marketplace). The owner prepares audio with the voice clone (credits). Visitors: 40 min animation trial.",
     pt: "Mostra o retrato IA + campanha patrocinada ativa (marketplace). O dono prepara o áudio com o clone de voz (créditos). Visitantes: trial de 40 min de animação.",
   },
+  ed_magic_portrait_off_note: {
+    en: "Public mini-site hides the AI portrait when this is off. If you used “Use as profile photo” in Identity Lab (same URL as the AI portrait), upload a different profile photo or visitors will see the initial instead of that image.",
+    pt: "Com isto desligado, o mini-site público deixa de usar o retrato IA. Se usaste «Usar como foto de perfil» no Identity Lab (a URL fica igual ao retrato IA), carrega outra foto de perfil — caso contrário o público vê a inicial em vez dessa imagem.",
+  },
+  ed_studio_tiers_title: {
+    en: "Free vs full experience",
+    pt: "Grátis vs experiência completa",
+  },
+  ed_studio_tiers_body: {
+    en: "No extra IA spend: normal profile photo, links, CV, feed, themes, and Lively chat with OpenAI TTS when enabled. Full stack (AI stylized portrait on the public face, magic portrait campaigns, ElevenLabs clone, premium NFT gates) uses IA credits and paid options as configured on the server and your plan.",
+    pt: "Sem gastar em IA extra: foto de perfil normal, links, CV, feed, temas e chat Lively com TTS OpenAI quando activo. Pacote completo (retrato IA na cara pública, retrato mágico com patrocínios, clone ElevenLabs, NFT premium) usa créditos de IA e opções pagas conforme o servidor e o teu plano.",
+  },
   magic_title: { en: "Magic portrait", pt: "Retrato mágico" },
   magic_play_spot: { en: "Play sponsor spot", pt: "Ouvir patrocínio" },
   magic_audio_pending: {

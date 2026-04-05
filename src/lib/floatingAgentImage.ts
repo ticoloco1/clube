@@ -29,6 +29,9 @@ export function resolvePublicSiteFaceUrl(params: {
     if (p) return p;
     return null;
   }
+  // Retrato mágico desligado: nunca mostrar o retrato IA como cara pública — nem via identity_portrait_url
+  // nem quando foi copiado para avatar_url («Usar como foto de perfil» no Identity Lab).
+  if (a && p && a === p) return null;
   if (a) return a;
   return null;
 }
