@@ -6,6 +6,7 @@ import { useCart } from '@/store/cart';
 import { Zap, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 type BoostTarget = 'site' | 'classified' | 'video';
 
@@ -38,6 +39,10 @@ export function BoostButton({
   const [amount, setAmount] = useState(1);
   const [loading, setLoading] = useState(false);
 
+  const usdPerUnit = PLATFORM_USD.boostUsdPerSliderUnit;
+  const posPerUnit = PLATFORM_USD.boostPositionsPerSliderUnit;
+  const sliderMax = PLATFORM_USD.boostSliderMax;
+
   useEffect(() => {
     if (targetType === 'site' && siteId) {
       (supabase as any).from('site_boosts').select('amount').eq('site_id', siteId)
@@ -49,8 +54,11 @@ export function BoostButton({
     }
   }, [siteId, targetType]);
 
-  const positions = amount * 2;
-  const price = (amount * 0.5).toFixed(2);
+  const positions = amount * posPerUnit;
+  const price = (amount * usdPerUnit).toFixed(2);
+  const unitStr = usdPerUnit.toFixed(2);
+  const maxTotal = (sliderMax * usdPerUnit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const maxPos = sliderMax * posPerUnit;
 
   const displayLabel =
     targetType === 'site' && slug
@@ -77,7 +85,7 @@ export function BoostButton({
             : `boost_${siteId}_${amount}`;
       const label =
         targetType === 'site'
-          ? `Boost ${displayLabel} (+${positions} posições)`
+          ? `Boost ${displayLabel} (+${positions} pos.)`
           : `Boost ${targetType} "${displayLabel}" (+${positions})`;
       add({
         id: cartId,
@@ -115,7 +123,7 @@ export function BoostButton({
         }} onClick={e => { if (e.target === e.currentTarget) setOpenModal(false); }}>
           <div style={{
             background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: 20, padding: 28, width: '100%', maxWidth: 380,
+            borderRadius: 20, padding: 28, width: '100%', maxWidth: 400,
             position: 'relative',
           }}>
             <button onClick={() => setOpenModal(false)} style={{
@@ -145,18 +153,25 @@ export function BoostButton({
                 </span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>${price} USD</span>
               </div>
-              <input type="range" min={1} max={2000} value={amount}
+              <input type="range" min={1} max={sliderMax} value={amount}
                 onChange={e => setAmount(Number(e.target.value))}
                 style={{ width: '100%', accentColor }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>
-                <span>+1 ($0.50)</span>
-                <span>+2,000 ($1,000)</span>
+                <span>+{posPerUnit} (${unitStr})</span>
+                <span>+{maxPos.toLocaleString('en-US')} (${maxTotal})</span>
               </div>
             </div>
 
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>
-              <p style={{ margin: '0 0 4px' }}>• <span style={{ color: accentColor, fontWeight: 700 }}>$0.50</span> = +1 ranking position</p>
-              <p style={{ margin: '0 0 4px' }}>• Stays in top for <span style={{ fontWeight: 700 }}>7 days</span>, then drops 150 positions</p>
+            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.45 }}>
+              <p style={{ margin: '0 0 4px' }}>
+                • <span style={{ color: accentColor, fontWeight: 700 }}>${unitStr}</span> = +{posPerUnit} ranking positions (up to ${maxTotal} total for homepage race)
+              </p>
+              <p style={{ margin: '0 0 4px' }}>
+                • <span style={{ fontWeight: 700 }}>{PLATFORM_USD.boostHighlightDays} days</span> highlighted; on day 8 drops <span style={{ fontWeight: 700 }}>{PLATFORM_USD.boostDropPositionsAfterHighlight}</span> positions
+              </p>
+              <p style={{ margin: '0 0 4px' }}>
+                • From day 8, stay in top spots: <span style={{ fontWeight: 700 }}>${PLATFORM_USD.boostTopExtensionUsdPerDay}/day</span> (optional — contact support or future in-app pay)
+              </p>
               <p style={{ margin: 0 }}>• Boost applies after Stripe confirms payment</p>
             </div>
 

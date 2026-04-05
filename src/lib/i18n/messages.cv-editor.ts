@@ -85,6 +85,17 @@ export const CV_EDITOR_MESSAGES: Record<string, MessageRow> = {
   cv_ph_email: { en: 'you@email.com', pt: 'tu@email.com' },
   cv_label_whatsapp: { en: 'WhatsApp', pt: 'WhatsApp' },
   cv_ph_whatsapp: { en: '+1 555 000 0000', pt: '+351 900 000 000' },
+  cv_contact_lock_title: { en: 'Lock email & WhatsApp', pt: 'Cadeado no contacto' },
+  cv_contact_lock_hint: {
+    en: 'Visitors see your CV but must pay to unlock email and WhatsApp (same unlock as full CV). Connect Stripe on your profile.',
+    pt: 'Visitantes veem o CV mas pagam para ver e-mail e WhatsApp (mesmo desbloqueio do CV completo). Liga o Stripe no perfil.',
+  },
+  cv_contact_lock_pub_title: { en: 'Contact locked', pt: 'Contacto bloqueado' },
+  cv_contact_lock_pub_body: {
+    en: 'Unlock to see email and WhatsApp.',
+    pt: 'Desbloqueia para ver e-mail e WhatsApp.',
+  },
+  cv_contact_lock_pub_cta: { en: 'Unlock · ${price} USD', pt: 'Desbloquear · ${price} USD' },
   cv_hiring_rate_title: { en: 'Hiring rate (public)', pt: 'Valor de contratação (público)' },
   cv_hire_per: { en: 'per {unit}', pt: 'por {unit}' },
   cv_hire_type_hour: { en: 'hour', pt: 'hora' },

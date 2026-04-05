@@ -61,6 +61,7 @@ alter table if exists mini_sites add column if not exists cv_hire_price numeric 
 alter table if exists mini_sites add column if not exists cv_hire_currency text default 'USD';
 alter table if exists mini_sites add column if not exists cv_hire_type text default 'hour';
 alter table if exists mini_sites add column if not exists cv_free boolean default false;
+alter table if exists mini_sites add column if not exists cv_contact_locked boolean not null default false;
 alter table if exists mini_sites add column if not exists section_order jsonb default '["summary","experience","education","skills","projects","languages","certificates","contact"]'::jsonb;
 
 -- Feed / módulos (string JSON no editor)

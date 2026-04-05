@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { useT } from '@/lib/i18n';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 import type { MessageKey } from '@/lib/i18n/messages';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
@@ -68,7 +69,7 @@ const STEP_DEFS: { icon: typeof Globe; titleKey: MessageKey; descKey: MessageKey
         </div>
         <div className="flex items-center justify-between">
           <div className="h-2 w-20 bg-white/20 rounded" />
-          <span className="text-[11px] font-black text-green-400">$0.99 USD</span>
+          <span className="text-[11px] font-black text-green-400">${PLATFORM_USD.videoPaywallDefault} USD</span>
         </div>
       </div>
     ),
@@ -130,9 +131,9 @@ const STEP_DEFS: { icon: typeof Globe; titleKey: MessageKey; descKey: MessageKey
 
 const STAT_DEFS: { value: string; labelKey: MessageKey; icon: typeof Coins }[] = [
   { value: 'Stripe', labelKey: 'home_stat_poly', icon: Coins },
-  { value: '60%', labelKey: 'home_stat_creator', icon: TrendingUp },
+  { value: `${PLATFORM_USD.paywallVideoCreatorPercent}%`, labelKey: 'home_stat_creator', icon: TrendingUp },
   { value: '30', labelKey: 'home_stat_themes', icon: ImgIcon },
-  { value: '$0.50', labelKey: 'home_stat_boost', icon: Zap },
+  { value: `$${PLATFORM_USD.boostUsdPerSliderUnit.toFixed(2)}→+${PLATFORM_USD.boostPositionsPerSliderUnit}`, labelKey: 'home_stat_boost', icon: Zap },
 ];
 
 export default function HomePage() {
@@ -307,7 +308,7 @@ export default function HomePage() {
                   <div className="text-2xl mb-2">{plan.emoji}</div>
                   <h3 className="font-black text-lg mb-1" style={{ color: plan.color || 'var(--text)' }}>{plan.name}</h3>
                   <div className="text-3xl font-black text-[var(--text)] mb-4">
-                    ${Number(plan.price_monthly) > 0 ? Number(plan.price_monthly).toFixed(2) : '29.99'}
+                    ${PLATFORM_USD.proMonthly.toFixed(2)}
                     <span className="text-sm text-[var(--text2)] font-normal">{T('home_slash_mo')}</span>
                   </div>
                   <ul className="space-y-2 mb-6">

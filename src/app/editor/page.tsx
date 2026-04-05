@@ -37,6 +37,7 @@ import { readSiteAiBudget } from '@/lib/aiUsdBudget';
 import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
 import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
 import { DEFAULT_BOOKING_SERVICES, DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSchedule';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 const LS_EDITOR_IA_API = 'tb_editor_ia_api_enabled';
 
@@ -193,12 +194,13 @@ function EditorPageInner() {
   const [ytUrl,          setYtUrl]          = useState('');
   const [ytTitle,        setYtTitle]        = useState('');
   const [paywallEnabled, setPaywallEnabled] = useState(false);
-  const [paywallPrice,   setPaywallPrice]   = useState('4.99');
+  const [paywallPrice,   setPaywallPrice]   = useState(String(PLATFORM_USD.videoPaywallDefault));
 
   // ── CV state ────────────────────────────────────────────────────────────
   const [showCv,     setShowCv]     = useState(false);
   const [cvLocked,   setCvLocked]   = useState(false);
-  const [cvPrice,    setCvPrice]    = useState('20');
+  const [cvContactLocked, setCvContactLocked] = useState(false);
+  const [cvPrice,    setCvPrice]    = useState(String(PLATFORM_USD.cvUnlockDefault));
   const [cvHeadline, setCvHeadline] = useState('');
   const [cvLocation, setCvLocation] = useState('');
   const [cvSkills,   setCvSkills]   = useState('');
@@ -238,8 +240,8 @@ function EditorPageInner() {
   const [cvHireType, setCvHireType] = useState('hour');
   const [cvFree, setCvFree] = useState(false);
   const [mysticPublicEnabled, setMysticPublicEnabled] = useState(false);
-  const [mysticTarotPrice, setMysticTarotPrice] = useState('4.99');
-  const [mysticLotteryPrice, setMysticLotteryPrice] = useState('2.99');
+  const [mysticTarotPrice, setMysticTarotPrice] = useState(String(PLATFORM_USD.mysticTarotDefault));
+  const [mysticLotteryPrice, setMysticLotteryPrice] = useState(String(PLATFORM_USD.mysticLotteryPremiumDefault));
   const [bookingEnabled, setBookingEnabled] = useState(false);
   const [bookingSlotMinutes, setBookingSlotMinutes] = useState('30');
   const [bookingTimezone, setBookingTimezone] = useState('America/Sao_Paulo');
@@ -392,6 +394,7 @@ function EditorPageInner() {
   const monetizationNeedsStripe =
     (paywallEnabled && parseFloat(String(paywallPrice).replace(',', '.')) > 0)
     || (cvLocked && !cvFree && parseFloat(String(cvPrice).replace(',', '.')) > 0)
+    || (cvContactLocked && !cvFree && parseFloat(String(cvPrice).replace(',', '.')) > 0)
     || (mysticPublicEnabled && (mysticTarotNum >= 0.5 || mysticLotteryNum >= 0.5));
 
   // ── Load site data (uma vez por mini-site; não sobrescreve enquanto editas o mesmo id) ──
@@ -476,7 +479,8 @@ function EditorPageInner() {
     setTextColor((site as any).text_color || '');
     setShowCv(site.show_cv || false);
     setCvLocked(site.cv_locked || false);
-    setCvPrice(String(site.cv_price || 20));
+    setCvContactLocked((site as any).cv_contact_locked === true);
+    setCvPrice(String(site.cv_price ?? PLATFORM_USD.cvUnlockDefault));
     setCvHeadline(site.cv_headline || '');
     setCvLocation((site as any).cv_location || '');
     setCvSkills((site.cv_skills || []).join(', '));
@@ -495,12 +499,12 @@ function EditorPageInner() {
     setMysticTarotPrice(
       (site as any).mystic_tarot_price_usd != null && String((site as any).mystic_tarot_price_usd) !== ''
         ? String((site as any).mystic_tarot_price_usd)
-        : '4.99',
+        : String(PLATFORM_USD.mysticTarotDefault),
     );
     setMysticLotteryPrice(
       (site as any).mystic_lottery_premium_price_usd != null && String((site as any).mystic_lottery_premium_price_usd) !== ''
         ? String((site as any).mystic_lottery_premium_price_usd)
-        : '2.99',
+        : String(PLATFORM_USD.mysticLotteryPremiumDefault),
     );
     setBookingEnabled((site as any).booking_enabled === true);
     setBookingSlotMinutes(String((site as any).booking_slot_minutes ?? 30));
@@ -681,7 +685,7 @@ function EditorPageInner() {
     autosaveTimer.current = setTimeout(() => { if (isDirty.current) handleSave(true); }, 2500);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [siteName, slug, bio, theme, accentColor, photoShape, photoSize, fontStyle, textColor,
-      showCv, cvLocked, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
+      showCv, cvLocked, cvContactLocked, cvFree, cvPrice, cvHeadline, cvContent, cvLocation, cvSkills,
       showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, contactWhatsapp, published, seoTitle, seoDescription, seoOgImage, seoSearchTags, seoJsonLd,       livelyAvatarEnabled, livelyAvatarModel, livelyAvatarWelcome, livelyCentralMagic, livelyFloatingExpressive, livelyDualAgent, livelyAgentInstructions, livelyElevenOwner, livelyElevenAgent, identityPortraitUrl, identityStylePreset, identityVoiceEffect, magicPortraitEnabled, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
       adAskingPrice, adShowPricePublic, directoryProfileSlug, siteCategorySlug,
       mysticPublicEnabled, mysticTarotPrice, mysticLotteryPrice,
@@ -993,7 +997,8 @@ function EditorPageInner() {
         text_color:    textColor || null,
         show_cv:       showCv,
         cv_locked:     cvLocked,
-        cv_price:      parseFloat(cvPrice) || 20,
+        cv_contact_locked: cvContactLocked,
+        cv_price:      parseFloat(cvPrice) || PLATFORM_USD.cvUnlockDefault,
         cv_headline:   cvHeadline,
         cv_content:    cvContent,
         cv_location:   cvLocation,
@@ -1056,8 +1061,8 @@ function EditorPageInner() {
         directory_profile_slug: directoryProfileSlug.trim() || null,
         site_category_slug: siteCategorySlug.trim() || null,
         mystic_public_enabled: mysticPublicEnabled,
-        mystic_tarot_price_usd: Math.max(0.5, mysticTarotNum || 4.99),
-        mystic_lottery_premium_price_usd: Math.max(0.5, mysticLotteryNum || 2.99),
+        mystic_tarot_price_usd: Math.max(0.5, mysticTarotNum || PLATFORM_USD.mysticTarotDefault),
+        mystic_lottery_premium_price_usd: Math.max(0.5, mysticLotteryNum || PLATFORM_USD.mysticLotteryPremiumDefault),
         booking_enabled: bookingEnabled,
         booking_slot_minutes: Math.max(15, Math.min(180, parseInt(String(bookingSlotMinutes), 10) || 30)),
         booking_timezone: bookingTimezone.trim() || 'America/Sao_Paulo',
@@ -1179,7 +1184,7 @@ function EditorPageInner() {
     await supabase.from('mini_site_videos').insert({
       site_id: site.id, youtube_video_id: ytId,
       title: ytTitle || 'Video', paywall_enabled: paywallEnabled,
-      paywall_price: parseFloat(paywallPrice) || 4.99, sort_order: videos.length
+      paywall_price: parseFloat(paywallPrice) || PLATFORM_USD.videoPaywallDefault, sort_order: videos.length
     });
     supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order')
       .then(r => setVideos(r.data || []));
@@ -2247,7 +2252,8 @@ function EditorPageInner() {
                 data={{
                   show_cv: showCv,
                   cv_free: cvFree,
-                  cv_price: parseFloat(cvPrice) || 20,
+                  cv_contact_locked: cvContactLocked,
+                  cv_price: parseFloat(cvPrice) || PLATFORM_USD.cvUnlockDefault,
                   cv_headline: cvHeadline,
                   cv_location: cvLocation,
                   cv_content: cvContent,
@@ -2267,6 +2273,7 @@ function EditorPageInner() {
                 onChange={(d) => {
                   if (typeof d.show_cv === 'boolean') setShowCv(d.show_cv);
                   if (typeof d.cv_free === 'boolean') setCvFree(d.cv_free);
+                  if (typeof d.cv_contact_locked === 'boolean') setCvContactLocked(d.cv_contact_locked);
                   if (typeof d.cv_price === 'number') setCvPrice(String(d.cv_price));
                   if (typeof d.cv_headline === 'string') setCvHeadline(d.cv_headline);
                   if (typeof d.cv_location === 'string') setCvLocation(d.cv_location);

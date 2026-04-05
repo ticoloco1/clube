@@ -1,5 +1,6 @@
 import { getReservedSlugSet } from './slugReservedLists';
 import { isWorldFirstNameSlug } from './worldFirstNames';
+import { PLATFORM_USD } from './platformPricing';
 
 /**
  * Tarifa especial nome (lista mundial): só entra se o preço **só por nº de letras**
@@ -8,10 +9,10 @@ import { isWorldFirstNameSlug } from './worldFirstNames';
 export const SLUG_WORLD_NAME_TIER_USD = 500;
 
 /** 2.º slug e seguintes: registo US$ (com plano / mini-site já existente). */
-export const SLUG_EXTRA_REGISTRATION_USD = 7;
+export const SLUG_EXTRA_REGISTRATION_USD = PLATFORM_USD.slugRenewal;
 
 /** Renovação anual por slug (carrinho). */
-export const SLUG_RENEWAL_ANNUAL_USD = 7;
+export const SLUG_RENEWAL_ANNUAL_USD = PLATFORM_USD.slugRenewal;
 
 export function normalizeSlugKey(raw: string): string {
   return raw.toLowerCase().replace(/[^a-z0-9]/g, '');

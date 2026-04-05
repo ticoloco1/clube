@@ -84,7 +84,7 @@ export const EDITOR_UI_MESSAGES: Record<string, MessageRow> = {
   ed_yt_url_ph: { en: 'https://youtube.com/watch?v=…', pt: 'https://youtube.com/watch?v=…' },
   ed_yt_title_ph: { en: 'Video title (optional)', pt: 'Título do vídeo (opcional)' },
   ed_paywall_title: { en: 'Enable paywall', pt: 'Ativar paywall' },
-  ed_paywall_hint: { en: 'Fans pay via Stripe (USD) — you get your Connect share', pt: 'Fãs pagam via Stripe (USD) — recebes a tua parte no Connect' },
+  ed_paywall_hint: { en: 'No fee to enable. Fans pay via Stripe (USD) — you keep 85% on your Connect account.', pt: 'Sem taxa para ativar. Fãs pagam via Stripe (USD) — ficas com 85% na tua conta Connect.' },
   ed_price_usdc: { en: 'Price (USD)', pt: 'Preço (USD)' },
   ed_add_video: { en: 'Add video', pt: 'Adicionar vídeo' },
 

@@ -1,6 +1,6 @@
--- Pro only: $29.99/mo + yearly option; deactivate legacy extra tiers (e.g. Business $99).
+-- Pro: preços alinhados ao site (platformPricing.ts). Atualiza a linha `pro` na BD.
 update platform_plans
-set price_monthly = 29.99, price_yearly = 288.00, active = true
+set price_monthly = 26.90, price_yearly = 268.99, active = true
 where lower(slug) = 'pro';
 
 update platform_plans set active = false where lower(slug) <> 'pro';

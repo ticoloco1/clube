@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { attachMiniSitesToSlugRows } from '@/lib/slugRegistrationMiniSite';
 import { AdminMysticLottery } from '@/components/mystic/AdminMysticLottery';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 const OWNER_EMAIL = 'arytcf@gmail.com';
 
@@ -126,10 +127,10 @@ export default function AdminPage() {
   });
   // Pricing
   const [pricing, setPricing] = useState({
-    plan_price: '29.99',
+    plan_price: String(PLATFORM_USD.proMonthly),
     slug_free_per_plan: '1',
     listings_free_per_plan: '10',
-    video_split_creator: '70',
+    video_split_creator: '85',
     cv_split_creator: '50',
     slug_split_creator: '85',
     slug_min_price: '10',
@@ -1402,7 +1403,7 @@ export default function AdminPage() {
               <h3 className="font-black text-[var(--text)] text-lg">{T('admin_plans_title')}</h3>
               <div className="flex gap-2">
                 {!plansLoaded && <button onClick={loadPlans} className="btn-primary text-sm px-4">{T('admin_load')}</button>}
-                <button onClick={() => setEditingPlan({ name:'', price_monthly:'29.99', price_yearly:'288', color:'#818cf8', emoji:'⚡', features:'', active:true, sort_order:plans.length })}
+                <button onClick={() => setEditingPlan({ name:'', price_monthly:String(PLATFORM_USD.proMonthly), price_yearly:String(PLATFORM_USD.proYearly), color:'#818cf8', emoji:'⚡', features:'', active:true, sort_order:plans.length })}
                   className="btn-primary text-sm px-4 gap-2"><Plus className="w-4 h-4" /> {T('admin_new_plan')}</button>
               </div>
             </div>

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 /** Cofre: os teus slugs (usar no site, vender, leilão, transferir). O mercado público fica em /slugs. */
 export default function VaultPage() {
@@ -195,7 +196,7 @@ export default function VaultPage() {
                           add({
                             id: `slug_renewal_${s.slug}`,
                             label: T('slug_cart_renew_label').replace('{slug}', s.slug),
-                            price: 7,
+                            price: PLATFORM_USD.slugRenewal,
                             type: 'slug',
                           });
                           open();

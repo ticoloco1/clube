@@ -25,7 +25,10 @@ import { CentralProfileSpeakingAvatar } from '@/components/site/CentralProfileSp
 import { CVView } from '@/components/editor/CVEditor';
 import { useT } from '@/lib/i18n';
 import { DIRECTORY_PROFILE_I18N_KEYS } from '@/lib/directoryProfileLabels';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 import { hasDisplayableRichHtml, normalizeRichEmbeds, youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
+import { trackSiteVisit, trackLinkClick, trackPageView } from '@/lib/publicAnalytics';
+import { FeedPostImpression } from '@/components/site/FeedPostImpression';
 import { Lock, Unlock, Shield, Clock, CheckCircle, ExternalLink, Play, Users, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -142,6 +145,7 @@ export default function SitePageClient({
   const isOwner = user?.id === site?.user_id;
   const isAdminViewer = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
   const canManageFeed = isOwner || isAdminViewer || ((user?.email || '').toLowerCase() === (site?.contact_email || '').toLowerCase());
+  const trackPublicAnalytics = Boolean(site?.published && user?.id !== site?.user_id);
   const T = useT();
   const feedCols: 1|2|3 = (site as any)?.feed_cols || 1;
   const pageMaxWidth = Math.min(1010, Math.max(320, Number((site as any)?.page_width || 600)));
@@ -308,7 +312,7 @@ export default function SitePageClient({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('unlock') === 'cv' && user && site) {
-      addToCart({ id:`cv_${site.id}`, label:`CV: ${site.site_name}`, price: site?.cv_price||20, type:'cv' });
+      addToCart({ id:`cv_${site.id}`, label:`CV: ${site.site_name}`, price: site?.cv_price ?? PLATFORM_USD.cvUnlockDefault, type:'cv' });
       openCart();
       // Remove param from URL
       window.history.replaceState({}, '', window.location.pathname);
@@ -318,18 +322,48 @@ export default function SitePageClient({
   useEffect(() => {
     if (!site?.id || !site.published || authLoading) return;
     if (user?.id === site.user_id) return;
-    const ref = typeof document !== 'undefined' ? document.referrer : '';
-    const device = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-    (supabase as any).from('site_visits').insert({
+    if (typeof window === 'undefined') return;
+    const k = `tb_visit_${site.id}`;
+    if (sessionStorage.getItem(k)) return;
+    sessionStorage.setItem(k, '1');
+    const params = new URLSearchParams(window.location.search);
+    const utmNow = {
+      source: params.get('utm_source') || '',
+      medium: params.get('utm_medium') || '',
+      campaign: params.get('utm_campaign') || '',
+    };
+    const ref = document.referrer || '';
+    const device = navigator.userAgent || '';
+    trackSiteVisit({
       site_id: site.id,
       slug: site.slug,
-      referrer: ref?.slice(0, 500) || null,
-      device: device?.slice(0, 200) || null,
-      utm_source: utm.source || null,
-      utm_medium: utm.medium || null,
-      utm_campaign: utm.campaign || null,
-    }).then(() => {});
-  }, [site?.id, site?.published, site?.slug, site?.user_id, user?.id, authLoading, utm.source, utm.medium, utm.campaign]);
+      referrer: ref ? ref.slice(0, 500) : null,
+      device: device ? device.slice(0, 200) : null,
+      utm: utmNow,
+    });
+  }, [site?.id, site?.published, site?.slug, site?.user_id, user?.id, authLoading]);
+
+  useEffect(() => {
+    if (!site?.id || !site.published || authLoading) return;
+    if (user?.id === site.user_id) return;
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const utmNow = {
+      source: params.get('utm_source') || '',
+      medium: params.get('utm_medium') || '',
+      campaign: params.get('utm_campaign') || '',
+    };
+    const ref = document.referrer || '';
+    const device = navigator.userAgent || '';
+    trackPageView({
+      site_id: site.id,
+      page_id: activePage,
+      slug: site.slug,
+      referrer: ref ? ref.slice(0, 500) : null,
+      device: device ? device.slice(0, 200) : null,
+      utm: utmNow,
+    });
+  }, [activePage, site?.id, site?.published, site?.slug, site?.user_id, user?.id, authLoading]);
 
   useEffect(() => {
     if (!site?.id) return;
@@ -399,7 +433,7 @@ export default function SitePageClient({
       window.location.href = '/auth?redirect=' + encodeURIComponent(returnUrl);
       return; 
     }
-    addToCart({ id:`cv_${site!.id}`, label:`CV: ${site!.site_name}`, price: site?.cv_price||20, type:'cv' });
+    addToCart({ id:`cv_${site!.id}`, label:`CV: ${site!.site_name}`, price: site?.cv_price ?? PLATFORM_USD.cvUnlockDefault, type:'cv' });
     openCart();
   };
 
@@ -869,15 +903,21 @@ export default function SitePageClient({
                     onMouseEnter={() => setHoveredLink(link.id)}
                     onMouseLeave={() => setHoveredLink(null)}
                     onClick={() => {
-                      (supabase as any).from('site_link_clicks').insert({
+                      const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+                      const utmNow = {
+                        source: params.get('utm_source') || '',
+                        medium: params.get('utm_medium') || '',
+                        campaign: params.get('utm_campaign') || '',
+                      };
+                      const ref = typeof document !== 'undefined' ? document.referrer : '';
+                      trackLinkClick({
                         site_id: site.id,
                         link_id: link.id,
                         slug: site.slug,
                         destination_url: link.url,
-                        utm_source: utm.source || null,
-                        utm_medium: utm.medium || null,
-                        utm_campaign: utm.campaign || null,
-                      }).then(() => {});
+                        referrer: ref ? ref.slice(0, 500) : null,
+                        utm: utmNow,
+                      });
                     }}
                     style={{
                       display:'flex', alignItems:'center', gap:0,
@@ -902,9 +942,26 @@ export default function SitePageClient({
               })}
             </div>
           );
-          if (mod === 'cv' && site.show_cv) return (
+          if (mod === 'cv' && site.show_cv) {
+            const cvContactLocked = (site as any).cv_contact_locked === true;
+            const cvFree = (site as any).cv_free === true;
+            const hasCvContact = Boolean((site as any).contact_email || (site as any).cv_contact_whatsapp);
+            const cvUnlockedOrOwner = cvUnlocked || isOwner;
+            const contactGated =
+              hasCvContact &&
+              !cvUnlockedOrOwner &&
+              !cvFree &&
+              (site.cv_locked || cvContactLocked);
+            const contactLockOnlyInBody =
+              !site.cv_locked &&
+              cvContactLocked &&
+              !cvUnlockedOrOwner &&
+              !cvFree &&
+              hasCvContact;
+
+            return (
             <div key="cv" style={{marginBottom:32}}>
-              {(site.cv_locked && !cvUnlocked) ? (
+              {(site.cv_locked && !cvUnlocked && !cvFree) ? (
                 <div style={{padding:20,borderRadius:r,border:`1.5px solid ${accent}35`,background:`${accent}0a`}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
                     <div>
@@ -915,12 +972,12 @@ export default function SitePageClient({
                       {site.cv_headline && <p style={{color:t.text2,fontSize:13,margin:0}}>{site.cv_headline}</p>}
                     </div>
                     <button onClick={handleCvUnlock} style={{padding:'11px 22px',borderRadius:999,background:`linear-gradient(135deg,${accent},${accent}cc)`,color:'#fff',fontWeight:800,fontSize:13,border:'none',cursor:'pointer',whiteSpace:'nowrap'}}>
-                      🔓 ${site.cv_price||20} USD (unlock contacts · Stripe)
+                      🔓 ${site.cv_price ?? PLATFORM_USD.cvUnlockDefault} USD (unlock contacts · Stripe)
                     </button>
                   </div>
                 </div>
               ) : null}
-              <div style={{padding:20,borderRadius:r,border:`1.5px solid ${t.border}`,background:t.btn,marginTop:(site.cv_locked && !cvUnlocked) ? 10 : 0}}>
+              <div style={{padding:20,borderRadius:r,border:`1.5px solid ${t.border}`,background:t.btn,marginTop:(site.cv_locked && !cvUnlocked && !cvFree) ? 10 : 0}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
                   <Unlock style={{width:16,height:16,color:'#22c55e'}}/>
                   <span style={{fontWeight:800,color:t.text,fontSize:16}}>CV / Resume</span>
@@ -928,8 +985,9 @@ export default function SitePageClient({
                 <CVView
                   data={{
                     show_cv: !!site.show_cv,
-                    cv_free: !!(site as any).cv_free,
-                    cv_price: Number(site.cv_price || 20),
+                    cv_free: cvFree,
+                    cv_contact_locked: cvContactLocked,
+                    cv_price: Number(site.cv_price ?? PLATFORM_USD.cvUnlockDefault),
                     cv_headline: site.cv_headline || '',
                     cv_location: (site as any).cv_location || '',
                     cv_content: site.cv_content || '',
@@ -939,18 +997,21 @@ export default function SitePageClient({
                     cv_projects: (site as any).cv_projects || [],
                     cv_languages: (site as any).cv_languages || [],
                     cv_certificates: (site as any).cv_certificates || [],
-                    contact_email: (site.cv_locked && !cvUnlocked) ? '' : ((site as any).contact_email || ''),
-                    cv_contact_whatsapp: (site.cv_locked && !cvUnlocked) ? '' : ((site as any).cv_contact_whatsapp || ''),
+                    contact_email: contactGated ? '' : ((site as any).contact_email || ''),
+                    cv_contact_whatsapp: contactGated ? '' : ((site as any).cv_contact_whatsapp || ''),
                     cv_hire_price: Number((site as any).cv_hire_price || 0),
                     cv_hire_currency: (site as any).cv_hire_currency || 'USD',
                     cv_hire_type: (site as any).cv_hire_type || 'hour',
                     section_order: (site as any).section_order || ['summary','experience','education','skills','projects','languages','certificates','contact'],
                   }}
                   accentColor={accent}
+                  contactLockActive={contactLockOnlyInBody}
+                  onUnlockContact={contactLockOnlyInBody ? handleCvUnlock : undefined}
                 />
               </div>
             </div>
-          );
+            );
+          }
           if (mod === 'videos' && videos.length > 0) return (
             <div key="videos" style={{marginBottom:32}}>
               <h2 style={{color:t.text,fontSize:16,fontWeight:800,margin:'0 0 12px',display:'flex',alignItems:'center',gap:8}}>
@@ -983,7 +1044,8 @@ export default function SitePageClient({
               )}
               {/* Pinned posts — outside window, highlighted */}
               {posts.filter((p:any) => p.pinned).map((p:any) => (
-                <div key={p.id} style={{padding:'14px 16px',borderRadius:r,border:`2px solid ${accent}`,background:`${accent}10`,marginBottom:10}}>
+                <FeedPostImpression key={p.id} postId={p.id} siteId={site.id} track={trackPublicAnalytics}>
+                <div style={{padding:'14px 16px',borderRadius:r,border:`2px solid ${accent}`,background:`${accent}10`,marginBottom:10}}>
                   <p style={{color:accent,fontSize:11,fontWeight:800,margin:'0 0 6px'}}>📌 FIXADO</p>
                   <p style={{margin:0,color:t.text,fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{p.text}</p>
                   {getPostMedia(p).length > 0 && (
@@ -1018,6 +1080,7 @@ export default function SitePageClient({
                     </div>
                   )}
                 </div>
+                </FeedPostImpression>
               ))}
               {/* Feed window (Instagram-like) */}
               {posts.filter((p:any) => !p.pinned).length > 0 && (
@@ -1043,7 +1106,8 @@ export default function SitePageClient({
                     scrollbarColor:`${accent}40 transparent`,
                   }}>
                     {posts.filter((p:any) => !p.pinned).map((p:any) => (
-                      <div key={p.id} style={{
+                      <FeedPostImpression key={p.id} postId={p.id} siteId={site.id} track={trackPublicAnalytics}>
+                      <div style={{
                         padding:'14px 16px',
                         borderRadius:Math.max(r-4,6),
                         border:`1.5px solid ${t.border}`,
@@ -1087,6 +1151,7 @@ export default function SitePageClient({
                           </div>
                         </div>
                       </div>
+                      </FeedPostImpression>
                     ))}
                   </div>
                 </div>
@@ -1143,12 +1208,15 @@ export default function SitePageClient({
             return (
               <SiteSlugMarketPanel
                 key="slug_market"
+                ownerUserId={site.user_id}
                 accentColor={accent}
                 textColor={t.text}
                 textMuted={t.text2}
                 borderColor={t.border}
                 bgCard={t.btn}
                 radius={r}
+                maxContentWidth={Math.min(640, pageMaxWidth)}
+                isDark={isDark}
               />
             );
           }

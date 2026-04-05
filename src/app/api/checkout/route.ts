@@ -10,6 +10,7 @@ import {
   mysticDirectCheckoutEligibility,
 } from '@/lib/mysticDirectCheckout';
 import { getSiteBaseUrl } from '@/lib/siteBaseUrl';
+import { STRIPE_MIN_CHARGE_USD } from '@/lib/platformPricing';
 
 const SITE_URL = getSiteBaseUrl();
 
@@ -54,8 +55,9 @@ export async function POST(req: Request) {
 
     const totalUsd = items.reduce((acc, item) => acc + (Number(item.price) || 0), 0);
     const totalCents = Math.round(totalUsd * 100);
-    if (totalCents < 50) {
-      return NextResponse.json({ error: 'Minimum charge is $0.50 USD' }, { status: 400 });
+    const minCents = Math.round(STRIPE_MIN_CHARGE_USD * 100);
+    if (totalCents < minCents) {
+      return NextResponse.json({ error: `Minimum charge is $${STRIPE_MIN_CHARGE_USD} USD` }, { status: 400 });
     }
     const storedLines = lines.map(({ userId: _u, ...rest }) => rest);
 

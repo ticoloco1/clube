@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
 import { Image as ImageIcon, X, Pin, Loader2, Send } from 'lucide-react';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 interface FeedSectionProps {
   siteId: string;
@@ -182,11 +183,11 @@ export function FeedSection({ siteId, canPost, accentColor = '#818cf8', isDark =
 
         <div style={{ flex: 1 }} />
 
-        {/* Pin button - $10 USD (Stripe) */}
+        {/* Pin button — valor em PLATFORM_USD.feedPinPost */}
         <button onClick={() => post(true)} disabled={posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())}
           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (posting || (!text.trim() && imageFiles.length === 0 && !videoEmbedUrl.trim())) ? 0.4 : 1 }}>
           {pinning ? <Loader2 style={{ width: 13, height: 13, animation: 'spin .8s linear infinite' }} /> : <Pin style={{ width: 13, height: 13 }} />}
-          📌 Pin · $10
+          📌 Pin · ${PLATFORM_USD.feedPinPost}
         </button>
 
         {/* Post button */}
@@ -198,7 +199,7 @@ export function FeedSection({ siteId, canPost, accentColor = '#818cf8', isDark =
       </div>
 
       <p style={{ margin: '8px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.25)', textAlign: 'right' }}>
-        Posts expire in 7 days · Pinned posts stay for 365 days for $10 USD (Stripe)
+        Posts expire in 7 days · Pinned posts stay for 365 days for ${PLATFORM_USD.feedPinPost} USD (Stripe)
       </p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>

@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useCart } from '@/store/cart';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 type Props = {
   site: MiniSite;
@@ -35,8 +36,11 @@ export function SiteMysticSales({ site, isOwner, accentColor, textColor, textMut
   const mysticPaidHandled = useRef<string | null>(null);
 
   const enabled = (site as any).mystic_public_enabled === true;
-  const tarotPrice = Math.max(0.5, Number((site as any).mystic_tarot_price_usd ?? 4.99) || 4.99);
-  const lotteryPrice = Math.max(0.5, Number((site as any).mystic_lottery_premium_price_usd ?? 2.99) || 2.99);
+  const tarotPrice = Math.max(0.5, Number((site as any).mystic_tarot_price_usd) || PLATFORM_USD.mysticTarotDefault);
+  const lotteryPrice = Math.max(
+    0.5,
+    Number((site as any).mystic_lottery_premium_price_usd) || PLATFORM_USD.mysticLotteryPremiumDefault,
+  );
   const stripeOk = !!(site as any).stripe_connect_charges_enabled && !!(site as any).stripe_connect_account_id;
 
   const refreshEntitlements = useCallback(async () => {

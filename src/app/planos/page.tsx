@@ -5,10 +5,11 @@ import { useCart } from '@/store/cart';
 import { Check, Loader2, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useI18n, useT } from '@/lib/i18n';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 /** Plano público único: `slug = pro`. Fallbacks se a linha no Supabase estiver incompleta. */
-const PRO_MONTHLY_USD = 29.99;
-const PRO_YEARLY_USD = 288;
+const PRO_MONTHLY_USD = PLATFORM_USD.proMonthly;
+const PRO_YEARLY_USD = PLATFORM_USD.proYearly;
 
 const PRO_FEATURES_FALLBACK = [
   'Unlimited links',
@@ -55,6 +56,8 @@ export default function PlanosPage() {
         const merged = pro
           ? {
               ...pro,
+              price_monthly: PRO_MONTHLY_USD,
+              price_yearly: PRO_YEARLY_USD,
               features:
                 Array.isArray(pro.features) && pro.features.length > 0 ? pro.features : PRO_FEATURES_FALLBACK,
             }
@@ -73,6 +76,10 @@ export default function PlanosPage() {
   }, []);
 
   const resolvePrices = (plan: any) => {
+    const slug = String(plan?.slug || '').toLowerCase();
+    if (slug === 'pro') {
+      return { monthly: PRO_MONTHLY_USD, yearly: PRO_YEARLY_USD };
+    }
     const m = Number(plan.price_monthly);
     const y = Number(plan.price_yearly);
     const monthly = Number.isFinite(m) && m > 0 ? m : PRO_MONTHLY_USD;

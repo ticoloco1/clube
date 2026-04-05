@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { useState } from 'react';
 import { useT } from '@/lib/i18n';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 import {
   Bold, Italic, List, ListOrdered, Quote, Minus,
   Plus, Trash2, Lock, Unlock, GripVertical,
@@ -25,6 +26,8 @@ interface Certificate{ id: string; name: string; issuer: string; year: string; u
 export interface CVData {
   show_cv: boolean;
   cv_free: boolean;
+  /** Esconder e-mail e WhatsApp do CV até desbloqueio (Stripe). */
+  cv_contact_locked: boolean;
   cv_price: number;
   cv_headline: string;
   cv_location: string;
@@ -515,6 +518,43 @@ export function CVEditor({ data, onChange, onSave, saving = false }: CVEditorPro
 
     if (sId === 'contact') return (
       <CVSection key={sId} sId={sId} dark={dark} defaultOpen={false} t={T}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+            marginBottom: 16,
+            padding: '12px 14px',
+            borderRadius: 12,
+            border: `1.5px solid ${data.cv_contact_locked ? (dark ? '#f59e0b55' : '#f59e0b55') : bord}`,
+            background: data.cv_contact_locked ? (dark ? '#f59e0b12' : '#fffbeb') : 'transparent',
+          }}
+        >
+          <button
+            type="button"
+            title={T('cv_contact_lock_title')}
+            onClick={() => onChange({ cv_contact_locked: !data.cv_contact_locked })}
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              border: `1.5px solid ${data.cv_contact_locked ? '#f59e0b' : bord}`,
+              background: data.cv_contact_locked ? '#f59e0b22' : dark ? '#141626' : '#f8fafc',
+              cursor: 'pointer',
+              color: data.cv_contact_locked ? '#f59e0b' : muted,
+            }}
+          >
+            {data.cv_contact_locked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: text }}>{T('cv_contact_lock_title')}</p>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: muted, lineHeight: 1.45 }}>{T('cv_contact_lock_hint')}</p>
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <Field label={T('cv_label_email')} dark={dark}><Input dark={dark} type="email" value={data.contact_email} onChange={e => onChange({ contact_email: e.target.value })} placeholder={T('cv_ph_email')} /></Field>
           <Field label={T('cv_label_whatsapp')} dark={dark}><Input dark={dark} value={data.cv_contact_whatsapp} onChange={e => onChange({ cv_contact_whatsapp: e.target.value })} placeholder={T('cv_ph_whatsapp')} /></Field>
@@ -648,7 +688,18 @@ export function CVEditor({ data, onChange, onSave, saving = false }: CVEditorPro
 }
 
 // ─── CV Public Viewer ─────────────────────────────────────────────────────────
-export function CVView({ data, accentColor = '#818cf8' }: { data: CVData; accentColor?: string }) {
+export function CVView({
+  data,
+  accentColor = '#818cf8',
+  contactLockActive = false,
+  onUnlockContact,
+}: {
+  data: CVData;
+  accentColor?: string;
+  /** Visitante sem desbloqueio: mostrar bloco “contacto bloqueado” no CV aberto. */
+  contactLockActive?: boolean;
+  onUnlockContact?: () => void;
+}) {
   const T = useT();
   const dim = accentColor + '22';
   const Sec = ({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) => (
@@ -758,14 +809,42 @@ export function CVView({ data, accentColor = '#818cf8' }: { data: CVData; accent
         ))}
       </Sec>
     );
-    if (sId === 'contact' && (data.contact_email || data.cv_contact_whatsapp)) return (
-      <Sec key={sId} title={T('cv_sec_contact')} icon="✉️">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          {data.contact_email && <a href={`mailto:${data.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 7, background: dim, color: accentColor, padding: '10px 18px', borderRadius: 999, fontSize: 14, fontWeight: 600, textDecoration: 'none', border: `1px solid ${accentColor}30` }}>✉️ {data.contact_email}</a>}
-          {data.cv_contact_whatsapp && <a href={`https://wa.me/${data.cv_contact_whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener" style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#25d36618', color: '#25d366', padding: '10px 18px', borderRadius: 999, fontSize: 14, fontWeight: 600, textDecoration: 'none', border: '1px solid #25d36640' }}>{T('cv_pub_whatsapp')}</a>}
-        </div>
-      </Sec>
-    );
+    if (sId === 'contact') {
+      if (data.contact_email || data.cv_contact_whatsapp) {
+        return (
+          <Sec key={sId} title={T('cv_sec_contact')} icon="✉️">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {data.contact_email && <a href={`mailto:${data.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 7, background: dim, color: accentColor, padding: '10px 18px', borderRadius: 999, fontSize: 14, fontWeight: 600, textDecoration: 'none', border: `1px solid ${accentColor}30` }}>✉️ {data.contact_email}</a>}
+              {data.cv_contact_whatsapp && <a href={`https://wa.me/${data.cv_contact_whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener" style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#25d36618', color: '#25d366', padding: '10px 18px', borderRadius: 999, fontSize: 14, fontWeight: 600, textDecoration: 'none', border: '1px solid #25d36640' }}>{T('cv_pub_whatsapp')}</a>}
+            </div>
+          </Sec>
+        );
+      }
+      if (contactLockActive && onUnlockContact) {
+        const price = Number(data.cv_price) > 0 ? Number(data.cv_price) : PLATFORM_USD.cvUnlockDefault;
+        return (
+          <Sec key={sId} title={T('cv_contact_lock_pub_title')} icon="🔒">
+            <p style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--tb-text2,#8b949e)', lineHeight: 1.55 }}>{T('cv_contact_lock_pub_body')}</p>
+            <button
+              type="button"
+              onClick={onUnlockContact}
+              style={{
+                padding: '11px 22px',
+                borderRadius: 999,
+                border: 'none',
+                background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`,
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              {T('cv_contact_lock_pub_cta').replace('{price}', String(price))}
+            </button>
+          </Sec>
+        );
+      }
+    }
     return null;
   };
 

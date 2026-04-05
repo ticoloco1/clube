@@ -1,10 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { getMiniSiteStripeForUser, releaseMiniSiteSlugFromSeller } from '@/lib/stripeConnectSite';
+import { PLATFORM_USD, boostPositionsFromAmountUsd } from '@/lib/platformPricing';
 
-/** Revenue splits (USD) — paywall video 70/30, CV mini-site 50/50, directory browse 100% platform */
+/** Revenue splits (USD) — paywall vídeo 85/15, CV 50/50 */
 export const PAYMENT_SPLITS = {
-  video: { creator: 0.7, platform: 0.3 },
+  video: { creator: 0.85, platform: 0.15 },
   cv: { creator: 0.5, platform: 0.5 },
   cv_directory: { creator: 0, platform: 1 },
   slug: { creator: 0.9, platform: 0.1 },
@@ -164,7 +165,7 @@ export async function fulfillLine(db: SupabaseClient, line: FulfillmentLine, pay
     }
     case 'boost': {
       if (!itemId) return;
-      const positions = Math.max(1, Math.floor(amountUsd / 0.5));
+      const positions = boostPositionsFromAmountUsd(amountUsd);
 
       const { data: boost } = await db.from('boosts' as any).insert({
         target_type: targetType || 'site',

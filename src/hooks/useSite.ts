@@ -34,6 +34,8 @@ export interface MiniSite {
   font_style: string;
   photo_size: string;
   cv_locked: boolean;
+  /** Email/WhatsApp do CV escondidos até desbloqueio (pode ser true com CV “aberto”). */
+  cv_contact_locked?: boolean;
   cv_free: boolean;
   cv_price: number;
   cv_projects: any[];
@@ -119,17 +121,25 @@ export type UseMySiteOptions = {
   siteId?: string | null;
   /** `/editor?new=1` — novo site; primeiro save faz INSERT sem reutilizar a linha “mais recente”. */
   preferNew?: boolean;
+  /** Quando true, não carrega (ex.: dashboard à espera do mini-site escolhido). */
+  skip?: boolean;
 };
 
 export function useMySite(options?: UseMySiteOptions) {
   const siteIdFilter = options?.siteId?.trim() || null;
   const preferNew = options?.preferNew === true;
+  const skip = options?.skip === true;
 
   const { user } = useAuth();
   const [site, setSite] = useState<MiniSite | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    if (skip) {
+      setSite(null);
+      setLoading(true);
+      return;
+    }
     if (!user) {
       setSite(null);
       setLoading(false);
@@ -162,7 +172,7 @@ export function useMySite(options?: UseMySiteOptions) {
     } finally {
       setLoading(false);
     }
-  }, [user, siteIdFilter, preferNew]);
+  }, [user, siteIdFilter, preferNew, skip]);
 
   useEffect(() => {
     void load();

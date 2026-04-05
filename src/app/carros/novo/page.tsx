@@ -11,6 +11,7 @@ import { Car, Upload, X, ArrowLeft, Loader2, CheckCircle, DollarSign } from 'luc
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import Link from 'next/link';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 const REGIONS    = ['Americas','Europe','Asia','Africa','Oceania','Middle East'];
 const CURRENCIES = ['BRL','USD','EUR','GBP','ARS','MXN'];
@@ -71,7 +72,13 @@ export default function NovoCarroPage() {
       extra: { marca, modelo, ano: ano ? parseInt(ano) : null, km: km ? parseInt(km) : null, cor, combustivel, cambio, portas: parseInt(portas), descricao: desc },
     }).select('id').single();
     if (error) { toast.error(error.message); setSaving(false); return; }
-    add({ id: `classified_${listingRow.id}`, label: `Car listing: ${autoTitle} — $1.00 USD/month`, price: 1, type: 'classified' });
+    const listingMo = PLATFORM_USD.classifiedListingMonthly;
+    add({
+      id: `classified_${listingRow.id}`,
+      label: `Car listing: ${autoTitle} — $${listingMo.toFixed(2)} USD/month`,
+      price: listingMo,
+      type: 'classified',
+    });
     toast.success(T('toast_car_listing_created_pay'));
     openCart();
     router.push('/carros');
@@ -88,7 +95,7 @@ export default function NovoCarroPage() {
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center"><Car className="w-5 h-5 text-blue-500" /></div>
           <div>
             <h1 className="font-black text-xl text-[var(--text)]">List a Car</h1>
-            <p className="text-xs text-[var(--text2)]">$1.00 USDC/month · Cancel anytime</p>
+            <p className="text-xs text-[var(--text2)]">${PLATFORM_USD.classifiedListingMonthly.toFixed(2)} USDC/month · Cancel anytime</p>
           </div>
         </div>
 
@@ -215,13 +222,13 @@ export default function NovoCarroPage() {
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
             <DollarSign className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-sm text-blue-300">$1.00 USDC/month</p>
+              <p className="font-semibold text-sm text-blue-300">${PLATFORM_USD.classifiedListingMonthly.toFixed(2)} USDC/month</p>
               <p className="text-xs text-blue-400/70 mt-0.5">Goes live after payment. Global visibility. Cancel anytime.</p>
             </div>
           </div>
 
           <button type="submit" disabled={saving} className="btn-primary w-full justify-center py-3.5 text-base">
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> List for $1/month</>}
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> List for ${PLATFORM_USD.classifiedListingMonthly.toFixed(2)}/month</>}
           </button>
         </form>
       </div>

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useMySite } from '@/hooks/useSite';
 import { supabase } from '@/lib/supabase';
@@ -39,6 +39,33 @@ function slugDashMarker(s: SlugRow, siteSlug: string): { bg: string; titleKey: S
   return { bg: '#64748b', titleKey: 'slug_marker_held' };
 }
 
+function refHost(ref: string | null | undefined): string {
+  if (!ref) return '—';
+  try {
+    return new URL(ref).hostname;
+  } catch {
+    return ref.length > 52 ? `${ref.slice(0, 49)}…` : ref;
+  }
+}
+
+function geoLine(country: string | null | undefined, city: string | null | undefined): string {
+  const c = (country || '').trim();
+  const t = (city || '').trim();
+  if (c && t) return `${c} · ${t}`;
+  if (c) return c;
+  if (t) return t;
+  return '—';
+}
+
+function aggregateKeys(rows: any[], keyFn: (r: any) => string, limit = 10): { key: string; n: number }[] {
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    const k = keyFn(r) || '—';
+    m.set(k, (m.get(k) || 0) + 1);
+  }
+  return [...m.entries()].map(([key, n]) => ({ key, n })).sort((a, b) => b.n - a.n).slice(0, limit);
+}
+
 function getPostMedia(post: any): string[] {
   if (Array.isArray(post?.media_urls)) return post.media_urls;
   if (typeof post?.media_urls === 'string') {
@@ -50,10 +77,18 @@ function getPostMedia(post: any): string[] {
   return post?.image_url ? [post.image_url] : [];
 }
 
+type DashSiteRow = { id: string; site_name: string; slug: string };
+
 export default function DashboardPage() {
   const T = useT();
   const { user, loading: authLoading } = useAuth();
-  const { site, loading: siteLoading } = useMySite();
+  const [pickReady, setPickReady] = useState(false);
+  const [dashboardSites, setDashboardSites] = useState<DashSiteRow[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const { site, loading: siteLoading } = useMySite({
+    siteId: selectedSiteId ?? undefined,
+    skip: !pickReady,
+  });
   const router = useRouter();
 
   const [slugs, setSlugs] = useState<SlugRow[]>([]);
@@ -68,6 +103,13 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<'overview' | 'slugs' | 'feed' | 'listings'>('overview');
   const [auctionWinsPending, setAuctionWinsPending] = useState<any[]>([]);
   const { add: addToCart, open: openCart } = useCart();
+
+  const [topGeo, setTopGeo] = useState<{ key: string; n: number }[]>([]);
+  const [topRefs, setTopRefs] = useState<{ key: string; n: number }[]>([]);
+  const [recentVisits, setRecentVisits] = useState<any[]>([]);
+  const [linkClickRows, setLinkClickRows] = useState<{ title: string; url: string; n: number; sampleOrigin: string }[]>([]);
+  const [pageViewRows, setPageViewRows] = useState<{ pageId: string; label: string; n: number }[]>([]);
+  const [postViewMap, setPostViewMap] = useState<Record<string, number>>({});
 
   const loadSlugs = async () => {
     if (!user) return;
@@ -119,16 +161,123 @@ export default function DashboardPage() {
   useEffect(() => { if (site?.id) loadPosts(); }, [site?.id]);
 
   useEffect(() => {
-    if (!site?.id) return;
-    (supabase as any).from('site_visits').select('id', { count: 'exact', head: true }).eq('site_id', site.id)
-      .then(({ count }: any) => setVisitCount(typeof count === 'number' ? count : 0));
-    (supabase as any).from('site_link_clicks').select('id', { count: 'exact', head: true }).eq('site_id', site.id)
-      .then(({ count }: any) => setClickCount(typeof count === 'number' ? count : 0));
-    (supabase as any).from('paywall_unlocks').select('id', { count: 'exact', head: true }).eq('creator_id', user?.id)
-      .then(({ count }: any) => setPurchaseCount(typeof count === 'number' ? count : 0));
-  }, [site?.id, user?.id]);
+    if (!user?.id) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await (supabase as any)
+        .from('mini_sites')
+        .select('id, site_name, slug, updated_at')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+      if (cancelled) return;
+      const rows = (data || []) as DashSiteRow[];
+      setDashboardSites(rows);
+      let id: string | null = rows[0]?.id ?? null;
+      try {
+        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('tb_dash_site') : null;
+        if (stored && rows.some((r) => r.id === stored)) id = stored;
+      } catch { /* ignore */ }
+      setSelectedSiteId(id);
+      setPickReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
-  if (authLoading || siteLoading) return (
+  useEffect(() => {
+    if (!site?.id) return;
+    let cancelled = false;
+    const sid = site.id;
+    const sitePagesJson = site.site_pages;
+
+    void (supabase as any).from('site_visits').select('id', { count: 'exact', head: true }).eq('site_id', sid)
+      .then(({ count }: any) => {
+        if (!cancelled) setVisitCount(typeof count === 'number' ? count : 0);
+      });
+    void (supabase as any).from('site_link_clicks').select('id', { count: 'exact', head: true }).eq('site_id', sid)
+      .then(({ count }: any) => {
+        if (!cancelled) setClickCount(typeof count === 'number' ? count : 0);
+      });
+    void (supabase as any).from('paywall_unlocks').select('id', { count: 'exact', head: true }).eq('creator_id', user?.id)
+      .then(({ count }: any) => {
+        if (!cancelled) setPurchaseCount(typeof count === 'number' ? count : 0);
+      });
+
+    void (async () => {
+      const [vRes, cRes, pvRes, fpvRes, linksRes] = await Promise.all([
+        (supabase as any).from('site_visits').select('country,city,referrer,created_at').eq('site_id', sid).order('created_at', { ascending: false }).limit(500),
+        (supabase as any).from('site_link_clicks').select('link_id,destination_url,referrer,country,city,created_at').eq('site_id', sid).limit(800),
+        (supabase as any).from('site_page_views').select('page_id,referrer,country,city,created_at').eq('site_id', sid).limit(500),
+        (supabase as any).from('feed_post_views').select('post_id').eq('site_id', sid).limit(5000),
+        (supabase as any).from('mini_site_links').select('id,title,url').eq('site_id', sid),
+      ]);
+      if (cancelled) return;
+
+      const visits = vRes.error ? [] : (vRes.data || []);
+      const clicks = cRes.error ? [] : (cRes.data || []);
+      const pviews = pvRes.error ? [] : (pvRes.data || []);
+      const fpviews = fpvRes.error ? [] : (fpvRes.data || []);
+      const linkRows = linksRes.data || [];
+
+      setTopGeo(aggregateKeys(visits, (r) => geoLine(r.country, r.city), 12));
+      setTopRefs(aggregateKeys(visits, (r) => refHost(r.referrer), 12));
+      setRecentVisits(visits.slice(0, 14));
+
+      const linkMeta = new Map<string, { title: string; url: string }>();
+      for (const l of linkRows) linkMeta.set(l.id, { title: l.title || 'Link', url: l.url || '' });
+
+      const byLink = new Map<string, number>();
+      const originByLink = new Map<string, Map<string, number>>();
+      const firstDest = new Map<string, string>();
+      for (const c of clicks) {
+        const lid = String(c.link_id || '');
+        if (!lid) continue;
+        byLink.set(lid, (byLink.get(lid) || 0) + 1);
+        if (c.destination_url && !firstDest.has(lid)) firstDest.set(lid, String(c.destination_url));
+        const orig = geoLine(c.country, c.city) !== '—' ? geoLine(c.country, c.city) : refHost(c.referrer);
+        if (!originByLink.has(lid)) originByLink.set(lid, new Map());
+        const om = originByLink.get(lid)!;
+        om.set(orig, (om.get(orig) || 0) + 1);
+      }
+      const linkStats = [...byLink.entries()].map(([linkId, n]) => {
+        const meta = linkMeta.get(linkId);
+        const title = meta?.title || (firstDest.get(linkId) ? String(firstDest.get(linkId)).slice(0, 56) : 'Link');
+        const url = meta?.url || firstDest.get(linkId) || '';
+        const om = originByLink.get(linkId);
+        let sampleOrigin = '—';
+        if (om && om.size) {
+          const top = [...om.entries()].sort((a, b) => b[1] - a[1])[0];
+          sampleOrigin = top[0];
+        }
+        return { title, url, n, sampleOrigin };
+      }).sort((a, b) => b.n - a.n).slice(0, 20);
+      setLinkClickRows(linkStats);
+
+      let pageLabelMap: Record<string, string> = {};
+      try {
+        const arr = JSON.parse(typeof sitePagesJson === 'string' ? sitePagesJson : '[]');
+        if (Array.isArray(arr)) {
+          for (const p of arr) if (p?.id) pageLabelMap[p.id] = p.label || p.id;
+        }
+      } catch { /* ignore */ }
+
+      const byPage = aggregateKeys(pviews, (r) => String(r.page_id || '—'), 15);
+      setPageViewRows(byPage.map(({ key, n }) => ({ pageId: key, label: pageLabelMap[key] || key, n })));
+
+      const pm: Record<string, number> = {};
+      for (const r of fpviews) {
+        const pid = (r as { post_id?: string }).post_id;
+        if (!pid) continue;
+        pm[pid] = (pm[pid] || 0) + 1;
+      }
+      setPostViewMap(pm);
+    })();
+
+    return () => { cancelled = true; };
+  }, [site?.id, site?.site_pages, user?.id]);
+
+  const editorHref = site?.id ? `/editor?site=${site.id}` : '/editor';
+
+  if (authLoading || !pickReady || siteLoading) return (
     <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand" /></div>
   );
   if (!user) { router.push('/auth'); return null; }
@@ -152,7 +301,7 @@ export default function DashboardPage() {
             <h1 className="font-black text-3xl text-[var(--text)]">{T('dashboard_title')}</h1>
             <p className="text-[var(--text2)] text-base">{user.email}</p>
           </div>
-          <Link href="/editor" className="btn-primary gap-2 text-base"><Edit3 className="w-4 h-4" />{T('dashboard_edit')}</Link>
+          <Link href={editorHref} className="btn-primary gap-2 text-base"><Edit3 className="w-4 h-4" />{T('dashboard_edit')}</Link>
         </div>
 
         {/* Tabs */}
@@ -164,6 +313,30 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
+
+        {dashboardSites.length > 1 && (
+          <div className="card p-4 mb-6 flex flex-wrap items-center gap-3">
+            <label htmlFor="tb-dash-site" className="text-sm font-semibold text-[var(--text2)]">{T('dash_site_pick')}</label>
+            <select
+              id="tb-dash-site"
+              value={selectedSiteId || ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSelectedSiteId(v || null);
+                try {
+                  localStorage.setItem('tb_dash_site', v);
+                } catch { /* ignore */ }
+              }}
+              className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] text-[var(--text)] text-sm font-medium px-3 py-2 min-w-[200px]"
+            >
+              {dashboardSites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.site_name} · {s.slug}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* OVERVIEW */}
         {tab === 'overview' && (
@@ -181,7 +354,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <Link href="/editor" className="btn-secondary text-sm py-2 px-3">{T('dashboard_edit')}</Link>
+                <Link href={editorHref} className="btn-secondary text-sm py-2 px-3">{T('dashboard_edit')}</Link>
                 {site?.slug && <a href={`https://${site.slug}.trustbank.xyz`} target="_blank" className="btn-secondary text-sm py-2 px-3"><ExternalLink className="w-4 h-4" /></a>}
               </div>
             </div>
@@ -212,6 +385,98 @@ export default function DashboardPage() {
                   .replace('{clicks}', String(clickCount ?? 0))
                   .replace('{purchases}', String(purchaseCount ?? 0))}
               </p>
+            </div>
+
+            <div className="card p-4 space-y-4">
+              <p className="text-sm font-bold text-[var(--text)]">{T('dash_analytics_detail_title')}</p>
+              <p className="text-xs text-[var(--text2)]">{T('dash_analytics_hint')}</p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-bold text-[var(--text2)] mb-2 uppercase tracking-wide">{T('dash_analytics_geo')}</p>
+                  <ul className="space-y-1.5 text-sm">
+                    {topGeo.length === 0 ? <li className="text-[var(--text2)]">—</li> : topGeo.map((row) => (
+                      <li key={row.key} className="flex justify-between gap-2 text-[var(--text)]">
+                        <span className="truncate">{row.key}</span>
+                        <span className="text-cyan-400 font-mono flex-shrink-0">{row.n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-[var(--text2)] mb-2 uppercase tracking-wide">{T('dash_analytics_refs')}</p>
+                  <ul className="space-y-1.5 text-sm">
+                    {topRefs.length === 0 ? <li className="text-[var(--text2)]">—</li> : topRefs.map((row) => (
+                      <li key={row.key} className="flex justify-between gap-2 text-[var(--text)]">
+                        <span className="truncate font-mono text-xs">{row.key}</span>
+                        <span className="text-violet-400 font-mono flex-shrink-0">{row.n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text2)] mb-2 uppercase tracking-wide">{T('dash_analytics_recent')}</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="text-[var(--text2)] border-b border-[var(--border)]">
+                        <th className="py-2 pr-2">{T('dash_col_when')}</th>
+                        <th className="py-2 pr-2">{T('dash_analytics_geo')}</th>
+                        <th className="py-2">{T('dash_col_origin')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentVisits.length === 0 ? (
+                        <tr><td colSpan={3} className="py-2 text-[var(--text2)]">—</td></tr>
+                      ) : recentVisits.map((v: any) => (
+                        <tr key={v.id || `${v.created_at}-${v.referrer}`} className="border-b border-[var(--border)]/60">
+                          <td className="py-2 pr-2 text-[var(--text2)] whitespace-nowrap">{v.created_at ? new Date(v.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td>
+                          <td className="py-2 pr-2 text-[var(--text)]">{geoLine(v.country, v.city)}</td>
+                          <td className="py-2 text-[var(--text)] font-mono truncate max-w-[200px]" title={v.referrer || ''}>{refHost(v.referrer)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text2)] mb-2 uppercase tracking-wide">{T('dash_analytics_links')}</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="text-[var(--text2)] border-b border-[var(--border)]">
+                        <th className="py-2 pr-2">{T('dash_col_link')}</th>
+                        <th className="py-2 pr-2">{T('dash_col_count')}</th>
+                        <th className="py-2">{T('dash_col_top_origin')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {linkClickRows.length === 0 ? (
+                        <tr><td colSpan={3} className="py-2 text-[var(--text2)]">—</td></tr>
+                      ) : linkClickRows.map((row, i) => (
+                        <tr key={`${row.title}-${i}`} className="border-b border-[var(--border)]/60">
+                          <td className="py-2 pr-2 text-[var(--text)]">
+                            <span className="font-semibold block truncate max-w-[220px]" title={row.url}>{row.title}</span>
+                          </td>
+                          <td className="py-2 pr-2 text-violet-400 font-mono font-bold">{row.n}</td>
+                          <td className="py-2 text-[var(--text2)] truncate max-w-[180px]" title={row.sampleOrigin}>{row.sampleOrigin}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[var(--text2)] mb-2 uppercase tracking-wide">{T('dash_analytics_pages')}</p>
+                <ul className="space-y-1.5 text-sm">
+                  {pageViewRows.length === 0 ? <li className="text-[var(--text2)]">—</li> : pageViewRows.map((row) => (
+                    <li key={row.pageId} className="flex justify-between gap-2 text-[var(--text)]">
+                      <span className="truncate">{row.label}</span>
+                      <span className="text-blue-400 font-mono flex-shrink-0">{row.n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             <div className="card p-4">
@@ -248,7 +513,7 @@ export default function DashboardPage() {
             {/* Quick actions */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { href: '/editor', icon: Edit3, label: T('dash_quick_editor'), color: 'text-brand' },
+                { href: editorHref, icon: Edit3, label: T('dash_quick_editor'), color: 'text-brand' },
                 { href: '/slugs', icon: Key, label: T('nav_market'), color: 'text-amber-400' },
                 { href: '/imoveis/novo', icon: Home, label: T('dash_quick_property'), color: 'text-blue-400' },
                 { href: '/carros/novo', icon: Car, label: T('dash_quick_car'), color: 'text-green-400' },
@@ -439,7 +704,10 @@ export default function DashboardPage() {
                       </div>
                     )}
                     <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--border)]">
-                      <span className="text-xs text-[var(--text2)]">{new Date(p.created_at).toLocaleDateString('pt-BR')}</span>
+                      <span className="text-xs text-[var(--text2)]">
+                        {new Date(p.created_at).toLocaleDateString('pt-BR')}
+                        <span className="text-cyan-500/90 font-bold ml-2">{T('dash_feed_views_label')}: {postViewMap[p.id] ?? 0}</span>
+                      </span>
                       <button onClick={async () => {
                         await (supabase as any).from('feed_posts').delete().eq('id', p.id);
                         loadPosts();

@@ -12,6 +12,7 @@ import {
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import Link from 'next/link';
+import { PLATFORM_USD } from '@/lib/platformPricing';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CVProfile {
@@ -144,7 +145,7 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
   const { add, open: openCart } = useCart();
   const [plan, setPlan] = useState<'monthly' | 'annual'>('monthly');
 
-  const prices = { monthly: 199, annual: 1590 }; // annual = ~$133/mo (save 33%)
+  const prices = { monthly: PLATFORM_USD.cvDirectoryMonthly, annual: PLATFORM_USD.cvDirectoryYearly };
 
   const handleSubscribe = () => {
     if (!user) { toast.error(T('toast_login_first')); return; }
@@ -184,7 +185,7 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
         {/* Price */}
         <div className="text-center mb-5 p-4 bg-[var(--bg2)] rounded-xl">
           <p className="text-4xl font-black text-[var(--text)]">
-            $ {plan === 'monthly' ? '199' : '1,590'}
+            $ {plan === 'monthly' ? String(prices.monthly) : prices.annual.toLocaleString('en-US')}
             <span className="text-base font-normal text-[var(--text2)] ml-1">USD / {plan === 'monthly' ? T('cv_per_month') : T('cv_per_year')}</span>
           </p>
           {plan === 'annual' && <p className="text-green-500 text-sm mt-1">{T('cv_company_yearly_hint')}</p>}
@@ -213,7 +214,7 @@ function CompanyModal({ onClose }: { onClose: () => void }) {
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-white text-sm"
           style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}>
           <Building2 className="w-4 h-4" />
-          {T('cv_company_subscribe').replace('{amount}', plan === 'monthly' ? '199' : '1,590')}
+          {T('cv_company_subscribe').replace('{amount}', plan === 'monthly' ? String(prices.monthly) : String(prices.annual))}
         </button>
         <p className="text-xs text-center text-[var(--text2)] mt-2">{T('cv_pay_note')}</p>
       </div>
