@@ -35,6 +35,7 @@ FILES=(
   supabase-plan-pro-pricing.sql
   supabase-jackpot-disable.sql
   supabase-storage-platform-assets-public-read.sql
+  supabase-storage-platform-assets-auth-upload.sql
 )
 
 {

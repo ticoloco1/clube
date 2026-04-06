@@ -1,17 +1,17 @@
 /**
  * Preços em USD — site e checkout alinhados aos EUA (Stripe `currency: 'usd'`).
- * Pro base = `proMonthly`; Pro + IA = proMonthly + proIaAddonMonthly (checkout `pro_ia`).
+ * Pro único = `proMonthly` (entrada barata). IA no editor: BYOK (chave própria); sem add-on pago na subscrição.
+ * Legado: `proIaAddon*` a 0 — checkout usa só `pro`. `pro_ia` em subs antigas ainda reconhecido.
  * Alinhar `platform_plans` no Supabase com `supabase-plan-pro-pricing.sql`.
  */
 export const PLATFORM_USD = {
-  /** Pro base (sem IA Studio) — alinhar `supabase-plan-pro-pricing.sql` na BD. */
-  proMonthly: 26.9,
-  /** Anual base (~10× mensal, mesma lógica que antes com 398.99/39.9). */
-  proYearly: 269.9,
-  /** Add-on IA Studio: Pro + IA = 39,90/mês (26,90 + 13). */
-  proIaAddonMonthly: 13,
-  /** Add-on IA anual (~10× mensal). */
-  proIaAddonYearly: 130,
+  /** Pro — alinhar `supabase-plan-pro-pricing.sql` na BD. */
+  proMonthly: 29.9,
+  /** Anual (~10× mensal). */
+  proYearly: 299.9,
+  /** Add-on IA na subscrição: desligado (IA com API própria / créditos opcionais). */
+  proIaAddonMonthly: 0,
+  proIaAddonYearly: 0,
   /** % do paywall de vídeo para o criador (marketing / hero / stats). */
   paywallVideoCreatorPercent: 85,
   /** Sugestão inicial no editor; o criador define o preço do CV. */

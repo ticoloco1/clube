@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { useT } from '@/lib/i18n';
 import { PLATFORM_USD } from '@/lib/platformPricing';
+import { PLAN_MARKETING_HOME_EN_KEY } from '@/lib/planMarketingSettings';
 import type { MessageKey } from '@/lib/i18n/messages';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
@@ -139,6 +140,8 @@ const STAT_DEFS: { value: string; labelKey: MessageKey; icon: typeof Coins }[] =
 export default function HomePage() {
   const T = useT();
   const [dbPlans, setDbPlans] = useState<any[]>([]);
+  /** Override EN do admin (`platform_settings`); vazio = i18n */
+  const [planHomeHintOverride, setPlanHomeHintOverride] = useState('');
 
   const features = useMemo(
     () => FEATURE_DEFS.map(f => ({ ...f, title: T(f.titleKey), desc: T(f.descKey) })),
@@ -155,9 +158,23 @@ export default function HomePage() {
 
   useEffect(() => {
     import('@/lib/supabase').then(({ supabase }) => {
-      (supabase as any).from('platform_plans')
-        .select('*').eq('active', true).order('sort_order')
-        .then(({ data }: any) => { if (data?.length) setDbPlans(data); });
+      void (supabase as any)
+        .from('platform_plans')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order')
+        .then(({ data }: any) => {
+          if (data?.length) setDbPlans(data);
+        });
+      void (supabase as any)
+        .from('platform_settings')
+        .select('value')
+        .eq('key', PLAN_MARKETING_HOME_EN_KEY)
+        .maybeSingle()
+        .then(({ data }: any) => {
+          const v = typeof data?.value === 'string' ? data.value.trim() : '';
+          if (v) setPlanHomeHintOverride(v);
+        });
     });
   }, []);
   return (
@@ -311,7 +328,9 @@ export default function HomePage() {
                     US${PLATFORM_USD.proMonthly.toFixed(2)}
                     <span className="text-sm text-[var(--text2)] font-normal">{T('home_slash_mo')}</span>
                   </div>
-                  <p className="text-xs text-[var(--text2)] mb-4">{T('home_pricing_ia_hint')}</p>
+                  <p className="text-xs text-[var(--text2)] mb-4 leading-relaxed">
+                    {planHomeHintOverride.trim() ? planHomeHintOverride : T('home_pricing_ia_hint')}
+                  </p>
                   <ul className="space-y-2 mb-6">
                     {(Array.isArray(plan.features) ? plan.features : []).slice(0, 5).map((f: string, i: number) => (
                       <li key={i} className="flex items-center gap-2 text-sm text-[var(--text2)]">

@@ -19,32 +19,50 @@ export async function runInstantIdPortrait(params: {
     return { error: 'REPLICATE_API_TOKEN não configurado' };
   }
 
-  const body = {
-    input: {
-      image: params.imageUrl,
-      prompt: params.prompt,
-      negative_prompt: params.negativePrompt,
-      ip_adapter_scale: Number(process.env.REPLICATE_INSTANTID_IP_SCALE) || 0.85,
-      controlnet_conditioning_scale: Number(process.env.REPLICATE_INSTANTID_CTRL_SCALE) || 0.85,
-      num_inference_steps: Number(process.env.REPLICATE_INSTANTID_STEPS) || 30,
-    },
+  const input = {
+    image: params.imageUrl,
+    prompt: params.prompt,
+    negative_prompt: params.negativePrompt,
+    width: Number(process.env.REPLICATE_INSTANTID_WIDTH) || 768,
+    height: Number(process.env.REPLICATE_INSTANTID_HEIGHT) || 768,
+    guidance_scale: Number(process.env.REPLICATE_INSTANTID_GUIDANCE) || 5,
+    ip_adapter_scale: Number(process.env.REPLICATE_INSTANTID_IP_SCALE) || 0.85,
+    controlnet_conditioning_scale: Number(process.env.REPLICATE_INSTANTID_CTRL_SCALE) || 0.85,
+    num_inference_steps: Number(process.env.REPLICATE_INSTANTID_STEPS) || 30,
   };
 
-  const create = await fetch(`https://api.replicate.com/v1/models/${MODEL_PATH}/predictions`, {
+  /** Preferir POST /v1/predictions com `model` (API unificada); fallback para /models/{owner}/{name}/predictions. */
+  let create = await fetch('https://api.replicate.com/v1/predictions', {
     method: 'POST',
     headers: {
       Authorization: `Token ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ model: MODEL_PATH, input }),
   });
 
-  const created = (await create.json()) as {
+  let created = (await create.json()) as {
     id?: string;
     error?: string;
     detail?: string;
     status?: string;
   };
+
+  if (!create.ok || !created.id) {
+    const retry =
+      create.status === 404 || create.status === 422 || create.status === 400 || create.status === 405;
+    if (retry) {
+      create = await fetch(`https://api.replicate.com/v1/models/${MODEL_PATH}/predictions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input }),
+      });
+      created = (await create.json()) as typeof created;
+    }
+  }
 
   if (!create.ok || !created.id) {
     const msg = created.error || created.detail || create.statusText || 'Falha ao criar predição';

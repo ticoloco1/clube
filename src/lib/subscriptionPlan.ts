@@ -1,7 +1,6 @@
 /**
  * Planos de subscrição (campo `subscriptions.plan`).
- * `pro_ia` = Pro + pack IA Studio (add-on em /planos; ver `PLATFORM_USD.proIaAddonMonthly`).
- * `studio` mantido por compatibilidade com pagamentos antigos.
+ * Checkout actual: só `pro`. `pro_ia` / `studio` = legado (subs antigas; ainda podem receber bónus IA se configurado).
  */
 export function subscriptionHasIaStudioPack(plan: string | null | undefined): boolean {
   const p = String(plan || '').toLowerCase().trim();

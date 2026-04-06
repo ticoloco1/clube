@@ -15,6 +15,7 @@ import { useT } from '@/lib/i18n';
 import { attachMiniSitesToSlugRows } from '@/lib/slugRegistrationMiniSite';
 import { AdminMysticLottery } from '@/components/mystic/AdminMysticLottery';
 import { PLATFORM_USD } from '@/lib/platformPricing';
+import { PLAN_MARKETING_HOME_EN_KEY, PLAN_MARKETING_PLANOS_EN_KEY } from '@/lib/planMarketingSettings';
 
 const OWNER_EMAIL = 'arytcf@gmail.com';
 
@@ -136,6 +137,9 @@ export default function AdminPage() {
     slug_min_price: '10',
     slug_premium_min: '100',
   });
+  /** Texto público planos (EN) — `platform_settings` */
+  const [planMarketingHomeEn, setPlanMarketingHomeEn] = useState('');
+  const [planMarketingPlanosEn, setPlanMarketingPlanosEn] = useState('');
 
   // Code injection
   const [headCode,   setHeadCode]   = useState('');
@@ -433,6 +437,8 @@ export default function AdminPage() {
         if (s.key === 'warning_hours') setWarningHours(String(s.value || '1'));
         if (s.key === 'test_ribbon_text') setTestRibbonText(s.value || 'TEST MODE');
         if (s.key === 'pricing')  { try { setPricing(p => ({ ...p, ...JSON.parse(s.value) })); } catch {} }
+        if (s.key === PLAN_MARKETING_HOME_EN_KEY) setPlanMarketingHomeEn(String(s.value ?? ''));
+        if (s.key === PLAN_MARKETING_PLANOS_EN_KEY) setPlanMarketingPlanosEn(String(s.value ?? ''));
         if (s.key === 'ai_config') {
           try {
             const j = JSON.parse(s.value) as typeof aiConfig;
@@ -510,6 +516,8 @@ export default function AdminPage() {
         saveSetting('warning_hours', warningHours),
         saveSetting('test_ribbon_text', testRibbonText),
         saveSetting('pricing', JSON.stringify(pricing)),
+        saveSetting(PLAN_MARKETING_HOME_EN_KEY, planMarketingHomeEn),
+        saveSetting(PLAN_MARKETING_PLANOS_EN_KEY, planMarketingPlanosEn),
         saveSetting('ai_config', JSON.stringify(aiConfig)),
       ]);
       toast.success(T('toast_saved'));
@@ -1112,6 +1120,31 @@ export default function AdminPage() {
         {/* PRICING */}
         {tab === 'pricing' && (
           <div className="space-y-5">
+            <div className="card p-5 space-y-4">
+              <h3 className="font-black text-[var(--text)]">{T('admin_plan_marketing_title')}</h3>
+              <p className="text-xs text-[var(--text2)] leading-relaxed">{T('admin_plan_marketing_hint')}</p>
+              <div>
+                <label className="label block mb-1">{T('admin_plan_marketing_home_label')}</label>
+                <textarea
+                  value={planMarketingHomeEn}
+                  onChange={(e) => setPlanMarketingHomeEn(e.target.value)}
+                  className="input w-full resize-y min-h-[88px] text-sm font-mono"
+                  dir="ltr"
+                  placeholder={T('admin_plan_marketing_placeholder')}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1">{T('admin_plan_marketing_planos_label')}</label>
+                <textarea
+                  value={planMarketingPlanosEn}
+                  onChange={(e) => setPlanMarketingPlanosEn(e.target.value)}
+                  className="input w-full resize-y min-h-[88px] text-sm font-mono"
+                  dir="ltr"
+                  placeholder={T('admin_plan_marketing_placeholder')}
+                />
+              </div>
+            </div>
+
             <div className="card p-5">
               <h3 className="font-black text-[var(--text)] mb-4">{T('admin_pricing_pro')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -64,8 +64,29 @@ export async function POST(req: NextRequest) {
 
     const ab = await file.arrayBuffer();
     const buffer = Buffer.from(ab);
-    const mime = file.type || 'audio/webm';
-    const ext = mime.includes('webm') ? 'webm' : mime.includes('mpeg') || mime.includes('mp3') ? 'mp3' : 'wav';
+    const lowerName = ((file as File).name || '').toLowerCase();
+    let rawType = (file.type || '').toLowerCase();
+    if (!rawType || rawType === 'application/octet-stream') {
+      if (lowerName.endsWith('.webm')) rawType = 'audio/webm';
+      else if (lowerName.endsWith('.mp3')) rawType = 'audio/mpeg';
+      else if (lowerName.endsWith('.wav')) rawType = 'audio/wav';
+      else if (lowerName.endsWith('.ogg') || lowerName.endsWith('.oga')) rawType = 'audio/ogg';
+      else if (lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4') || lowerName.endsWith('.caf'))
+        rawType = 'audio/mp4';
+      else if (lowerName.endsWith('.aac')) rawType = 'audio/aac';
+      else if (lowerName.endsWith('.flac')) rawType = 'audio/flac';
+    }
+    const { ext, mime } = (() => {
+      const m = rawType || 'application/octet-stream';
+      if (m.includes('webm')) return { ext: 'webm' as const, mime: m || 'audio/webm' };
+      if (m.includes('mpeg') || m === 'audio/mp3') return { ext: 'mp3' as const, mime: 'audio/mpeg' };
+      if (m.includes('wav')) return { ext: 'wav' as const, mime: m || 'audio/wav' };
+      if (m.includes('ogg')) return { ext: 'ogg' as const, mime: m || 'audio/ogg' };
+      if (m.includes('mp4') || m.includes('m4a')) return { ext: 'm4a' as const, mime: 'audio/mp4' };
+      if (m.includes('aac')) return { ext: 'aac' as const, mime: 'audio/aac' };
+      if (m.includes('flac')) return { ext: 'flac' as const, mime: 'audio/flac' };
+      return { ext: 'webm' as const, mime: 'audio/webm' };
+    })();
 
     const slug = String((site as { slug?: string }).slug || 'site').slice(0, 24);
     const voiceName = `TB-${slug}-${Date.now()}`.slice(0, 80);

@@ -1,7 +1,7 @@
 -- =============================================================================
 -- TrustBank — ALL-IN-ONE (gerado automaticamente)
 -- Gerado por: scripts/build-supabase-all-in-one.sh
--- Data: 2026-04-05T15:26:33Z
+-- Data: 2026-04-06T00:35:33Z
 --
 -- ⚠️  CRÍTICO: o primeiro bloco (supabase-schema-completo.sql) contém PASSO 0 que
 --     APAGA todo o schema public (dados irreversíveis). Usa APENAS em projeto
@@ -1786,7 +1786,7 @@ comment on column public.mini_sites.cv_contact_locked is
 -- FILE: supabase-plan-studio.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Linha legado `studio` em platform_plans (metadados / admin). O produto atual é Pro + toggle IA (+US$13) → plano `pro_ia`.
+-- Linha legado `studio` em platform_plans (metadados / admin). Checkout actual: só `pro` (US$29,90/mês); IA via BYOK.
 -- Mantém active = false para não voltar a mostrar cartão Studio na UI antiga. Bónus IA em pagamentos: `pro_ia` ou `studio` no webhook.
 
 insert into platform_plans (name, slug, price_monthly, price_yearly, color, emoji, features, active, sort_order)
@@ -1794,7 +1794,7 @@ values (
   'Studio',
   'studio',
   39.9,
-  399,
+  399.9,
   '#22d3ee',
   '🤖',
   '[
@@ -1822,7 +1822,7 @@ select 'platform_plans studio: upsert OK (active=false — usar Pro + IA em /pla
 -- FILE: supabase-deactivate-studio-plan.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Cartão "Studio" separado desligado: o pack IA passa a ser +US$13/mês no mesmo plano Pro (`pro_ia`).
+-- Cartão "Studio" separado desligado. Subscrição: plano `pro`; `pro_ia` só legado.
 update platform_plans set active = false where lower(slug) = 'studio';
 select 'studio plan card deactivated — use Pro + IA toggle on /planos' as status;
 
@@ -1831,16 +1831,15 @@ select 'studio plan card deactivated — use Pro + IA toggle on /planos' as stat
 -- FILE: supabase-plan-pro-pricing.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Pro: alinhado a `src/lib/platformPricing.ts` — base US$26,90/mês; com IA US$39,90 (+US$13 na UI /planos).
--- Só a linha `pro` fica activa para o cartão na home; o pack IA é o item `pro_ia` no checkout.
+-- Pro: alinhado a `src/lib/platformPricing.ts` — US$29,90/mês; US$299,90/ano. Sem add-on IA na subscrição (BYOK).
 
 update platform_plans
-set price_monthly = 26.90, price_yearly = 269.90, active = true
+set price_monthly = 29.90, price_yearly = 299.90, active = true
 where lower(slug) = 'pro';
 
 update platform_plans set active = false where lower(slug) <> 'pro';
 
-select 'platform_plans pro: US$26.90/mo base, US$269.90/yr — Pro+IA US$39.90 (pro_ia)' as status;
+select 'platform_plans pro: US$29.90/mo, US$299.90/yr — IA via chave própria (BYOK), sem pack pago no plano' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -1877,5 +1876,55 @@ for select
 to public
 using (bucket_id = 'platform-assets');
 
--- Upload: normalmente já tens políticas para authenticated escreverem na sua pasta.
--- Se o upload falhar no editor, adiciona política INSERT para authenticated em `storage.objects`.
+-- Upload (INSERT/UPDATE/DELETE): corre também supabase-storage-platform-assets-auth-upload.sql
+-- para o editor / Identity Lab conseguirem gravar em `platform-assets` (caminho `{uid}/...`).
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- FILE: supabase-storage-platform-assets-auth-upload.sql
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- =============================================================================
+-- Storage: upload / update / delete no bucket `platform-assets` (utilizador autenticado)
+-- =============================================================================
+-- O editor grava em `platform-assets` com caminho `{auth.uid()}/{pasta}/ficheiro`.
+-- Sem políticas INSERT/UPDATE/DELETE, o upload falha em silêncio ou com erro RLS.
+--
+-- Pré-requisitos: bucket `platform-assets` público (leitura) + política de SELECT
+-- em supabase-storage-platform-assets-public-read.sql
+-- =============================================================================
+
+drop policy if exists "Authenticated insert own platform-assets" on storage.objects;
+drop policy if exists "Authenticated update own platform-assets" on storage.objects;
+drop policy if exists "Authenticated delete own platform-assets" on storage.objects;
+
+create policy "Authenticated insert own platform-assets"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'platform-assets'
+  and split_part(name, '/', 1) = auth.uid()::text
+);
+
+create policy "Authenticated update own platform-assets"
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'platform-assets'
+  and split_part(name, '/', 1) = auth.uid()::text
+)
+with check (
+  bucket_id = 'platform-assets'
+  and split_part(name, '/', 1) = auth.uid()::text
+);
+
+create policy "Authenticated delete own platform-assets"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'platform-assets'
+  and split_part(name, '/', 1) = auth.uid()::text
+);

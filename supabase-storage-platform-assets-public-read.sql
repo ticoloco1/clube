@@ -18,5 +18,5 @@ for select
 to public
 using (bucket_id = 'platform-assets');
 
--- Upload: normalmente já tens políticas para authenticated escreverem na sua pasta.
--- Se o upload falhar no editor, adiciona política INSERT para authenticated em `storage.objects`.
+-- Upload (INSERT/UPDATE/DELETE): corre também supabase-storage-platform-assets-auth-upload.sql
+-- para o editor / Identity Lab conseguirem gravar em `platform-assets` (caminho `{uid}/...`).

@@ -76,6 +76,7 @@ export function IdentityLabPanel({
   const [recording, setRecording] = useState(false);
   const [greetingLang, setGreetingLang] = useState<(typeof LANGS)[number]['id']>('pt');
   const mediaRef = useRef<MediaRecorder | null>(null);
+  const recordStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioCloneInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +97,10 @@ export function IdentityLabPanel({
 
   const onPickSource = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f || !f.type.startsWith('image/')) {
+    const looksImage =
+      (f?.type && f.type.startsWith('image/')) ||
+      /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(f?.name || '');
+    if (!f || !looksImage) {
       toast.error(T('id_err_image'));
       return;
     }
@@ -165,7 +169,10 @@ export function IdentityLabPanel({
   const onPickAudioClone = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
-    if (!f || !f.type.startsWith('audio/')) {
+    const looksAudio =
+      (f?.type && f.type.startsWith('audio/')) ||
+      /\.(m4a|mp3|wav|webm|ogg|aac|flac|mp4|caf)$/i.test(f?.name || '');
+    if (!f || !looksAudio) {
       toast.error(T('id_err_audio_type'));
       return;
     }
@@ -250,18 +257,36 @@ export function IdentityLabPanel({
   };
 
   const startRecord = async () => {
+    if (recording) return;
+    const prevMr = mediaRef.current;
+    if (prevMr && prevMr.state !== 'inactive') {
+      try {
+        prevMr.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+    recordStreamRef.current = null;
+    mediaRef.current = null;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordStreamRef.current = stream;
       chunksRef.current = [];
-      const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : undefined });
+      const mimeCandidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+      let mime: string | undefined;
+      for (const m of mimeCandidates) {
+        if (MediaRecorder.isTypeSupported(m)) {
+          mime = m;
+          break;
+        }
+      }
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       mediaRef.current = mr;
       mr.ondataavailable = (ev) => {
         if (ev.data.size) chunksRef.current.push(ev.data);
       };
-      mr.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-      };
-      mr.start();
+      mr.start(1000);
       setRecording(true);
     } catch {
       toast.error(T('id_err_mic'));
@@ -272,14 +297,27 @@ export function IdentityLabPanel({
     const mr = mediaRef.current;
     if (!mr || mr.state === 'inactive') {
       setRecording(false);
+      recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recordStreamRef.current = null;
       return;
     }
     setRecording(false);
+    const stream = mr.stream;
     await new Promise<void>((resolve) => {
-      mr.onstop = () => resolve();
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        recordStreamRef.current = null;
+        resolve();
+      };
+      try {
+        mr.requestData?.();
+      } catch {
+        /* Safari antigo */
+      }
       mr.stop();
     });
-    const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+    const blobType = mr.mimeType && mr.mimeType.length > 0 ? mr.mimeType : 'audio/webm';
+    const blob = new Blob(chunksRef.current, { type: blobType });
     chunksRef.current = [];
     if (blob.size < 5000) {
       toast.error(T('id_err_audio_short'));
@@ -293,7 +331,8 @@ export function IdentityLabPanel({
     try {
       const fd = new FormData();
       fd.append('siteId', siteId);
-      fd.append('file', new File([blob], 'voice-sample.webm', { type: 'audio/webm' }));
+      const ext = blobType.includes('mp4') ? 'mp4' : blobType.includes('webm') ? 'webm' : 'webm';
+      fd.append('file', new File([blob], `voice-sample.${ext}`, { type: blobType }));
       const res = await fetch('/api/identity/voice-clone', { method: 'POST', body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -331,8 +370,12 @@ export function IdentityLabPanel({
       }
       const buf = await res.arrayBuffer();
       const ctx = new AudioContext();
-      const audioBuf = await ctx.decodeAudioData(buf.slice(0));
-      await playBufferWithVoiceEffect(ctx, audioBuf, identityVoiceEffect);
+      try {
+        const audioBuf = await ctx.decodeAudioData(buf.slice(0));
+        await playBufferWithVoiceEffect(ctx, audioBuf, identityVoiceEffect);
+      } finally {
+        void ctx.close();
+      }
     } catch {
       toast.error(T('id_err_greeting'));
     } finally {

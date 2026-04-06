@@ -1015,6 +1015,23 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   admin_pricing_plan: { en: "Plan price ($/mo)", pt: "Preço do plano ($/mês)" },
   admin_pricing_pro: { en: "Pro plan", pt: "Plano Pro" },
   admin_pricing_slug_free: { en: "Free slugs per plan", pt: "Slugs grátis por plano" },
+  admin_plan_marketing_title: { en: "Plan marketing copy (site)", pt: "Texto de marketing dos planos (site)" },
+  admin_plan_marketing_hint: {
+    en: "English copy shown to all visitors when a field is filled (overrides localized defaults). Leave empty to use built-in EN/PT strings. Use for pricing bullets + BYOK (bring your own API keys in the editor).",
+    pt: "Texto em inglês mostrado a todos quando preenchido (substitui os textos padrão i18n). Vazio = usar textos EN/PT do sistema. Use para preços + BYOK (chaves próprias no editor).",
+  },
+  admin_plan_marketing_home_label: {
+    en: "Homepage — under Pro price (English)",
+    pt: "Home — por baixo do preço Pro (inglês)",
+  },
+  admin_plan_marketing_planos_label: {
+    en: "/planos — note under title (English)",
+    pt: "/planos — nota por baixo do título (inglês)",
+  },
+  admin_plan_marketing_placeholder: {
+    en: "Leave empty for default. Example: BYOK — Bring Your Own API key in the editor; you control your spend…",
+    pt: "Vazio = texto padrão. Ex.: BYOK — a tua chave API no editor; controlas os teus gastos…",
+  },
   admin_pricing_slug_prices: { en: "Slugs — pricing", pt: "Slugs — preços" },
   admin_pricing_splits: { en: "Revenue splits (%)", pt: "Splits de receita (%)" },
   admin_pricing_splits_hint: { en: "% to creator. Remainder stays with platform.", pt: "% para o criador. O resto fica na plataforma." },
@@ -1567,13 +1584,23 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     pt: "Todos os valores em dólares americanos (USD).",
   },
   plans_pro_only_note: {
-    en: "Pro base US$26.90/mo. With IA Studio US$39.90/mo (+US$13/mo or yearly add-on): DeepSeek tools, Lively, booking, multilingual replies, monthly IA credit — the toggle separates base vs IA.",
-    pt: "Pro normal US$26,90/mês. Com IA Studio US$39,90/mês (+US$13/mês ou add-on anual): DeepSeek, Lively, agenda, respostas multilíngues, crédito IA — o toggle separa Pro base e Pro + IA.",
+    en: "One simple Pro price. For AI in the editor and on your site, add your own API key (BYOK) — no extra subscription fee.",
+    pt: "Um preço Pro simples. Para IA no editor e no site, usa a tua própria chave API (BYOK) — sem taxa extra na subscrição.",
   },
+  plans_single_price_hint: {
+    en: "Everything in Pro at this price. IA features use your key or optional credits — see below.",
+    pt: "Tudo o que o Pro inclui por este preço. A IA usa a tua chave ou créditos opcionais — vê abaixo.",
+  },
+  plans_ia_byok_title: { en: "AI: your API key (BYOK)", pt: "IA: a tua chave API (BYOK)" },
+  plans_ia_byok_body: {
+    en: "Copilot, Genesis, Lively chat, and other tools can run on your DeepSeek/OpenAI-compatible key from the editor. You pay your provider directly; the subscription does not include a paid platform IA pack.",
+    pt: "Copilot, Genesis, chat Lively e outras ferramentas podem usar a tua chave DeepSeek/OpenAI-compatível no editor. Pagas o fornecedor diretamente; a subscrição não inclui pack pago de IA da plataforma.",
+  },
+  /** Legado (toggle removido em /planos); mantido por compatibilidade de traduções antigas. */
   plans_ia_toggle: { en: "IA Studio (ON)", pt: "IA Studio (ligado)" },
   plans_ia_toggle_sub: {
-    en: "DeepSeek in the editor + Lively on your live site, booking for professionals, and extra monthly IA balance. Turn OFF to pay base Pro only.",
-    pt: "DeepSeek no editor + Lively no site publicado, agendamento para profissionais e saldo IA mensal extra. Desliga para pagar só o Pro base.",
+    en: "Editor + Lively on your live site, booking, and monthly IA credit. BYOK (Bring Your Own API key) in the editor — you control your spend on supported tools. Turn OFF to pay base Pro only.",
+    pt: "Editor + Lively no site, agenda e crédito IA mensal. BYOK (a tua chave API no editor) — controlas os teus gastos nas ferramentas suportadas. Desliga para pagar só o Pro base.",
   },
   plans_ia_pack_short: { en: "IA Studio", pt: "IA Studio" },
   plans_ia_per_month: { en: "/ month", pt: "/ mês" },
@@ -1585,6 +1612,10 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   plans_price_if_ia_toggle: {
     en: "With IA Studio: US$ {price}/mo (turn the switch on) · USD",
     pt: "Com IA Studio: US$ {price}/mês (liga o interruptor) · USD",
+  },
+  plans_subscribe_pro: {
+    en: "Subscribe to {name}",
+    pt: "Subscrever {name}",
   },
   plans_ia_f1: {
     en: "Genesis Hub + Copilot: build the mini-site by answering questions",
@@ -1599,20 +1630,20 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     pt: "Agenda: visitantes escolhem horários; IA ajuda a explicar serviços no chat onde ativo",
   },
   plans_ia_f4: {
-    en: "Monthly IA USD credit on your mini-sites (see IA_STUDIO_BONUS_USD_PER_CYCLE)",
-    pt: "Crédito IA USD mensal nos mini-sites (ver IA_STUDIO_BONUS_USD_PER_CYCLE)",
+    en: "Optional: top up platform AI wallet at /creditos for features that use our keys (Identity lab, etc.)",
+    pt: "Opcional: carrega saldo IA da plataforma em /creditos para funcionalidades que usem as nossas chaves (Identity lab, etc.)",
   },
   plans_ia_f5: {
-    en: "Post & page text ideas; image generation on the roadmap",
-    pt: "Ideias de texto para posts e páginas; geração de imagem na roadmap",
+    en: "Post & page ideas; advanced image/voice features may need credits or your keys",
+    pt: "Ideias para posts e páginas; imagem/voz avançadas podem precisar de créditos ou das tuas chaves",
   },
   plans_cta_pro_ia: { en: "Subscribe Pro + IA Studio", pt: "Subscrever Pro + IA Studio" },
   sub_plan_pro: { en: "Pro", pt: "Pro" },
   sub_plan_pro_ia: { en: "Pro + IA Studio", pt: "Pro + IA Studio" },
   dash_plan_kind: { en: "Plan", pt: "Plano" },
   home_pricing_ia_hint: {
-    en: "Pro base US$26.90/mo · Pro + IA US$39.90/mo (+US$13) on /planos — DeepSeek key in the editor reduces platform API spend.",
-    pt: "Pro base US$26,90/mês · Pro + IA US$39,90/mês (+US$13) em /planos — chave DeepSeek no editor reduz consumo na API.",
+    en: "AI in the editor with your own API key (BYOK). Optional credits for platform-powered extras.",
+    pt: "IA no editor com a tua chave API (BYOK). Créditos opcionais para extras da plataforma.",
   },
   plans_most_popular: { en: "Most popular", pt: "Mais popular" },
   plans_no_plans: { en: "No plans available right now.", pt: "Nenhum plano disponível no momento." },
