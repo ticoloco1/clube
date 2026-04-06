@@ -82,22 +82,22 @@ const THEMES: Record<string, any> = {
   cyber_azure: { bg:'#030a14', text:'#e0f7ff', text2:'rgba(56,189,248,0.65)', accent:'#22d3ee', btn:'rgba(34,211,238,0.1)', btnHover:'rgba(34,211,238,0.2)', border:'rgba(6,182,212,0.35)', radius:16, font:'"Orbitron","IBM Plex Sans",sans-serif', aurora:true },
   cyber_crimson:{ bg:'#140205', text:'#ffe4ec', text2:'rgba(251,113,133,0.65)', accent:'#fb7185', btn:'rgba(251,113,133,0.12)', btnHover:'rgba(251,113,133,0.22)', border:'rgba(244,63,94,0.4)', radius:14, font:'"Orbitron","Space Grotesk",sans-serif', aurora:true },
   /* Fundos claramente coloridos (não cinza/preto/branco quase neutro) */
-  azul:        { bg:'linear-gradient(160deg,#2563eb 0%,#1d4ed8 50%,#1e40af 100%)', text:'#ffffff', text2:'rgba(219,234,254,0.88)', accent:'#fde047', btn:'rgba(255,255,255,0.18)', btnHover:'rgba(255,255,255,0.28)', border:'rgba(255,255,255,0.25)', radius:14, font:'system-ui', aurora:true },
+  azul:        { bg:'linear-gradient(160deg,#2563eb 0%,#1d4ed8 50%,#1e40af 100%)', text:'#ffffff', text2:'rgba(219,234,254,0.88)', accent:'#fde047', btn:'rgba(255,255,255,0.18)', btnHover:'rgba(255,255,255,0.28)', border:'rgba(255,255,255,0.25)', radius:14, font:'system-ui', aurora:true, auroraSoft:true },
   amarelo:     { bg:'linear-gradient(165deg,#facc15 0%,#eab308 45%,#ca8a04 100%)', text:'#422006', text2:'rgba(66,32,6,0.78)', accent:'#1e3a8a', btn:'rgba(0,0,0,0.1)', btnHover:'rgba(0,0,0,0.16)', border:'rgba(0,0,0,0.18)', radius:16, font:'"DM Sans",system-ui,sans-serif' },
   dourado_luz: { bg:'linear-gradient(145deg,#fbbf24 0%,#f59e0b 40%,#d97706 100%)', text:'#422006', text2:'rgba(66,32,6,0.8)', accent:'#7c2d12', btn:'rgba(0,0,0,0.1)', btnHover:'rgba(0,0,0,0.17)', border:'rgba(120,53,15,0.25)', radius:14, font:'"Georgia",serif' },
-  roxo:        { bg:'linear-gradient(155deg,#a855f7 0%,#9333ea 45%,#7e22ce 100%)', text:'#faf5ff', text2:'rgba(237,233,254,0.9)', accent:'#fde047', btn:'rgba(255,255,255,0.2)', btnHover:'rgba(255,255,255,0.3)', border:'rgba(255,255,255,0.28)', radius:18, font:'system-ui', aurora:true },
-  vermelho:    { bg:'linear-gradient(160deg,#f87171 0%,#ef4444 40%,#dc2626 100%)', text:'#fff7ed', text2:'rgba(255,247,237,0.88)', accent:'#fef08a', btn:'rgba(0,0,0,0.12)', btnHover:'rgba(0,0,0,0.2)', border:'rgba(0,0,0,0.15)', radius:12, font:'system-ui', aurora:true },
-  vinho:       { bg:'linear-gradient(165deg,#be123c 0%,#9f1239 50%,#881337 100%)', text:'#ffe4e6', text2:'rgba(255,228,230,0.88)', accent:'#fcd34d', btn:'rgba(255,255,255,0.15)', btnHover:'rgba(255,255,255,0.25)', border:'rgba(255,255,255,0.22)', radius:16, font:'"Georgia",serif', aurora:true },
-  verde_nativo:{ bg:'linear-gradient(160deg,#22c55e 0%,#16a34a 45%,#15803d 100%)', text:'#f0fdf4', text2:'rgba(220,252,231,0.9)', accent:'#fef9c3', btn:'rgba(255,255,255,0.18)', btnHover:'rgba(255,255,255,0.28)', border:'rgba(255,255,255,0.22)', radius:14, font:'system-ui', aurora:true },
+  roxo:        { bg:'linear-gradient(155deg,#a855f7 0%,#9333ea 45%,#7e22ce 100%)', text:'#faf5ff', text2:'rgba(237,233,254,0.9)', accent:'#fde047', btn:'rgba(255,255,255,0.2)', btnHover:'rgba(255,255,255,0.3)', border:'rgba(255,255,255,0.28)', radius:18, font:'system-ui', aurora:true, auroraSoft:true },
+  vermelho:    { bg:'linear-gradient(160deg,#f87171 0%,#ef4444 40%,#dc2626 100%)', text:'#fff7ed', text2:'rgba(255,247,237,0.88)', accent:'#fef08a', btn:'rgba(0,0,0,0.12)', btnHover:'rgba(0,0,0,0.2)', border:'rgba(0,0,0,0.15)', radius:12, font:'system-ui', aurora:true, auroraSoft:true },
+  vinho:       { bg:'linear-gradient(165deg,#be123c 0%,#9f1239 50%,#881337 100%)', text:'#ffe4e6', text2:'rgba(255,228,230,0.88)', accent:'#fcd34d', btn:'rgba(255,255,255,0.15)', btnHover:'rgba(255,255,255,0.25)', border:'rgba(255,255,255,0.22)', radius:16, font:'"Georgia",serif', aurora:true, auroraSoft:true },
+  verde_nativo:{ bg:'linear-gradient(160deg,#22c55e 0%,#16a34a 45%,#15803d 100%)', text:'#f0fdf4', text2:'rgba(220,252,231,0.9)', accent:'#fef9c3', btn:'rgba(255,255,255,0.18)', btnHover:'rgba(255,255,255,0.28)', border:'rgba(255,255,255,0.22)', radius:14, font:'system-ui', aurora:true, auroraSoft:true },
   lima:        { bg:'linear-gradient(165deg,#d9f99d 0%,#bef264 35%,#a3e635 100%)', text:'#1a2e05', text2:'rgba(26,46,5,0.78)', accent:'#15803d', btn:'rgba(0,0,0,0.08)', btnHover:'rgba(0,0,0,0.14)', border:'rgba(21,128,61,0.28)', radius:16, font:'system-ui' },
-  prata:       { bg:'linear-gradient(140deg,#38bdf8 0%,#22d3ee 35%,#0ea5e9 70%,#0284c7 100%)', text:'#f0f9ff', text2:'rgba(224,242,254,0.9)', accent:'#fef08a', btn:'rgba(255,255,255,0.2)', btnHover:'rgba(255,255,255,0.32)', border:'rgba(255,255,255,0.3)', radius:12, font:'system-ui', aurora:true },
-  aco_escovado:{ bg:'linear-gradient(110deg,#0e7490 0%,#155e75 25%,#0891b2 50%,#0c4a6e 75%,#155e75 100%)', text:'#ecfeff', text2:'rgba(207,250,254,0.88)', accent:'#fbbf24', btn:'rgba(255,255,255,0.16)', btnHover:'rgba(255,255,255,0.26)', border:'rgba(255,255,255,0.22)', radius:8, font:'"IBM Plex Sans",sans-serif', aurora:true },
-  neon_mix:    { bg:'linear-gradient(125deg,#ec4899 0%,#a855f7 35%,#6366f1 65%,#06b6d4 100%)', text:'#ffffff', text2:'rgba(255,255,255,0.9)', accent:'#fef08a', btn:'rgba(255,255,255,0.22)', btnHover:'rgba(255,255,255,0.35)', border:'rgba(255,255,255,0.35)', radius:20, font:'"Space Grotesk",sans-serif', aurora:true },
+  prata:       { bg:'linear-gradient(140deg,#38bdf8 0%,#22d3ee 35%,#0ea5e9 70%,#0284c7 100%)', text:'#f0f9ff', text2:'rgba(224,242,254,0.9)', accent:'#fef08a', btn:'rgba(255,255,255,0.2)', btnHover:'rgba(255,255,255,0.32)', border:'rgba(255,255,255,0.3)', radius:12, font:'system-ui', aurora:true, auroraSoft:true },
+  aco_escovado:{ bg:'linear-gradient(110deg,#0e7490 0%,#155e75 25%,#0891b2 50%,#0c4a6e 75%,#155e75 100%)', text:'#ecfeff', text2:'rgba(207,250,254,0.88)', accent:'#fbbf24', btn:'rgba(255,255,255,0.16)', btnHover:'rgba(255,255,255,0.26)', border:'rgba(255,255,255,0.22)', radius:8, font:'"IBM Plex Sans",sans-serif', aurora:true, auroraSoft:true },
+  neon_mix:    { bg:'linear-gradient(125deg,#ec4899 0%,#a855f7 35%,#6366f1 65%,#06b6d4 100%)', text:'#ffffff', text2:'rgba(255,255,255,0.9)', accent:'#fef08a', btn:'rgba(255,255,255,0.22)', btnHover:'rgba(255,255,255,0.35)', border:'rgba(255,255,255,0.35)', radius:20, font:'"Space Grotesk",sans-serif', aurora:true, auroraSoft:true },
   lilas:       { bg:'linear-gradient(180deg,#ddd6fe 0%,#c4b5fd 50%,#a78bfa 100%)', text:'#3b0764', text2:'rgba(59,7,100,0.82)', accent:'#6d28d9', btn:'rgba(91,33,182,0.12)', btnHover:'rgba(91,33,182,0.2)', border:'rgba(91,33,182,0.28)', radius:18, font:'"DM Sans",sans-serif' },
   banana:      { bg:'linear-gradient(170deg,#fef08a 0%,#fde047 40%,#facc15 100%)', text:'#422006', text2:'rgba(66,32,6,0.78)', accent:'#c2410c', btn:'rgba(0,0,0,0.08)', btnHover:'rgba(0,0,0,0.14)', border:'rgba(194,65,12,0.22)', radius:20, font:'system-ui' },
-  abacate:     { bg:'linear-gradient(160deg,#84cc16 0%,#65a30d 45%,#4d7c0f 100%)', text:'#ecfccb', text2:'rgba(236,252,203,0.92)', accent:'#fef08a', btn:'rgba(0,0,0,0.12)', btnHover:'rgba(0,0,0,0.2)', border:'rgba(0,0,0,0.15)', radius:16, font:'system-ui', aurora:true },
-  maca:        { bg:'linear-gradient(165deg,#fb7185 0%,#f43f5e 40%,#e11d48 100%)', text:'#fff1f2', text2:'rgba(255,241,242,0.9)', accent:'#fef08a', btn:'rgba(0,0,0,0.1)', btnHover:'rgba(0,0,0,0.18)', border:'rgba(0,0,0,0.12)', radius:14, font:'system-ui', aurora:true },
-  royal_blue:  { bg:'linear-gradient(155deg,#1e40af 0%,#1d4ed8 40%,#2563eb 100%)', text:'#eff6ff', text2:'rgba(219,234,254,0.9)', accent:'#fbbf24', btn:'rgba(255,255,255,0.18)', btnHover:'rgba(255,255,255,0.28)', border:'rgba(255,255,255,0.25)', radius:14, font:'system-ui', aurora:true },
+  abacate:     { bg:'linear-gradient(160deg,#84cc16 0%,#65a30d 45%,#4d7c0f 100%)', text:'#ecfccb', text2:'rgba(236,252,203,0.92)', accent:'#fef08a', btn:'rgba(0,0,0,0.12)', btnHover:'rgba(0,0,0,0.2)', border:'rgba(0,0,0,0.15)', radius:16, font:'system-ui', aurora:true, auroraSoft:true },
+  maca:        { bg:'linear-gradient(165deg,#fb7185 0%,#f43f5e 40%,#e11d48 100%)', text:'#fff1f2', text2:'rgba(255,241,242,0.9)', accent:'#fef08a', btn:'rgba(0,0,0,0.1)', btnHover:'rgba(0,0,0,0.18)', border:'rgba(0,0,0,0.12)', radius:14, font:'system-ui', aurora:true, auroraSoft:true },
+  royal_blue:  { bg:'linear-gradient(155deg,#1e40af 0%,#1d4ed8 40%,#2563eb 100%)', text:'#eff6ff', text2:'rgba(219,234,254,0.9)', accent:'#fbbf24', btn:'rgba(255,255,255,0.18)', btnHover:'rgba(255,255,255,0.28)', border:'rgba(255,255,255,0.25)', radius:14, font:'system-ui', aurora:true, auroraSoft:true },
   mapa_tesouro:{ bg:'linear-gradient(165deg,#eab308 0%,#d97706 30%,#b45309 55%,#92400e 100%),repeating-linear-gradient(0deg,transparent,transparent 14px,rgba(66,32,6,0.08) 14px,rgba(66,32,6,0.08) 15px),repeating-linear-gradient(90deg,transparent,transparent 14px,rgba(66,32,6,0.06) 14px,rgba(66,32,6,0.06) 15px)', text:'#292524', text2:'rgba(41,37,36,0.85)', accent:'#fef3c7', btn:'rgba(0,0,0,0.12)', btnHover:'rgba(0,0,0,0.2)', border:'rgba(66,32,6,0.22)', radius:8, font:'"Georgia",serif' },
   manchado:    { bg:'radial-gradient(ellipse 90% 65% at 75% 25%,rgba(234,88,12,0.45) 0%,transparent 50%),radial-gradient(ellipse 70% 55% at 20% 80%,rgba(180,83,9,0.35) 0%,transparent 48%),linear-gradient(175deg,#fdba74 0%,#fb923c 38%,#f97316 100%)', text:'#431407', text2:'rgba(67,20,7,0.82)', accent:'#fef3c7', btn:'rgba(0,0,0,0.1)', btnHover:'rgba(0,0,0,0.16)', border:'rgba(124,45,18,0.28)', radius:10, font:'"Georgia",serif' },
 };
@@ -566,10 +566,30 @@ export default function SitePageClient({
   const shareAvatarUrl = centerProfilePhotoUrl || floatingAgentImageUrl || null;
   const ownerWhatsappDigits = String((site as any).contact_phone || '').replace(/\D/g, '');
 
+  /** Aurora: fundos escuros usam brilho moderado; temas vivid (`auroraSoft`) quase só sugerem luz sem lavar a cor. */
+  const auroraOverlayCss =
+    t.aurora
+      ? (() => {
+          const soft = t.auroraSoft === true;
+          const a1 = soft ? `${accent}08` : `${accent}18`;
+          const a2 = soft ? `${accent}05` : `${accent}0c`;
+          return `radial-gradient(ellipse at 32% 22%,${a1} 0%,transparent 48%),radial-gradient(ellipse at 68% 78%,${a2} 0%,transparent 48%)`;
+        })()
+      : null;
+
   return (
     <div style={{minHeight:'100vh',background:pageBg,fontFamily:t.font,position:'relative',overflowX:'hidden'}}>
-      {/* Aurora glow */}
-      {t.aurora && <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,background:`radial-gradient(ellipse at 30% 20%,${accent}22 0%,transparent 55%),radial-gradient(ellipse at 70% 80%,${accent}14 0%,transparent 55%)`}}/>}
+      {t.aurora && auroraOverlayCss ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            pointerEvents: 'none',
+            zIndex: 0,
+            background: auroraOverlayCss,
+          }}
+        />
+      ) : null}
 
       {/* Slug ticker */}
       <SlugTicker siteUserId={site.user_id} customItems={customTickerItems} enabled={tickerEnabled} />
