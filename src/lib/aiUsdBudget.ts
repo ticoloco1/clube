@@ -11,7 +11,7 @@ export function iaFreeAllowanceUsd(): number {
 }
 
 /**
- * Top-up: valor útil (face USD) creditado no mini-site; cobrança = face × IA_TOPUP_PRICE_MULTIPLIER (ex.: US$5 úteis → paga US$10).
+ * Top-up: face USD creditado no mini-site; cobrança Stripe = face × IA_TOPUP_PRICE_MULTIPLIER.
  * Mínimo configurável: env `IA_TOPUP_MIN_FACE_USD` (default 5).
  */
 const _minFace = parseFloat(process.env.IA_TOPUP_MIN_FACE_USD || '5');
@@ -90,7 +90,7 @@ export function evaluateIaAccessUsd(params: {
       ok: false,
       code: 'IA_PAYWALL',
       message:
-        'AI budget exhausted. Top up from US$10 face value on the credits page (/creditos) — we charge 2× provider cost (100% margin) so the platform stays sustainable.',
+        'AI budget exhausted. Add AI balance on the credits page (/creditos).',
       trialExpired: false,
     };
   }
@@ -105,7 +105,7 @@ export function evaluateIaAccessUsd(params: {
       ok: false,
       code: 'IA_PAYWALL',
       message:
-        'Not enough AI budget. Top up on the credits page (minimum US$10 face value; billed at 2× per our 100% margin policy).',
+        'Not enough AI budget. Top up on the credits page (/creditos).',
     };
   }
 

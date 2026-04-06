@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { getMiniSiteStripeForUser, releaseMiniSiteSlugFromSeller } from '@/lib/stripeConnectSite';
 import { PLATFORM_USD, boostPositionsFromAmountUsd } from '@/lib/platformPricing';
+import { IA_TOPUP_MIN_FACE_USD, iaTopupChargeUsd } from '@/lib/aiUsdBudget';
 import {
   isValidEvmAddress,
   mintTrustBankSlugCertificateIfConfigured,
@@ -232,12 +233,12 @@ export async function fulfillLine(
     case 'ai_budget_topup': {
       if (!itemId) return;
       const face = Number(faceValueUsd ?? 0);
-      if (!Number.isFinite(face) || face < 10 || face > 50_000) {
+      if (!Number.isFinite(face) || face < IA_TOPUP_MIN_FACE_USD || face > 50_000) {
         console.warn('[Fulfill] ai_budget_topup: invalid face', face);
         return;
       }
-      if (!priceApproxEqual(amountUsd, face * 2)) {
-        console.warn('[Fulfill] ai_budget_topup: price must be 2× face', amountUsd, face);
+      if (!priceApproxEqual(amountUsd, iaTopupChargeUsd(face))) {
+        console.warn('[Fulfill] ai_budget_topup: amount does not match pack price', amountUsd, face);
         return;
       }
       const { data: site } = await db

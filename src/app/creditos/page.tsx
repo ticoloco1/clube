@@ -64,7 +64,7 @@ export default function CreditosPage() {
       id: `ai_topup_${site.id}_${face}`,
       label: T('credits_ia_cart_label')
         .replace('{name}', site.site_name || site.slug)
-        .replace('{face}', String(face)),
+        .replace('{charge}', charge.toFixed(0)),
       price: charge,
       type: 'ai_topup',
     });

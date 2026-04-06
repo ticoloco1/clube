@@ -57,8 +57,8 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   credits_wallet_missing: { en: "Wallet not set", pt: "Carteira não configurada" },
   credits_ia_topup_title: { en: "IA balance (mini-site)", pt: "Saldo IA (mini-site)" },
   credits_ia_topup_blurb: {
-    en: "IA debits each mini-site’s USD balance per call. Minimum pack: pay US$10, get US$5 usable (2×). Larger packs: same rule — you always pay 2× the balance we credit (platform margin vs our DeepSeek bill).",
-    pt: "A IA debita o saldo USD do mini-site por chamada. Pack mínimo: pagas US$10, recebes US$5 úteis (2×). Packs maiores: mesma regra — pagas sempre 2× o saldo que creditamos (margem da plataforma face à fatura DeepSeek).",
+    en: "Each AI call debits that mini-site’s USD wallet. Choose a top-up below; the amount shown is what you pay via Stripe, and your site’s AI balance is increased by the stated USD credit.",
+    pt: "Cada uso de IA debita o saldo USD desse mini-site. Escolhe uma recarga abaixo; o valor indicado é o que pagas no Stripe, e o saldo IA do site aumenta pelo crédito em USD mostrado.",
   },
   credits_ia_deepseek_note: {
     en: "How billing works: TrustBank uses one platform DeepSeek/OpenAI key — we pay the API; your Stripe payment only increases your internal AI balance. Your card is not sent to DeepSeek. Automatic top-up when low would need a saved card + recurring charge (not built yet): for now, refill here when you get the low-balance message.",
@@ -69,13 +69,13 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
     pt: "~{n} interações estimadas tipo coach/copilot (saldo ÷ custo médio).",
   },
   credits_ia_topup_site_heading: { en: "/{slug}", pt: "/{slug}" },
-  credits_ia_topup_pack_label: { en: "+US${face} usable → pay US${charge}", pt: "+US${face} úteis → pagas US${charge}" },
+  credits_ia_topup_pack_label: { en: "US${charge} — +US${face} AI balance", pt: "US${charge} — +US${face} saldo IA" },
   credits_ia_topup_toast: { en: "IA pack added to cart", pt: "Pack IA adicionado ao carrinho" },
   credits_ia_no_site: { en: "Create a mini-site in the editor to buy IA balance.", pt: "Cria um mini-site no editor para comprar saldo IA." },
   credits_cart_bonus: { en: " + {n} bonus", pt: " + {n} bônus" },
   credits_cart_pack: { en: "{credits} credits{bonus} = US${usdc}", pt: "{credits} créditos{bonus} = US${usdc}" },
   credits_ia_budget_status: { en: "US${free} free · US${paid} paid", pt: "US${free} grátis · US${paid} pago" },
-  credits_ia_cart_label: { en: "IA balance · {name} (+US${face} usable)", pt: "Saldo IA · {name} (+US${face} úteis)" },
+  credits_ia_cart_label: { en: "IA balance top-up · {name} (US${charge})", pt: "Recarga saldo IA · {name} (US${charge})" },
   credits_stripe_usd: { en: "Stripe · USD", pt: "Stripe · USD" },
   credits_withdraw_help_meta: { en: "No Polygon wallet?", pt: "Não tem carteira Polygon?" },
   confirm_delete_minisite: { en: "Are you sure you want to delete the mini-site \"{label}\"?", pt: "Tem certeza que deseja apagar o mini-site \"{label}\"?" },
@@ -463,8 +463,8 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   lively_title_dual: { en: "Owner + Assistant", pt: "Dono + Assistente" },
   lively_paywall_title: { en: "Keep AI active", pt: "Continuar com IA" },
   lively_paywall_body: {
-    en: "The 40-minute visitor preview ended or this site’s AI wallet is empty. Subscribe, add AI credits (we bill ~2× provider cost — 100% margin), and/or verify the access NFT to keep chat + ElevenLabs voices live.",
-    pt: "A pré-visualização de 40 minutos do visitante terminou ou a carteira IA do site está vazia. Assina, adiciona créditos IA (cobramos ~2× o custo do fornecedor — margem 100%) e/ou verifica o NFT de acesso para manter chat + ElevenLabs.",
+    en: "The 40-minute visitor preview ended or this site’s AI wallet is empty. Subscribe, add AI balance on /creditos, and/or verify the access NFT to keep chat + ElevenLabs voices live.",
+    pt: "A pré-visualização de 40 minutos do visitante terminou ou a carteira IA do site está vazia. Assina, adiciona saldo IA em /creditos e/ou verifica o NFT de acesso para manter chat + ElevenLabs.",
   },
   lively_paywall_cta: { en: "View plans", pt: "Ver planos" },
   lively_paywall_msg: {
@@ -543,8 +543,8 @@ const CORE_MESSAGES: Record<string, MessageRow> = {
   ed_byok_toast_removed: { en: "DeepSeek key removed.", pt: "Chave DeepSeek removida." },
   ed_lively_credits_title: { en: "Mini-site IA budget (USD)", pt: "Orçamento IA do mini-site (USD)" },
   ed_lively_credits_hint: {
-    en: "Pricing: provider cost (DeepSeek, OpenAI TTS, ElevenLabs, etc.) + 100% margin — e.g. US$2 API spend ≈ US$4 charged. Default: no complimentary site USD (buy packs at /creditos from US$10 face, billed 2×). Optional promo: set IA_FREE_USD_PER_SITE on the server. Platform 24h trial: AI not debited. Visitors: ~40 min free, then your site wallet.",
-    pt: "Preço: custo dos fornecedores (DeepSeek, OpenAI TTS, ElevenLabs, etc.) + margem 100% — ex.: US$2 de API ≈ US$4 cobrados. Por defeito: sem USD grátis por site (compra packs em /creditos a partir de US$10 úteis, faturado a 2×). Promo opcional: IA_FREE_USD_PER_SITE no servidor. Trial 24h da plataforma: IA não debita. Visitantes: ~40 min grátis, depois a carteira do site.",
+    en: "Usage draws from this wallet per AI call (models, TTS, etc.). Top up on /creditos. Optional promo: set IA_FREE_USD_PER_SITE on the server. Platform 24h trial: AI not debited. Visitors: ~40 min free, then your site wallet.",
+    pt: "Cada chamada de IA debita este saldo (modelos, TTS, etc.). Recarrega em /creditos. Promo opcional: IA_FREE_USD_PER_SITE no servidor. Trial 24h da plataforma: IA não debita. Visitantes: ~40 min grátis, depois a carteira do site.",
   },
   ed_ia_tab: { en: "AI", pt: "IA" },
   ed_ia_profile_title: { en: "Speaking profile avatar", pt: "Avatar falante no perfil" },

@@ -27,7 +27,7 @@ export function cartItemToFulfillmentLine(item: CartItemInput, userId: string): 
     }
     const expected = iaTopupChargeUsd(face);
     if (Math.abs(price - expected) > 0.05) {
-      throw new Error('ai_topup: preço deve ser 2× o valor útil (margem 100%)');
+      throw new Error('ai_topup: preço não corresponde ao pack');
     }
     return {
       kind: 'ai_budget_topup',
