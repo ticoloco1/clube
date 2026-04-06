@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const base = await getCanonicalSiteBaseUrl();
+  const origin = base.replace(/\/+$/, '');
   return {
     rules: [
       {
@@ -18,13 +19,11 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
           '/editor',
           '/creditos',
           '/auth',
+          // Caminho interno / preview no apex; canónica dos mini-sites é {slug}.domínio (evita duplicata no GSC).
+          '/s/',
         ],
       },
-      {
-        userAgent: 'Googlebot',
-        allow: ['/s/', '/sites', '/cv', '/videos', '/slugs', '/imoveis', '/carros'],
-      },
     ],
-    sitemap: `${base}/sitemap.xml`,
+    sitemap: `${origin}/sitemap.xml`,
   };
 }

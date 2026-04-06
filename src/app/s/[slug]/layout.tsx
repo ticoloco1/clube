@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Metadata } from 'next';
-import { getSiteBaseUrl, getProductRootDomain } from '@/lib/siteBaseUrl';
+import { getSiteBaseUrl, getProductRootDomain, miniSiteCanonicalUrl } from '@/lib/siteBaseUrl';
 import { resolvePublicSiteFaceUrl } from '@/lib/floatingAgentImage';
 
 function getDb() {
@@ -121,6 +121,7 @@ export async function generateMetadata(
     title,
     description,
     keywords: kw.length ? kw : undefined,
+    robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large' } },
     alternates: {
       canonical: url,
     },
