@@ -113,7 +113,10 @@ export async function POST(req: NextRequest) {
     const visitorTrialing = !isOwner && trialActive(trialStarted);
 
     const dbAi = await loadAiConfig(db);
-    const picked = await pickAiRuntimeForSite(db, site.id, dbAi);
+    const picked = await pickAiRuntimeForSite(db, site.id, dbAi, {
+      ownerUserId: site.user_id || null,
+      preferDeepseekByok: site.lively_use_deepseek_byok === true,
+    });
     if (!picked) {
       return NextResponse.json(
         {

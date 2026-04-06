@@ -46,6 +46,7 @@ export type LivelySiteRow = {
   booking_weekly_hours?: unknown;
   booking_vertical?: string | null;
   contact_phone?: string | null;
+  lively_use_deepseek_byok?: boolean | null;
 };
 
 export async function getViewerUserId(): Promise<string | null> {
@@ -119,6 +120,7 @@ export async function getLivelySiteForApi(slug: string, viewerUserId: string | n
         'booking_weekly_hours',
         'booking_vertical',
         'contact_phone',
+        'lively_use_deepseek_byok',
       ].join(','),
     )
     .eq('slug', slugClean)

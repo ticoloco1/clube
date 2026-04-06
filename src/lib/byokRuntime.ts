@@ -8,7 +8,32 @@ export async function pickAiRuntimeForSite(
   db: SupabaseClient,
   siteId: string,
   platformConfig: AiConfigRow,
+  opts?: { ownerUserId?: string | null; preferDeepseekByok?: boolean },
 ): Promise<{ runtime: AiRuntimePicked; useSiteUsdBudget: boolean } | null> {
+  if (opts?.preferDeepseekByok && opts.ownerUserId) {
+    const { data: conn } = await db
+      .from('user_api_connections' as never)
+      .select('api_key_enc, is_active')
+      .eq('user_id', opts.ownerUserId)
+      .eq('provider', 'deepseek')
+      .maybeSingle();
+    const active = !!(conn as { is_active?: boolean } | null)?.is_active;
+    const encConn = (conn as { api_key_enc?: string } | null)?.api_key_enc?.trim();
+    if (active && encConn) {
+      const apiKey = decryptByokCiphertext(encConn)?.trim();
+      if (apiKey) {
+        return {
+          runtime: {
+            apiKey,
+            baseUrl: 'https://api.deepseek.com/v1',
+            model: process.env.AI_MODEL || 'deepseek-chat',
+          },
+          useSiteUsdBudget: false,
+        };
+      }
+    }
+  }
+
   const { data: row } = await db
     .from('mini_site_ai_secrets' as never)
     .select('deepseek_api_enc')

@@ -33,6 +33,7 @@ import { LIVELY_AVATAR_MODELS } from '@/lib/livelyAvatarModels';
 import { IdentityLabPanel } from '@/components/editor/IdentityLabPanel';
 import { CreatorStudioPanel } from '@/components/editor/CreatorStudioPanel';
 import { AvatarCharacterInspirationPanel } from '@/components/editor/AvatarCharacterInspirationPanel';
+import { ApiHubDrawer } from '@/components/editor/ApiHubDrawer';
 import { readSiteAiBudget } from '@/lib/aiUsdBudget';
 import { EditorScriptsAndAdsDialog } from '@/components/editor/EditorScriptsAndAdsDialog';
 import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets';
@@ -164,6 +165,7 @@ function EditorPageInner() {
   const [livelyElevenOwner, setLivelyElevenOwner] = useState('');
   const [livelyElevenAgent, setLivelyElevenAgent] = useState('');
   const [livelyTtsProvider, setLivelyTtsProvider] = useState<LivelyTtsProvider>('auto');
+  const [livelyUseDeepseekByok, setLivelyUseDeepseekByok] = useState(false);
   const [livelyPremiumVerifyLoading, setLivelyPremiumVerifyLoading] = useState(false);
   const [livelySuggestWelcomeBusy, setLivelySuggestWelcomeBusy] = useState(false);
   const [byokDeepseekConfigured, setByokDeepseekConfigured] = useState<boolean | null>(null);
@@ -460,6 +462,7 @@ function EditorPageInner() {
     setLivelyElevenOwner(typeof (site as any).lively_elevenlabs_voice_owner === 'string' ? (site as any).lively_elevenlabs_voice_owner : '');
     setLivelyElevenAgent(typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : '');
     setLivelyTtsProvider(normalizeLivelyTtsProvider((site as any).lively_tts_provider));
+    setLivelyUseDeepseekByok((site as any).lively_use_deepseek_byok === true);
     setLivelyProfileAsAvatar((site as any).lively_profile_as_avatar === true);
     setLivelyProfileSpeakOnEntry((site as any).lively_profile_speak_on_entry !== false);
     setLivelyProfileSpeechTap(typeof (site as any).lively_profile_speech_tap === 'string' ? (site as any).lively_profile_speech_tap : '');
@@ -1145,6 +1148,7 @@ function EditorPageInner() {
         lively_elevenlabs_voice_owner: livelyElevenOwner.trim() || null,
         lively_elevenlabs_voice_agent: livelyElevenAgent.trim() || null,
         lively_tts_provider: livelyTtsProvider,
+        lively_use_deepseek_byok: livelyUseDeepseekByok,
         lively_profile_as_avatar: livelyProfileAsAvatar,
         lively_profile_speak_on_entry: livelyProfileSpeakOnEntry,
         lively_profile_speech_tap: livelyProfileSpeechTap.trim() || null,
@@ -3389,6 +3393,21 @@ function EditorPageInner() {
                     {T('ed_byok_remove')}
                   </button>
                 </div>
+                <div className="pt-1">
+                  <label className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg2)] px-3 py-2">
+                    <span className="text-xs text-[var(--text2)]">
+                      Use my DeepSeek key for live assistant replies
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={livelyUseDeepseekByok}
+                      onChange={(e) => {
+                        setLivelyUseDeepseekByok(e.target.checked);
+                        markDirty();
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
               <div className="rounded-xl border border-[var(--border)] p-4 space-y-2 bg-[var(--bg2)]/40">
                 <p className="text-sm font-bold text-[var(--text)]">{T('ed_lively_credits_title')}</p>
@@ -3627,6 +3646,8 @@ function EditorPageInner() {
         </div>
       </div>
       </div>
+
+      {user ? <ApiHubDrawer /> : null}
 
       {site?.id && user?.id ? (
         <EditorScriptsAndAdsDialog
