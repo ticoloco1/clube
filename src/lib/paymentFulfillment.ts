@@ -32,9 +32,9 @@ async function maybeMintSlugCertificateNft(
   }
 }
 
-/** Revenue splits (USD) — paywall vídeo 85/15, CV 50/50 */
+/** Revenue splits (USD) — paywall vídeo 80/20, CV 50/50 */
 export const PAYMENT_SPLITS = {
-  video: { creator: 0.85, platform: 0.15 },
+  video: { creator: 0.8, platform: 0.2 },
   cv: { creator: 0.5, platform: 0.5 },
   cv_directory: { creator: 0, platform: 1 },
   slug: { creator: 0.9, platform: 0.1 },

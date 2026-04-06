@@ -13,7 +13,7 @@ export const PLATFORM_USD = {
   proIaAddonMonthly: 0,
   proIaAddonYearly: 0,
   /** % do paywall de vídeo para o criador (marketing / hero / stats). */
-  paywallVideoCreatorPercent: 85,
+  paywallVideoCreatorPercent: 80,
   /** Sugestão inicial no editor; o criador define o preço do CV. */
   cvUnlockDefault: 20,
   /** Preço sugerido por vídeo com paywall (ativar paywall não tem taxa da plataforma). */

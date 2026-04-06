@@ -7,6 +7,7 @@ import { Play, Lock, Loader2, LogIn, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { isDbPaywallEnabled } from '@/lib/utils';
+import { encodeFunctionData, erc20Abi, isAddress } from 'viem';
 
 interface SecureVideoPlayerProps {
   videoId: string;           // DB id of mini_site_video
@@ -29,6 +30,8 @@ export function SecureVideoPlayer({
   const [state, setState] = useState<'idle' | 'loading' | 'playing' | 'login' | 'pay' | 'error'>('idle');
   const [token, setToken] = useState<string | null>(null);
   const [ytId, setYtId] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [walletBusy, setWalletBusy] = useState(false);
   const playerRef = useRef<HTMLIFrameElement>(null);
 
   // Request a signed token from the server
@@ -38,7 +41,7 @@ export function SecureVideoPlayer({
       const res = await fetch('/api/video-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videoId, siteSlug }),
+        body: JSON.stringify({ videoId, siteSlug, walletAddress }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
 
@@ -60,6 +63,95 @@ export function SecureVideoPlayer({
       console.error(err);
       setState('error');
       toast.error(T('err_video_load'));
+    }
+  };
+
+  const connectWallet = async () => {
+    try {
+      const eth = (window as any).ethereum;
+      if (!eth?.request) {
+        toast.error('Instala uma wallet EVM (ex: MetaMask)');
+        return;
+      }
+      const accounts = await eth.request({ method: 'eth_requestAccounts' });
+      const addr = typeof accounts?.[0] === 'string' ? String(accounts[0]) : '';
+      if (!isAddress(addr)) {
+        toast.error('Carteira inválida');
+        return;
+      }
+      setWalletAddress(addr.toLowerCase());
+      toast.success('Carteira conectada');
+    } catch (e) {
+      console.error(e);
+      toast.error('Não foi possível conectar carteira');
+    }
+  };
+
+  const payWithUsdcPolygon = async () => {
+    if (!siteSlug) {
+      toast.error('Site inválido para pagamento');
+      return;
+    }
+    if (!walletAddress || !isAddress(walletAddress)) {
+      toast.error('Conecta a wallet primeiro');
+      return;
+    }
+    const eth = (window as any).ethereum;
+    if (!eth?.request) {
+      toast.error('Wallet não disponível');
+      return;
+    }
+
+    setWalletBusy(true);
+    try {
+      const intentRes = await fetch('/api/video-usdc-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId, siteSlug, walletAddress }),
+      });
+      const intentData = await intentRes.json().catch(() => ({} as any));
+      if (!intentRes.ok) throw new Error(intentData?.error || 'Falha ao criar intenção');
+
+      await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x89' }] });
+
+      const usdc = process.env.NEXT_PUBLIC_POLYGON_USDC_CONTRACT;
+      if (!usdc || !isAddress(usdc)) throw new Error('USDC contract não configurado');
+
+      const amountUnits = String((intentData as any).amountUnits || '');
+      const amount = BigInt(amountUnits);
+      if (amount <= BigInt(0)) throw new Error('Valor inválido');
+
+      const txHash = await eth.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: walletAddress,
+          to: (usdc as string).toLowerCase(),
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: 'transfer',
+            args: [String((intentData as any).treasuryWallet) as `0x${string}`, amount],
+          }),
+          value: '0x0',
+        }],
+      });
+
+      if (!txHash || typeof txHash !== 'string') throw new Error('Transação não enviada');
+
+      const confirmRes = await fetch('/api/video-usdc-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intentId: (intentData as any).intentId, txHash, walletAddress }),
+      });
+      const confirmData = await confirmRes.json().catch(() => ({} as any));
+      if (!confirmRes.ok) throw new Error(confirmData?.error || 'Falha na confirmação');
+
+      toast.success('Pagamento USDC confirmado');
+      await requestToken();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || 'Erro ao pagar com USDC');
+    } finally {
+      setWalletBusy(false);
     }
   };
 
@@ -142,7 +234,7 @@ export function SecureVideoPlayer({
             </div>
           </div>
           <div className="flex flex-col gap-2 w-full max-w-sm px-2">
-            {user ? (
+            {user && (
               <StripeCheckout
                 itemId={videoId}
                 label={title ? `Vídeo: ${title}` : 'Desbloqueio de vídeo'}
@@ -152,15 +244,37 @@ export function SecureVideoPlayer({
                 buttonText="Desbloquear com cartão (Stripe)"
                 onSuccess={() => { void requestToken(); }}
               />
+            )}
+            {!walletAddress ? (
+              <button
+                onClick={connectWallet}
+                className="w-full py-3 rounded-xl font-black text-white text-sm"
+                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}
+              >
+                Conectar wallet (Polygon)
+              </button>
             ) : (
+              <>
+                <div className="text-xs text-white/50 break-all">Wallet: {walletAddress}</div>
+                <button
+                  onClick={payWithUsdcPolygon}
+                  disabled={walletBusy}
+                  className="w-full py-3 rounded-xl font-black text-white text-sm disabled:opacity-60"
+                  style={{ background: `linear-gradient(135deg, #2563eb, #3b82f6)` }}
+                >
+                  {walletBusy ? 'Aguarde...' : 'Pagar com USDC (Polygon)'}
+                </button>
+              </>
+            )}
+            {!user && (
               <a href={`/auth?redirect=${encodeURIComponent(window.location.pathname)}`}
-                className="w-full py-3 rounded-xl font-black text-white text-sm text-center"
-                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}>
-                Entrar para pagar
+                className="w-full py-3 rounded-xl font-black text-white text-sm text-center border border-white/20"
+                style={{ background: 'transparent' }}>
+                Ou entrar com Google e pagar no Stripe
               </a>
             )}
           </div>
-          <p className="text-white/20 text-xs">Pagamento via Stripe (USD) · Carrinho seguro</p>
+          <p className="text-white/20 text-xs">USDC Polygon (sem cadastro) ou Stripe (com login)</p>
         </div>
       </div>
     );

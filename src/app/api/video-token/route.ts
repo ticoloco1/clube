@@ -5,6 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { isDbPaywallEnabled, isValidYouTubeVideoId } from '@/lib/utils';
+import { isAddress } from 'viem';
 
 function getDb() {
   return createClient(
@@ -75,13 +76,12 @@ async function getSessionUser() {
 export async function POST(req: NextRequest) {
   try {
     const user = await getSessionUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Login necessário' }, { status: 401 });
-    }
 
     const body = await req.json().catch(() => ({}));
     const videoId = typeof body.videoId === 'string' ? body.videoId.trim() : '';
     const siteSlug = typeof body.siteSlug === 'string' ? body.siteSlug.trim().toLowerCase() : '';
+    const walletAddressRaw = typeof body.walletAddress === 'string' ? body.walletAddress.trim().toLowerCase() : '';
+    const walletAddress = isAddress(walletAddressRaw) ? walletAddressRaw : '';
 
     if (!videoId) {
       return NextResponse.json({ error: 'videoId obrigatório' }, { status: 400 });
@@ -116,24 +116,43 @@ export async function POST(req: NextRequest) {
     if (siteSlug && s.slug.toLowerCase() !== siteSlug) {
       return NextResponse.json({ error: 'Slug inválido' }, { status: 400 });
     }
-    if (!s.published && user.id !== s.user_id) {
+    const isOwner = !!user && user.id === s.user_id;
+    if (!s.published && !isOwner) {
       return NextResponse.json({ error: 'Indisponível' }, { status: 403 });
     }
 
     const paywall = isDbPaywallEnabled((video as { paywall_enabled?: unknown }).paywall_enabled);
-    const isOwner = user.id === s.user_id;
 
-    // Antes de validar o ID do YouTube: visitante sem desbloqueio deve ver pagamento (402), não erro genérico.
+    // Visitante pode desbloquear via login (paywall_unlocks) OU wallet (paywall_unlock_wallets).
     if (paywall && !isOwner) {
-      const { data: unlock } = await db
-        .from('paywall_unlocks' as never)
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('video_id', videoId)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle();
+      let unlocked = false;
 
-      if (!unlock) {
+      if (user) {
+        const { data: unlockUser } = await db
+          .from('paywall_unlocks' as never)
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('video_id', videoId)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle();
+        unlocked = !!unlockUser;
+      }
+
+      if (!unlocked && walletAddress) {
+        const { data: unlockWallet } = await db
+          .from('paywall_unlock_wallets' as never)
+          .select('id')
+          .eq('wallet_address', walletAddress)
+          .eq('video_id', videoId)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle();
+        unlocked = !!unlockWallet;
+      }
+
+      if (!unlocked) {
+        if (!user && !walletAddress) {
+          return NextResponse.json({ error: 'Login ou wallet necessário' }, { status: 401 });
+        }
         return NextResponse.json({ error: 'Paywall' }, { status: 402 });
       }
     }
