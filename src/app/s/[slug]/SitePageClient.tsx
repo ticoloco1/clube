@@ -81,6 +81,24 @@ const THEMES: Record<string, any> = {
   cyber_violet:{ bg:'#0a0518', text:'#f5e6ff', text2:'rgba(196,181,253,0.65)', accent:'#c084fc', btn:'rgba(192,132,252,0.12)', btnHover:'rgba(192,132,252,0.22)', border:'rgba(167,139,250,0.35)', radius:18, font:'"Orbitron","Space Grotesk",sans-serif', aurora:true },
   cyber_azure: { bg:'#030a14', text:'#e0f7ff', text2:'rgba(56,189,248,0.65)', accent:'#22d3ee', btn:'rgba(34,211,238,0.1)', btnHover:'rgba(34,211,238,0.2)', border:'rgba(6,182,212,0.35)', radius:16, font:'"Orbitron","IBM Plex Sans",sans-serif', aurora:true },
   cyber_crimson:{ bg:'#140205', text:'#ffe4ec', text2:'rgba(251,113,133,0.65)', accent:'#fb7185', btn:'rgba(251,113,133,0.12)', btnHover:'rgba(251,113,133,0.22)', border:'rgba(244,63,94,0.4)', radius:14, font:'"Orbitron","Space Grotesk",sans-serif', aurora:true },
+  azul:        { bg:'#0a1628', text:'#e0f2fe', text2:'rgba(96,165,250,0.65)', accent:'#3b82f6', btn:'rgba(59,130,246,0.12)', btnHover:'rgba(59,130,246,0.22)', border:'rgba(59,130,246,0.2)', radius:14, font:'system-ui', aurora:true },
+  amarelo:     { bg:'#fffbeb', text:'#713f12', text2:'rgba(180,83,9,0.75)', accent:'#ca8a04', btn:'rgba(202,138,4,0.12)', btnHover:'rgba(202,138,4,0.2)', border:'rgba(202,138,4,0.18)', radius:16, font:'"DM Sans",system-ui,sans-serif' },
+  dourado_luz: { bg:'#fffef7', text:'#422006', text2:'rgba(161,98,7,0.75)', accent:'#d97706', btn:'rgba(217,119,6,0.1)', btnHover:'rgba(217,119,6,0.18)', border:'rgba(245,158,11,0.22)', radius:14, font:'"Georgia",serif' },
+  roxo:        { bg:'#1a0a2e', text:'#ede9fe', text2:'rgba(196,181,253,0.7)', accent:'#a855f7', btn:'rgba(168,85,247,0.12)', btnHover:'rgba(168,85,247,0.22)', border:'rgba(168,85,247,0.25)', radius:18, font:'system-ui', aurora:true },
+  vermelho:    { bg:'#2a0a0c', text:'#fecaca', text2:'rgba(248,113,113,0.65)', accent:'#ef4444', btn:'rgba(239,68,68,0.12)', btnHover:'rgba(239,68,68,0.22)', border:'rgba(239,68,68,0.25)', radius:12, font:'system-ui', aurora:true },
+  vinho:       { bg:'#2d0a14', text:'#fbcfe8', text2:'rgba(244,114,182,0.65)', accent:'#be123c', btn:'rgba(190,18,60,0.12)', btnHover:'rgba(190,18,60,0.22)', border:'rgba(190,18,60,0.28)', radius:16, font:'"Georgia",serif', aurora:true },
+  verde_nativo:{ bg:'#052e16', text:'#dcfce7', text2:'rgba(74,222,128,0.65)', accent:'#22c55e', btn:'rgba(34,197,94,0.12)', btnHover:'rgba(34,197,94,0.22)', border:'rgba(34,197,94,0.22)', radius:14, font:'system-ui', aurora:true },
+  lima:        { bg:'#1a2e05', text:'#ecfccb', text2:'rgba(190,242,100,0.7)', accent:'#84cc16', btn:'rgba(132,204,22,0.12)', btnHover:'rgba(132,204,22,0.22)', border:'rgba(163,230,53,0.25)', radius:16, font:'system-ui', aurora:true },
+  prata:       { bg:'linear-gradient(145deg,#525c6b 0%,#3b4450 50%,#2d333b 100%)', text:'#f1f5f9', text2:'rgba(203,213,225,0.75)', accent:'#e2e8f0', btn:'rgba(255,255,255,0.08)', btnHover:'rgba(255,255,255,0.14)', border:'rgba(226,232,240,0.2)', radius:12, font:'system-ui', aurora:true },
+  aco_escovado:{ bg:'linear-gradient(105deg,#5c6575 0%,#3d4552 22%,#4a5568 44%,#2f3640 66%,#4b5563 88%,#3d4450 100%)', text:'#f8fafc', text2:'rgba(148,163,184,0.85)', accent:'#94a3b8', btn:'rgba(148,163,184,0.12)', btnHover:'rgba(148,163,184,0.2)', border:'rgba(148,163,184,0.25)', radius:8, font:'"IBM Plex Sans",sans-serif', aurora:true },
+  neon_mix:    { bg:'#070708', text:'#fafafa', text2:'#22d3ee', accent:'#f472b6', btn:'rgba(244,114,182,0.12)', btnHover:'rgba(244,114,182,0.22)', border:'rgba(34,211,238,0.35)', radius:20, font:'"Space Grotesk",sans-serif', aurora:true },
+  lilas:       { bg:'#faf5ff', text:'#4c1d95', text2:'rgba(109,40,217,0.75)', accent:'#8b5cf6', btn:'rgba(139,92,246,0.1)', btnHover:'rgba(139,92,246,0.18)', border:'rgba(139,92,246,0.2)', radius:18, font:'"DM Sans",sans-serif' },
+  banana:      { bg:'#fffbeb', text:'#422006', text2:'rgba(202,138,4,0.8)', accent:'#eab308', btn:'rgba(234,179,8,0.12)', btnHover:'rgba(234,179,8,0.2)', border:'rgba(234,179,8,0.2)', radius:20, font:'system-ui' },
+  abacate:     { bg:'#1c2e1a', text:'#ecfccb', text2:'rgba(163,230,53,0.65)', accent:'#65a30d', btn:'rgba(101,163,13,0.12)', btnHover:'rgba(101,163,13,0.22)', border:'rgba(132,204,22,0.22)', radius:16, font:'system-ui', aurora:true },
+  maca:        { bg:'#3f0a12', text:'#ffe4e6', text2:'rgba(251,113,133,0.7)', accent:'#e11d48', btn:'rgba(225,29,72,0.12)', btnHover:'rgba(225,29,72,0.22)', border:'rgba(244,63,94,0.3)', radius:14, font:'system-ui', aurora:true },
+  royal_blue:  { bg:'#0f172a', text:'#eff6ff', text2:'rgba(147,197,253,0.75)', accent:'#2563eb', btn:'rgba(37,99,235,0.14)', btnHover:'rgba(37,99,235,0.24)', border:'rgba(59,130,246,0.28)', radius:14, font:'system-ui', aurora:true },
+  mapa_tesouro:{ bg:'linear-gradient(165deg,#ebe0cc 0%,#d9c9a8 40%,#c4ae88 100%),repeating-linear-gradient(0deg,transparent,transparent 14px,rgba(101,67,33,0.07) 14px,rgba(101,67,33,0.07) 15px),repeating-linear-gradient(90deg,transparent,transparent 14px,rgba(101,67,33,0.05) 14px,rgba(101,67,33,0.05) 15px)', text:'#3d2914', text2:'rgba(91,64,38,0.85)', accent:'#92400e', btn:'rgba(146,64,14,0.1)', btnHover:'rgba(146,64,14,0.18)', border:'rgba(120,53,15,0.2)', radius:8, font:'"Georgia",serif' },
+  manchado:    { bg:'radial-gradient(ellipse 100% 70% at 72% 18%,rgba(120,80,50,0.16) 0%,transparent 52%),radial-gradient(ellipse 80% 60% at 12% 88%,rgba(90,55,35,0.14) 0%,transparent 48%),radial-gradient(ellipse 55% 45% at 48% 58%,rgba(160,120,88,0.11) 0%,transparent 42%),linear-gradient(178deg,#f5ecdc 0%,#e5d8c4 100%)', text:'#3d2f22', text2:'rgba(91,71,55,0.85)', accent:'#8b5a3c', btn:'rgba(139,90,60,0.1)', btnHover:'rgba(139,90,60,0.18)', border:'rgba(120,90,65,0.22)', radius:10, font:'"Georgia",serif' },
 };
 
 function getPostMedia(post: any): string[] {
@@ -1050,7 +1068,16 @@ export default function SitePageClient({
               <div style={{display:'grid',gridTemplateColumns:videos.length===1?'1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
                 {videos.map((v:any) => (
                   <div key={v.id} style={{borderRadius:r,overflow:'hidden',border:`1.5px solid ${t.border}`}}>
-                    <SecureVideoPlayer videoId={v.id} title={v.title} paywallEnabled={v.paywall_enabled} paywallPrice={v.paywall_price} accentColor={accent} siteSlug={slug}/>
+                    <SecureVideoPlayer
+                      videoId={v.id}
+                      title={v.title}
+                      paywallEnabled={v.paywall_enabled}
+                      paywallPrice={v.paywall_price}
+                      accentColor={accent}
+                      siteSlug={slug}
+                      previewImageUrl={v.preview_image_url}
+                      previewEmbedUrl={v.preview_embed_url}
+                    />
                     {v.title && <div style={{padding:'8px 12px',background:t.btn}}><p style={{margin:0,fontWeight:700,fontSize:13,color:t.text}}>{v.title}</p></div>}
                   </div>
                 ))}
@@ -1301,7 +1328,16 @@ export default function SitePageClient({
             }}>
               {videos.map((v:any) => (
                 <div key={`wall_${v.id}`} style={{borderRadius:r,overflow:'hidden',border:`1.5px solid ${t.border}`}}>
-                  <SecureVideoPlayer videoId={v.id} title={v.title} paywallEnabled={v.paywall_enabled} paywallPrice={v.paywall_price} accentColor={accent} siteSlug={slug}/>
+                  <SecureVideoPlayer
+                    videoId={v.id}
+                    title={v.title}
+                    paywallEnabled={v.paywall_enabled}
+                    paywallPrice={v.paywall_price}
+                    accentColor={accent}
+                    siteSlug={slug}
+                    previewImageUrl={v.preview_image_url}
+                    previewEmbedUrl={v.preview_embed_url}
+                  />
                 </div>
               ))}
             </div>

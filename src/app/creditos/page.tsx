@@ -7,8 +7,7 @@ import { useCart } from '@/store/cart';
 import { Coins, ArrowRight, ArrowLeft, History, Wallet, Info, CheckCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useI18n, useT } from '@/lib/i18n';
-import { iaTopupChargeUsd, readSiteAiBudget } from '@/lib/aiUsdBudget';
-import { estimatedCoachCopilotTurnsRemaining } from '@/lib/aiEconomics';
+import { iaTopupChargeUsd } from '@/lib/aiUsdBudget';
 
 const CREDIT_PACKS = [
   { credits: 100, usdc: 1.0, bonus: 0 },
@@ -24,8 +23,6 @@ type AiSiteRow = {
   id: string;
   slug: string;
   site_name: string;
-  ai_free_usd_remaining?: number | string | null;
-  ai_paid_usd_balance?: number | string | null;
 };
 
 export default function CreditosPage() {
@@ -52,7 +49,7 @@ export default function CreditosPage() {
       .then(({ data }) => setWalletAddress((data as any)?.wallet_address || ''));
     supabase
       .from('mini_sites')
-      .select('id, slug, site_name, ai_free_usd_remaining, ai_paid_usd_balance')
+      .select('id, slug, site_name')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
       .then(({ data }) => setAiSites((data as AiSiteRow[]) || []));
@@ -184,27 +181,19 @@ export default function CreditosPage() {
           </div>
         ) : (
           <div className="space-y-8 mb-10">
-            {aiSites.map((s) => {
-              const b = readSiteAiBudget(s);
-              const est = estimatedCoachCopilotTurnsRemaining(b.freeUsd, b.paidUsd);
-              return (
+            {aiSites.map((s) => (
                 <div key={s.id} className="card p-5 border border-violet-500/20 bg-violet-500/5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+                  <div className="mb-3">
                     <h3 className="font-bold text-[var(--text)]">
                       {s.site_name || s.slug}{' '}
                       <span className="text-[var(--text2)] font-normal text-sm">
                         {T('credits_ia_topup_site_heading').replace('{slug}', s.slug)}
                       </span>
                     </h3>
-                    <p className="text-xs text-[var(--text2)] tabular-nums">
-                      {T('credits_ia_budget_status')
-                        .replace('{free}', b.freeUsd.toFixed(2))
-                        .replace('{paid}', b.paidUsd.toFixed(2))}
+                    <p className="text-[11px] text-[var(--text2)] mt-2 leading-relaxed">
+                      {T('credits_ia_wallet_hint')}
                     </p>
                   </div>
-                  <p className="text-[11px] text-violet-200/80 mb-4 leading-relaxed">
-                    {T('credits_ia_turns_estimate').replace('{n}', String(est))}
-                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {IA_FACE_PACKS.map((face) => {
                       const charge = iaTopupChargeUsd(face);
@@ -216,9 +205,7 @@ export default function CreditosPage() {
                           className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] hover:border-violet-400/60 p-4 text-left transition-all"
                         >
                           <p className="text-sm font-black text-[var(--text)]">
-                            {T('credits_ia_topup_pack_label')
-                              .replace('{face}', String(face))
-                              .replace('{charge}', charge.toFixed(0))}
+                            {T('credits_ia_topup_pack_label').replace('{charge}', charge.toFixed(0))}
                           </p>
                           <p className="text-[10px] text-[var(--text2)] mt-1">{T('credits_stripe_usd')}</p>
                         </button>
@@ -226,8 +213,7 @@ export default function CreditosPage() {
                     })}
                   </div>
                 </div>
-              );
-            })}
+              ))}
           </div>
         )}
 

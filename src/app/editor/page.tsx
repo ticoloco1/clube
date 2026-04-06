@@ -43,7 +43,7 @@ import { PLATFORM_USD } from '@/lib/platformPricing';
 
 const LS_EDITOR_IA_API = 'tb_editor_ia_api_enabled';
 
-// ── 30 Themes (rótulos: T(`ed_theme_${id}`)) ───────────────────────────────────
+// ── Themes (rótulos: T(`ed_theme_${id}`)) ───────────────────────────────────
 const THEMES = [
   { id:'midnight',  emoji:'🌑', bg:'#0d1117', text:'#e6edf3', accent:'#818cf8' },
   { id:'noir',      emoji:'⬛', bg:'#000000', text:'#ffffff', accent:'#ffffff' },
@@ -78,6 +78,24 @@ const THEMES = [
   { id:'cyber_violet', emoji:'⚡', bg:'#0a0518', text:'#f5e6ff', accent:'#c084fc' },
   { id:'cyber_azure', emoji:'🧿', bg:'#030a14', text:'#e0f7ff', accent:'#22d3ee' },
   { id:'cyber_crimson', emoji:'🔻', bg:'#140205', text:'#ffe4ec', accent:'#fb7185' },
+  { id:'azul', emoji:'🔷', bg:'#0a1628', text:'#e0f2fe', accent:'#3b82f6' },
+  { id:'amarelo', emoji:'🟡', bg:'#fffbeb', text:'#713f12', accent:'#ca8a04' },
+  { id:'dourado_luz', emoji:'✨', bg:'#fffef7', text:'#422006', accent:'#d97706' },
+  { id:'roxo', emoji:'🟣', bg:'#1a0a2e', text:'#ede9fe', accent:'#a855f7' },
+  { id:'vermelho', emoji:'🔴', bg:'#2a0a0c', text:'#fecaca', accent:'#ef4444' },
+  { id:'vinho', emoji:'🍷', bg:'#2d0a14', text:'#fbcfe8', accent:'#be123c' },
+  { id:'verde_nativo', emoji:'🌿', bg:'#052e16', text:'#dcfce7', accent:'#22c55e' },
+  { id:'lima', emoji:'💚', bg:'#1a2e05', text:'#ecfccb', accent:'#84cc16' },
+  { id:'prata', emoji:'🪙', bg:'#3b4450', text:'#f1f5f9', accent:'#e2e8f0' },
+  { id:'aco_escovado', emoji:'🔩', bg:'#3d4450', text:'#f8fafc', accent:'#94a3b8' },
+  { id:'neon_mix', emoji:'🌈', bg:'#070708', text:'#fafafa', accent:'#f472b6' },
+  { id:'lilas', emoji:'💜', bg:'#faf5ff', text:'#4c1d95', accent:'#8b5cf6' },
+  { id:'banana', emoji:'🍌', bg:'#fffbeb', text:'#422006', accent:'#eab308' },
+  { id:'abacate', emoji:'🥑', bg:'#1c2e1a', text:'#ecfccb', accent:'#65a30d' },
+  { id:'maca', emoji:'🍎', bg:'#3f0a12', text:'#ffe4e6', accent:'#e11d48' },
+  { id:'royal_blue', emoji:'💎', bg:'#0f172a', text:'#eff6ff', accent:'#2563eb' },
+  { id:'mapa_tesouro', emoji:'🗺️', bg:'#d9c9a8', text:'#3d2914', accent:'#92400e' },
+  { id:'manchado', emoji:'☕', bg:'#e5d8c4', text:'#3d2f22', accent:'#8b5a3c' },
 ] as const;
 
 const BRAND_COLORS: Record<string,string> = {
@@ -201,6 +219,9 @@ function EditorPageInner() {
   const [videos,         setVideos]         = useState<any[]>([]);
   const [ytUrl,          setYtUrl]          = useState('');
   const [ytTitle,        setYtTitle]        = useState('');
+  const [videoPreviewImageUrl, setVideoPreviewImageUrl] = useState('');
+  const [videoPreviewEmbedUrl, setVideoPreviewEmbedUrl] = useState('');
+  const [uploadingVideoCover, setUploadingVideoCover] = useState(false);
   const [paywallEnabled, setPaywallEnabled] = useState(false);
   const [paywallPrice,   setPaywallPrice]   = useState(String(PLATFORM_USD.videoPaywallDefault));
 
@@ -1292,11 +1313,14 @@ function EditorPageInner() {
     await supabase.from('mini_site_videos').insert({
       site_id: site.id, youtube_video_id: ytId,
       title: ytTitle || 'Video', paywall_enabled: paywallEnabled,
-      paywall_price: parseFloat(paywallPrice) || PLATFORM_USD.videoPaywallDefault, sort_order: videos.length
+      paywall_price: parseFloat(paywallPrice) || PLATFORM_USD.videoPaywallDefault,
+      preview_image_url: videoPreviewImageUrl.trim() || null,
+      preview_embed_url: videoPreviewEmbedUrl.trim() || null,
+      sort_order: videos.length
     });
     supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order')
       .then(r => setVideos(r.data || []));
-    setYtUrl(''); setYtTitle('');
+    setYtUrl(''); setYtTitle(''); setVideoPreviewImageUrl(''); setVideoPreviewEmbedUrl('');
     toast.success(T('toast_video_added'));
   };
 
@@ -2316,6 +2340,44 @@ function EditorPageInner() {
               <div className="space-y-3">
                 <input value={ytUrl} onChange={e => setYtUrl(e.target.value)} className="input" placeholder={T('ed_yt_url_ph')} />
                 <input value={ytTitle} onChange={e => setYtTitle(e.target.value)} className="input" placeholder={T('ed_yt_title_ph')} />
+                <div className="space-y-2 rounded-xl border border-[var(--border)] p-3 bg-[var(--bg2)]/40">
+                  <p className="text-xs font-bold text-[var(--text)]">Preview cover (optional)</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={videoPreviewImageUrl}
+                      onChange={e => setVideoPreviewImageUrl(e.target.value)}
+                      className="input"
+                      placeholder="https://.../cover.jpg"
+                    />
+                    <label className="px-3 py-2 rounded-lg border border-dashed border-[var(--border)] text-xs cursor-pointer">
+                      {uploadingVideoCover ? 'Uploading...' : 'Upload'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingVideoCover}
+                        onChange={async e => {
+                          const f = e.target.files?.[0]; if (!f) return;
+                          setUploadingVideoCover(true);
+                          try {
+                            const url = await uploadToStorage(f, 'videos');
+                            setVideoPreviewImageUrl(url);
+                          } catch {
+                            toast.error(T('toast_upload_failed'));
+                          } finally {
+                            setUploadingVideoCover(false);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <input
+                    value={videoPreviewEmbedUrl}
+                    onChange={e => setVideoPreviewEmbedUrl(e.target.value)}
+                    className="input"
+                    placeholder="Preview embed URL (YouTube/Vimeo/Rumble) optional"
+                  />
+                </div>
                 <div className="flex items-center justify-between p-3 bg-[var(--bg2)] rounded-xl">
                   <div>
                     <p className="text-sm font-semibold text-[var(--text)]">{T('ed_paywall_title')}</p>
@@ -2340,10 +2402,14 @@ function EditorPageInner() {
                 <div className="space-y-2 border-t border-[var(--border)] pt-4">
                   {videos.map(v => (
                     <div key={v.id} className="flex items-center gap-3 p-3 bg-[var(--bg2)] rounded-xl">
-                      <img src={`https://img.youtube.com/vi/${v.youtube_video_id}/default.jpg`} className="w-14 h-10 rounded-lg object-cover flex-shrink-0" />
+                      <img
+                        src={v.preview_image_url || `https://img.youtube.com/vi/${v.youtube_video_id}/default.jpg`}
+                        className="w-14 h-10 rounded-lg object-cover flex-shrink-0"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-[var(--text)] truncate">{v.title}</p>
                         {v.paywall_enabled && <p className="text-xs text-amber-400">🔒 ${v.paywall_price} USD</p>}
+                        {v.preview_embed_url && <p className="text-[10px] text-[var(--text2)] truncate">Preview embed configured</p>}
                       </div>
                       <button onClick={() => deleteVideo(v.id)} className="text-red-400 hover:opacity-70"><X className="w-4 h-4" /></button>
                     </div>
@@ -3647,7 +3713,7 @@ function EditorPageInner() {
       </div>
       </div>
 
-      {user ? <ApiHubDrawer /> : null}
+      {user ? <ApiHubDrawer siteId={site?.id || null} /> : null}
 
       {site?.id && user?.id ? (
         <EditorScriptsAndAdsDialog
