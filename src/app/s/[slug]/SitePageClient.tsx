@@ -479,8 +479,41 @@ export default function SitePageClient({
 
   const livelyOpenBeta = process.env.NEXT_PUBLIC_LIVELY_AVATAR_OPEN_BETA === 'true';
   const livelyNftOk = !!(site as any)?.lively_avatar_nft_verified_at;
-  const showLivelyAvatar =
+  const livelyFeatureUnlocked =
     !!(site as any)?.lively_avatar_enabled && (livelyNftOk || livelyOpenBeta || isOwner);
+  const [livelyApiEligible, setLivelyApiEligible] = useState(false);
+  const [livelyEligibilityReady, setLivelyEligibilityReady] = useState(false);
+
+  useEffect(() => {
+    if (!safeSlug || !livelyFeatureUnlocked) {
+      setLivelyApiEligible(false);
+      setLivelyEligibilityReady(true);
+      return;
+    }
+    setLivelyEligibilityReady(false);
+    const ac = new AbortController();
+    void fetch(`/api/lively-avatar/eligibility?slug=${encodeURIComponent(safeSlug)}`, { signal: ac.signal })
+      .then((r) => r.json().catch(() => ({})))
+      .then((d: { eligible?: boolean }) => setLivelyApiEligible(d.eligible === true))
+      .catch(() => setLivelyApiEligible(false))
+      .finally(() => setLivelyEligibilityReady(true));
+    return () => ac.abort();
+  }, [safeSlug, livelyFeatureUnlocked]);
+
+  /** Sem API/orçamento: não manter interruptor “ligado” no armazenamento local. */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !safeSlug || !livelyEligibilityReady) return;
+    if (!livelyApiEligible) {
+      try {
+        localStorage.setItem(`tb_lively_assist_${safeSlug}`, '0');
+      } catch {
+        /* ignore */
+      }
+      setLivelyAssistVisitorOn(false);
+    }
+  }, [safeSlug, livelyEligibilityReady, livelyApiEligible]);
+
+  const showLivelyAvatar = livelyFeatureUnlocked && livelyApiEligible;
   const floatingLivelyActive = showLivelyAvatar && livelyAssistVisitorOn;
 
   const livelyCentralMagic = (site as any)?.lively_central_magic === true;
@@ -1283,7 +1316,7 @@ export default function SitePageClient({
                 const el = ev.target as HTMLElement;
                 if (el.tagName !== 'IMG') return;
                 const img = el as HTMLImageElement;
-                if (!img.closest('.tb-page-media')) return;
+                if (!img.closest('.rich-content')) return;
                 const src = img.currentSrc || img.getAttribute('src');
                 if (src) setLightboxImage(src);
               }}
@@ -1372,7 +1405,7 @@ export default function SitePageClient({
         )}
       </div>
       <style>{`*{box-sizing:border-box}body{margin:0}@keyframes spin{to{transform:rotate(360deg)}}
-      .rich-content img{max-width:100%;height:auto;border-radius:10px;display:block;margin:10px 0}
+      .rich-content img{max-width:100%;height:auto;border-radius:10px;display:block;margin:10px 0;cursor:zoom-in}
       .rich-content .tb-page-media{margin-top:12px}
       .rich-content .tb-page-media-grid img,.rich-content .tb-page-media-img{max-width:100%;width:100%;height:auto!important;object-fit:contain!important;max-height:none!important;border-radius:12px;cursor:zoom-in}
       .rich-content iframe{max-width:100%;width:100%;min-height:240px;border:0;border-radius:12px;display:block;margin:10px 0}

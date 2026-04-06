@@ -73,6 +73,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Rotas da app (não são páginas do mini-site). Sem isto, `slug.dominio/api/video-token` virava
+  // rewrite para `/s/slug/api/...` → 404/HTML e o player mostrava "error loading video".
+  const path = url.pathname;
+  if (
+    path.startsWith('/api/') ||
+    path.startsWith('/auth') ||
+    path.startsWith('/_next/')
+  ) {
+    return NextResponse.next();
+  }
+
   // ── Mini-site público: slug.rootDomain → rewrite para /s/[slug] (URL real no browser continua o subdomínio)
   const managePreview = url.searchParams.get('manage') === '1';
 

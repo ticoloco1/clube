@@ -6,6 +6,7 @@ import { useCart } from '@/store/cart';
 import { Play, Lock, Loader2, LogIn, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { isDbPaywallEnabled } from '@/lib/utils';
 
 interface SecureVideoPlayerProps {
   videoId: string;           // DB id of mini_site_video
@@ -22,6 +23,7 @@ export function SecureVideoPlayer({
   creatorName, siteSlug, accentColor = '#818cf8',
 }: SecureVideoPlayerProps) {
   const T = useT();
+  const paywallOn = isDbPaywallEnabled(paywallEnabled);
   const { user } = useAuth();
   const { add, open: openCart } = useCart();
   const [state, setState] = useState<'idle' | 'loading' | 'playing' | 'login' | 'pay' | 'error'>('idle');
@@ -38,15 +40,18 @@ export function SecureVideoPlayer({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ videoId, siteSlug }),
       });
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
 
       if (res.status === 401) { setState('login'); return; }
-      if (res.status === 402) { setState('pay'); return; }
-      if (!res.ok) throw new Error(data.error);
+      if (res.status === 402 || data.error === 'Paywall') { setState('pay'); return; }
+      if (!res.ok) throw new Error(data.error || res.statusText);
 
-      setToken(data.token);
+      const tok = data.token;
+      if (!tok || typeof tok !== 'string') throw new Error('Token em falta');
+
+      setToken(tok);
       // Verify and get ytId
-      const verify = await fetch(`/api/video-token?t=${encodeURIComponent(data.token)}`);
+      const verify = await fetch(`/api/video-token?t=${encodeURIComponent(tok)}`);
       const vdata = await verify.json();
       if (!vdata.valid) throw new Error('Token invalid');
       setYtId(vdata.ytId);
@@ -173,7 +178,7 @@ export function SecureVideoPlayer({
   }
 
   // Idle — show play button, thumbnail is a gradient (no real thumb for paywalled content)
-  const showThumb = !paywallEnabled;
+  const showThumb = !paywallOn;
 
   return (
     <div className="relative w-full rounded-2xl overflow-hidden cursor-pointer group" style={{ aspectRatio: '16/9', background: '#000' }}
@@ -181,19 +186,19 @@ export function SecureVideoPlayer({
       {showThumb && (
         <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg,#1a1a2e,#16213e)' }} />
       )}
-      {paywallEnabled && (
+      {paywallOn && (
         <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 50%, ${accentColor}10 0%, #050510 100%)` }} />
       )}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
         <div className="w-14 h-14 rounded-full flex items-center justify-center transition-transform group-hover:scale-110"
-          style={{ background: paywallEnabled ? accentColor + '30' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', border: `2px solid ${paywallEnabled ? accentColor + '60' : 'rgba(255,255,255,0.2)'}` }}>
-          {paywallEnabled
+          style={{ background: paywallOn ? accentColor + '30' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', border: `2px solid ${paywallOn ? accentColor + '60' : 'rgba(255,255,255,0.2)'}` }}>
+          {paywallOn
             ? <Lock className="w-6 h-6" style={{ color: accentColor }} />
             : <Play className="w-6 h-6 fill-white text-white ml-1" />
           }
         </div>
         {title && <p className="text-white/70 text-sm font-semibold max-w-xs text-center px-4">{title}</p>}
-        {paywallEnabled && paywallPrice && (
+        {paywallOn && paywallPrice && (
           <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: accentColor + '20', color: accentColor, border: `1px solid ${accentColor}40` }}>
             ${paywallPrice} USD
           </span>

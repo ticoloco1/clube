@@ -23,6 +23,10 @@ export const EXTRA_UI_MESSAGES: Record<string, MessageRow> = {
   rte_embed_invalid: { en: 'Use a valid https embed URL (YouTube, Vimeo, etc.).', pt: 'Use um URL https válido (YouTube, Vimeo, etc.).' },
   rte_max_images: { en: 'This page already has {n} images (maximum).', pt: 'Esta página já tem {n} imagens (máximo).' },
   rte_max_images_partial: { en: 'Only some files were added — maximum {n} images per page.', pt: 'Só alguns ficheiros foram adicionados — máximo {n} imagens por página.' },
+  ed_page_inline_media_hint: {
+    en: 'Use the toolbar — image and video icons — to place photos and embeds anywhere in the text.',
+    pt: 'Usa a barra de ferramentas — ícones de imagem e vídeo — para colocar fotos e vídeos em qualquer ponto do texto.',
+  },
   ed_page_media_block_title: { en: 'Photos & video (below text)', pt: 'Fotos e vídeo (abaixo do texto)' },
   ed_page_media_slot: { en: 'Photo {n} (max 2)', pt: 'Foto {n} (máx. 2)' },
   ed_page_media_video_label: { en: 'Video embed (YouTube / Vimeo)', pt: 'Vídeo incorporado (YouTube / Vimeo)' },

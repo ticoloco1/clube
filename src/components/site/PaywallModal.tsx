@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Lock, Play, X, CreditCard, CheckCircle, Loader2, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useT } from '@/lib/i18n';
+import { isDbPaywallEnabled } from '@/lib/utils';
 
 interface PaywallModalProps {
   video: {
@@ -179,8 +180,9 @@ interface PaywallVideoProps {
 export function PaywallVideo({ video, creatorWallet, creatorName, isUnlocked }: PaywallVideoProps) {
   const [unlocked, setUnlocked] = useState(isUnlocked || false);
   const [showModal, setShowModal] = useState(false);
+  const gated = isDbPaywallEnabled(video.paywall_enabled);
 
-  if (!video.paywall_enabled || unlocked) {
+  if (!gated || unlocked) {
     return (
       <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black">
         <iframe

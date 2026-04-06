@@ -117,6 +117,26 @@ export function splitPageRichContent(html: string): { body: string; images: stri
   return { body, images, videoEmbedUrl };
 }
 
+/**
+ * Remove o marcador legado entre texto e bloco de mídia, juntando tudo num único HTML
+ * (mídia fica colada ao texto no mesmo documento — editável no meio do post).
+ */
+export function flattenLegacyPageMedia(html: string): string {
+  if (!html?.trim()) return html || '';
+  let idx = html.indexOf(PAGE_MEDIA_SPLIT_HTML);
+  let splitLen = PAGE_MEDIA_SPLIT_HTML.length;
+  if (idx < 0) {
+    idx = html.indexOf(PAGE_MEDIA_MARKER);
+    splitLen = PAGE_MEDIA_MARKER.length;
+  }
+  if (idx < 0) return html;
+  const head = html.slice(0, idx).trimEnd();
+  const tail = html.slice(idx + splitLen).trimStart();
+  if (!tail) return head;
+  if (!head) return tail;
+  return `${head}\n${tail}`;
+}
+
 export function mergePageRichContent(body: string, images: string[], videoEmbedUrl: string): string {
   const esc = (s: string) => s.replace(/"/g, '&quot;');
   const imgs = images.map((u) => u.trim()).filter(Boolean).slice(0, 2);

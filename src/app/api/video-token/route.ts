@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { isDbPaywallEnabled, isValidYouTubeVideoId } from '@/lib/utils';
 
 function getDb() {
   return createClient(
@@ -119,10 +120,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Indisponível' }, { status: 403 });
     }
 
-    const yt = (video as { youtube_video_id: string }).youtube_video_id;
-    const paywall = !!(video as { paywall_enabled?: boolean }).paywall_enabled;
+    const paywall = isDbPaywallEnabled((video as { paywall_enabled?: unknown }).paywall_enabled);
     const isOwner = user.id === s.user_id;
 
+    // Antes de validar o ID do YouTube: visitante sem desbloqueio deve ver pagamento (402), não erro genérico.
     if (paywall && !isOwner) {
       const { data: unlock } = await db
         .from('paywall_unlocks' as never)
@@ -135,6 +136,12 @@ export async function POST(req: NextRequest) {
       if (!unlock) {
         return NextResponse.json({ error: 'Paywall' }, { status: 402 });
       }
+    }
+
+    const ytRaw = (video as { youtube_video_id?: string | null }).youtube_video_id;
+    const yt = typeof ytRaw === 'string' ? ytRaw.trim() : '';
+    if (!isValidYouTubeVideoId(yt)) {
+      return NextResponse.json({ error: 'ID de vídeo inválido' }, { status: 400 });
     }
 
     const exp = Math.floor(Date.now() / 1000) + 3600;
