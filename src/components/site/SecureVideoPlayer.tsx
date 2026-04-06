@@ -45,7 +45,11 @@ export function SecureVideoPlayer({
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
 
-      if (res.status === 401) { setState('login'); return; }
+      if (res.status === 401) {
+        // Para vídeo com paywall, mostra opções de pagamento (wallet/stripe) sem obrigar login.
+        setState(paywallOn ? 'pay' : 'login');
+        return;
+      }
       if (res.status === 402 || data.error === 'Paywall') { setState('pay'); return; }
       if (!res.ok) throw new Error(data.error || res.statusText);
 
