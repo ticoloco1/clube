@@ -2,37 +2,6 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
 
-/** Host apex preferido (www vs apex) — alinhado a SITE_CANONICAL_URL / NEXT_PUBLIC_SITE_URL; só middleware (sem importar siteBaseUrl → next/headers). */
-function preferredApexHostname(rootDomain: string): string | null {
-  const root = rootDomain.toLowerCase();
-  const variants = [root, `www.${root}`];
-  const candidates = [process.env.SITE_CANONICAL_URL?.trim(), process.env.NEXT_PUBLIC_SITE_URL?.trim()].filter(Boolean) as string[];
-  for (const c of candidates) {
-    try {
-      const host = new URL(normalizePublicSiteUrl(c)).hostname.toLowerCase();
-      if (variants.includes(host)) return host;
-    } catch {
-      /* next */
-    }
-  }
-  return null;
-}
-
-/** 301 entre `dominio` e `www.dominio` para evitar duplicatas sem canónica clara no Google. */
-function apexCanonicalHostRedirect(request: NextRequest, rootDomain: string): NextResponse | null {
-  const hostname = (request.headers.get('host') || '').split(':')[0].toLowerCase();
-  const root = rootDomain.toLowerCase();
-  const variants = [root, `www.${root}`];
-  if (!variants.includes(hostname)) return null;
-
-  const preferred = preferredApexHostname(root);
-  if (!preferred || hostname === preferred) return null;
-
-  const url = request.nextUrl.clone();
-  url.hostname = preferred;
-  return NextResponse.redirect(url, 301);
-}
-
 /**
  * Apex usado para reconhecer `slug.apex` no middleware.
  * - Defina `NEXT_PUBLIC_ROOT_DOMAIN` na Vercel se o site principal for outro host.
@@ -85,8 +54,8 @@ export function middleware(request: NextRequest) {
 
   // ── Domínio principal: rotas /s/[slug] são só caminho interno / preview — não competir com slug.dominio no Google
   if (isApex) {
-    const hostRedirect = apexCanonicalHostRedirect(request, rootDomain);
-    if (hostRedirect) return hostRedirect;
+    // Não redirecionar www ↔ apex aqui: Cloudflare/Vercel costuma já forçar um lado; um 301 na app
+    // noutro sentido cria loop infinito (ex. CF 307 apex→www + app 301 www→apex).
     if (url.pathname.startsWith('/s/')) {
       return withNoIndex(NextResponse.next());
     }
