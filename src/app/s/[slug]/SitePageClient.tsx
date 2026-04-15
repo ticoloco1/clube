@@ -30,6 +30,7 @@ import { DIRECTORY_PROFILE_I18N_KEYS } from '@/lib/directoryProfileLabels';
 import { PLATFORM_USD } from '@/lib/platformPricing';
 import { hasDisplayableRichHtml, normalizeRichEmbeds, youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
 import { trackSiteVisit, trackLinkClick, trackPageView } from '@/lib/publicAnalytics';
+import { publicSiteUrlFromEnv } from '@/lib/publicSiteUrl';
 import { extractPageModulesLayout, isReservedPageModulesKey } from '@/lib/pageModulesLayout';
 import { FeedPostImpression } from '@/components/site/FeedPostImpression';
 import { StripeCheckout } from '@/components/ui/StripeCheckout';
@@ -414,7 +415,13 @@ export default function SitePageClient({
   useEffect(() => {
     if (!site?.slug || typeof window === 'undefined' || hostRedirectDone.current) return;
     const host = window.location.hostname;
-    const canonical = `${site.slug}.trustbank.xyz`;
+    let canonicalHost = 'trustbank.xyz';
+    try {
+      canonicalHost = new URL(publicSiteUrlFromEnv()).hostname.replace(/^www\./i, '') || canonicalHost;
+    } catch {
+      /* keep default */
+    }
+    const canonical = `${site.slug}.${canonicalHost}`;
     const manageMode = new URLSearchParams(window.location.search).get('manage') === '1';
     if (!manageMode && (host === 'trustbank.xyz' || host === 'www.trustbank.xyz') && window.location.pathname.startsWith('/s/')) {
       hostRedirectDone.current = true;

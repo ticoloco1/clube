@@ -286,6 +286,7 @@ export function usePublicSite(
     .replace(/^@+/, '')
     .toLowerCase();
   const ssr = opts?.ssrSite;
+  const { loading: authLoading } = useAuth();
   const [site, setSite] = useState<MiniSite | null>(() =>
     ssr !== undefined && ssr !== null ? ssr : null,
   );
@@ -334,20 +335,39 @@ export function usePublicSite(
 
       if (caseInsensitive.error) {
         console.error('Error loading public site:', caseInsensitive.error);
-        setNotFound(true);
-      } else if (!Array.isArray(caseInsensitive.data) || !caseInsensitive.data[0]) {
-        setNotFound(true);
-      } else {
-        setSite(caseInsensitive.data[0] as MiniSite);
-        setNotFound(false);
       }
+
+      const row =
+        !caseInsensitive.error && Array.isArray(caseInsensitive.data) && caseInsensitive.data[0]
+          ? (caseInsensitive.data[0] as MiniSite)
+          : null;
+
+      if (row) {
+        setSite(row);
+        setNotFound(false);
+        setLoading(false);
+        return;
+      }
+
+      /**
+       * RLS: só `published` ou dono (`auth.uid() = user_id`). Antes da sessão hidratar,
+       * o cliente parece anónimo — mini-site em rascunho parece “inexistente”.
+       * Não marcar notFound até `authLoading` ser false; depois o efeito re-corre com JWT.
+       */
+      if (authLoading) {
+        setLoading(true);
+        setNotFound(false);
+        return;
+      }
+
+      setNotFound(true);
       setLoading(false);
     };
     void loadPublic();
     return () => {
       cancelled = true;
     };
-  }, [normalizedSlug]);
+  }, [normalizedSlug, authLoading]);
 
   return { site, loading, notFound };
 }
