@@ -1,11 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Zap, ExternalLink, CheckCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { postCheckoutSession } from '@/lib/checkoutClient';
-const CHECKOUT_PROVIDER = (process.env.NEXT_PUBLIC_CHECKOUT_PROVIDER || 'stripe').toLowerCase();
+const CHECKOUT_PROVIDER = 'stripe';
 const MOONPAY_CHECKOUT_URL = (process.env.NEXT_PUBLIC_MOONPAY_CHECKOUT_URL || '').trim();
 
 interface StripeCheckoutProps {
@@ -29,6 +29,39 @@ export function StripeCheckout({
   const [step, setStep] = useState<'idle'|'pending'|'done'>('idle');
   const [checkoutUrl, setCheckoutUrl] = useState('');
   const [pendingId, setPendingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (step !== 'pending' || CHECKOUT_PROVIDER !== 'stripe' || !pendingId) return;
+    let cancelled = false;
+    let tries = 0;
+    const maxTries = 45;
+    const timer = setInterval(async () => {
+      if (cancelled) return;
+      tries += 1;
+      try {
+        const res = await fetch('/api/checkout/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pendingId }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { fulfilled?: boolean };
+        if (res.ok && data.fulfilled) {
+          clearInterval(timer);
+          setStep('done');
+          onSuccess?.();
+          toast.success(T('toast_payment_confirming'));
+        } else if (tries >= maxTries) {
+          clearInterval(timer);
+        }
+      } catch {
+        if (tries >= maxTries) clearInterval(timer);
+      }
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [step, pendingId, onSuccess, T]);
 
   const handlePay = async () => {
     if (!user) {
@@ -94,6 +127,12 @@ export function StripeCheckout({
         toast.success('Pagamento enviado via MoonPay.');
         return;
       }
+      if (CHECKOUT_PROVIDER === 'helio') {
+        setStep('done');
+        onSuccess?.();
+        toast.success('Pagamento enviado via Helio.');
+        return;
+      }
       if (!pendingId) throw new Error('Sem pendingId para confirmar pagamento');
       const res = await fetch('/api/checkout/status', {
         method: 'POST',
@@ -132,10 +171,10 @@ export function StripeCheckout({
         {T('stripe_co_complete_hint')}
       </p>
       <div className="flex gap-2">
-        <button onClick={handleConfirm} disabled={loading}
+        <button onClick={handleConfirm} disabled={loading || CHECKOUT_PROVIDER === 'stripe'}
           className="btn-primary flex-1 justify-center text-sm py-2 gap-2"
           style={{ background: accentColor }}>
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} {T('stripe_co_i_paid')}
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} {CHECKOUT_PROVIDER === 'stripe' ? 'Aguardar confirmação automática' : T('stripe_co_i_paid')}
         </button>
         <a href={checkoutUrl} target="_blank" rel="noopener"
           className="btn-secondary px-3 py-2">

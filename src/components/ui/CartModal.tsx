@@ -9,7 +9,7 @@ import { publicSiteUrlFromEnv } from '@/lib/publicSiteUrl';
 import { postCheckoutSession } from '@/lib/checkoutClient';
 
 const POLYGON_WALLET_LS = 'tb_checkout_polygon_wallet';
-const CHECKOUT_PROVIDER = (process.env.NEXT_PUBLIC_CHECKOUT_PROVIDER || 'stripe').toLowerCase();
+const CHECKOUT_PROVIDER = 'stripe';
 const MOONPAY_CHECKOUT_URL = (process.env.NEXT_PUBLIC_MOONPAY_CHECKOUT_URL || '').trim();
 const HELIO_PAYLINK_ID = (process.env.NEXT_PUBLIC_HELIO_PAYLINK_ID || '').trim();
 const HELIO_PAYLINK_URL = (process.env.NEXT_PUBLIC_HELIO_PAYLINK_URL || '').trim();
@@ -106,6 +106,39 @@ export function CartModal() {
     script.addEventListener('error', () => setHelioBootError('Falha ao carregar script do Helio.'), { once: true });
     document.head.appendChild(script);
   }, [step, clear, total]);
+
+  useEffect(() => {
+    if (step !== 'paying' || !pendingId || CHECKOUT_PROVIDER !== 'stripe') return;
+    let cancelled = false;
+    let tries = 0;
+    const maxTries = 45; // ~90s
+    const timer = setInterval(async () => {
+      if (cancelled) return;
+      tries += 1;
+      try {
+        const res = await fetch('/api/checkout/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pendingId }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { fulfilled?: boolean };
+        if (res.ok && data.fulfilled) {
+          clearInterval(timer);
+          clear();
+          setStep('done');
+          toast.success('Pagamento confirmado.');
+        } else if (tries >= maxTries) {
+          clearInterval(timer);
+        }
+      } catch {
+        if (tries >= maxTries) clearInterval(timer);
+      }
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [step, pendingId, clear]);
 
   const handleCheckout = async () => {
     if (!user) { 
@@ -209,7 +242,6 @@ export function CartModal() {
     }
   };
 
-  // Called after user returns from Stripe Checkout
   const handleConfirmPaid = async () => {
     setProcessing(true);
     try {
@@ -217,6 +249,12 @@ export function CartModal() {
         clear();
         setStep('done');
         toast.success('Pagamento enviado via MoonPay. Se não ativar em instantes, valida no painel MoonPay.');
+        return;
+      }
+      if (CHECKOUT_PROVIDER === 'helio') {
+        clear();
+        setStep('done');
+        toast.success('Pagamento enviado via Helio.');
         return;
       }
       if (!pendingId) {
@@ -345,11 +383,11 @@ export function CartModal() {
             </p>
             <div className="space-y-2">
               {CHECKOUT_PROVIDER !== 'helio' ? (
-                <button onClick={handleConfirmPaid} disabled={processing}
+                <button onClick={handleConfirmPaid} disabled={processing || CHECKOUT_PROVIDER === 'stripe'}
                   className="btn-primary w-full justify-center py-3 gap-2">
                   {processing
                     ? <><Loader2 className="w-4 h-4 animate-spin" /> {T('cart_processing')}</>
-                    : T('cart_i_completed')}
+                    : CHECKOUT_PROVIDER === 'stripe' ? 'Aguardar confirmação automática' : T('cart_i_completed')}
                 </button>
               ) : null}
               {CHECKOUT_PROVIDER === 'helio' ? (
