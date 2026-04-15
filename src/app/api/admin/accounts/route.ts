@@ -150,3 +150,37 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
+
+/** DELETE { userId } — remove conta Auth (admin only). */
+export async function DELETE(req: Request) {
+  try {
+    const admin = await getSessionUser();
+    if (!admin?.email || admin.email.toLowerCase() !== ADMIN_EMAIL) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const db = getServiceDb();
+    if (!db) {
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 503 });
+    }
+
+    const body = (await req.json().catch(() => ({}))) as { userId?: string };
+    const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
+    if (!userId) {
+      return NextResponse.json({ error: 'userId required' }, { status: 400 });
+    }
+    if (userId === admin.id) {
+      return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
+    }
+
+    const { error } = await db.auth.admin.deleteUser(userId, true);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/accounts DELETE]', e);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}

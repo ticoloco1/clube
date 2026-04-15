@@ -11,7 +11,6 @@ import { Home, Upload, X, Plus, MapPin, DollarSign, ArrowLeft, Loader2, CheckCir
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import Link from 'next/link';
-import { PLATFORM_USD } from '@/lib/platformPricing';
 
 const REGIONS = ['Americas','Europe','Asia','Africa','Oceania','Middle East'];
 const TIPOS   = ['Apartamento','Casa','Comercial','Terreno','Studio','Fazenda','Outro'];
@@ -61,23 +60,35 @@ export default function NovoImoveisPage() {
     if (!title || !price) { toast.error(T('err_title_price_required')); return; }
     if (!site?.id) { toast.error(T('err_mini_site_required')); return; }
     setSaving(true);
+    const { count: listingCount } = await (supabase as any)
+      .from('classified_listings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+    const usedCount = typeof listingCount === 'number' ? listingCount : 0;
+    const freeQuota = 10;
+    const isFree = usedCount < freeQuota;
+
     const { data: listingRow, error } = await (supabase as any).from('classified_listings').insert({
       site_id: site.id, user_id: user.id, type: 'imovel',
       title, price: parseFloat(price), currency,
       region, country, state_city: stateCity,
-      images, status: 'pending', // pending until payment
+      images, status: isFree ? 'active' : 'pending',
       extra: { tipo, quartos: quartos ? parseInt(quartos) : null, banheiros: banheiros ? parseInt(banheiros) : null, m2: m2 ? parseInt(m2) : null, garagem: garagem ? parseInt(garagem) : null, descricao: desc },
     }).select('id').single();
     if (error) { toast.error(error.message); setSaving(false); return; }
-    const listingMo = PLATFORM_USD.classifiedListingMonthly;
-    add({
-      id: `classified_${listingRow.id}`,
-      label: `Property listing: ${title} — $${listingMo.toFixed(2)} USD/month`,
-      price: listingMo,
-      type: 'classified',
-    });
-    toast.success(T('toast_property_created_pay'));
-    openCart();
+    if (!isFree) {
+      const listingFee = 5;
+      add({
+        id: `classified_${listingRow.id}`,
+        label: `Property listing: ${title} — $${listingFee.toFixed(2)} USD`,
+        price: listingFee,
+        type: 'classified',
+      });
+      toast.success('Listing created. Please complete payment to publish it.');
+      openCart();
+    } else {
+      toast.success('Listing published (free slot used).');
+    }
     router.push('/imoveis');
   };
 
@@ -92,7 +103,7 @@ export default function NovoImoveisPage() {
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center"><Home className="w-5 h-5 text-blue-500" /></div>
           <div>
             <h1 className="font-black text-xl text-[var(--text)]">List a Property</h1>
-            <p className="text-xs text-[var(--text2)]">${PLATFORM_USD.classifiedListingMonthly.toFixed(2)} USDC/month · Cancel anytime</p>
+            <p className="text-xs text-[var(--text2)]">First 10 listings are free. After that: $5.00 per listing.</p>
           </div>
         </div>
 
@@ -201,13 +212,13 @@ export default function NovoImoveisPage() {
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
             <DollarSign className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-sm text-blue-300">${PLATFORM_USD.classifiedListingMonthly.toFixed(2)} USDC/month</p>
-              <p className="text-xs text-blue-400/70 mt-0.5">Your listing goes live after payment. Global visibility. Cancel anytime.</p>
+              <p className="font-semibold text-sm text-blue-300">Pricing: first 10 free, then $5.00 per listing</p>
+              <p className="text-xs text-blue-400/70 mt-0.5">Listings inside free quota go live immediately. Paid ones go live after checkout.</p>
             </div>
           </div>
 
           <button type="submit" disabled={saving} className="btn-primary w-full justify-center py-3.5 text-base">
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> List for ${PLATFORM_USD.classifiedListingMonthly.toFixed(2)}/month</>}
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> Create listing</>}
           </button>
         </form>
       </div>

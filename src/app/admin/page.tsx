@@ -47,7 +47,7 @@ function Toggle({ label, desc, value, onChange }: any) {
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const T = useT();
-  const [tab, setTab] = useState<'analytics'|'accounts'|'minisites'|'mystic'|'slugs'|'broadcast'|'features'|'pricing'|'wallet'|'apis'|'code'|'plans'>('analytics');
+  const [tab, setTab] = useState<'analytics'|'accounts'|'minisites'|'classifieds'|'mystic'|'slugs'|'broadcast'|'features'|'pricing'|'wallet'|'apis'|'code'|'plans'>('analytics');
   const [saving, setSaving] = useState(false);
   /** null = a verificar; evita hooks condicionais mais abaixo */
   const [adminAllowed, setAdminAllowed] = useState<boolean | null>(null);
@@ -171,32 +171,37 @@ export default function AdminPage() {
   const [miniSitesBulkText, setMiniSitesBulkText] = useState('');
   const [miniSitesBulkLoading, setMiniSitesBulkLoading] = useState(false);
   const [miniSitesBulkLog, setMiniSitesBulkLog] = useState<string[]>([]);
+  const [miniSitesActionId, setMiniSitesActionId] = useState<string | null>(null);
+
+  const CLASSIFIEDS_PER_PAGE = 30;
+  const [classifiedsPage, setClassifiedsPage] = useState(1);
+  const [classifiedsList, setClassifiedsList] = useState<any[]>([]);
+  const [classifiedsTotal, setClassifiedsTotal] = useState(0);
+  const [classifiedsLoading, setClassifiedsLoading] = useState(false);
+  const [classifiedsActionId, setClassifiedsActionId] = useState<string | null>(null);
 
   const loadMyMiniSites = useCallback(
     async (page: number) => {
-      if (!user?.id) return;
       setMiniSitesLoading(true);
       try {
-        const from = (page - 1) * MINI_SITES_PER_PAGE;
-        const to = from + MINI_SITES_PER_PAGE - 1;
-        const { data, error, count } = await supabase
-          .from('mini_sites')
-          .select('id, slug, site_name, avatar_url, published, updated_at', { count: 'exact' })
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false })
-          .range(from, to);
-        if (error) throw error;
-        setMiniSitesList(
-          (data || []) as {
+        const res = await fetch(`/api/admin/minisites?page=${page}&perPage=${MINI_SITES_PER_PAGE}`, { cache: 'no-store' });
+        const j = (await res.json().catch(() => ({}))) as {
+          rows?: {
             id: string;
+            user_id: string;
             slug: string;
             site_name: string;
             avatar_url: string | null;
             published: boolean;
             updated_at: string;
-          }[],
-        );
-        setMiniSitesTotal(typeof count === 'number' ? count : 0);
+            contact_email?: string | null;
+          }[];
+          total?: number;
+          error?: string;
+        };
+        if (!res.ok) throw new Error(j.error || 'Failed to load mini-sites');
+        setMiniSitesList((j.rows || []) as any);
+        setMiniSitesTotal(typeof j.total === 'number' ? j.total : 0);
         setMiniSitesPage(page);
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : String(e));
@@ -204,7 +209,7 @@ export default function AdminPage() {
         setMiniSitesLoading(false);
       }
     },
-    [user?.id],
+    [],
   );
 
   const createMiniSitesBulk = async () => {
@@ -246,6 +251,102 @@ export default function AdminPage() {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setMiniSitesBulkLoading(false);
+    }
+  };
+
+  const setMiniSiteState = async (id: string, action: 'publish' | 'block') => {
+    setMiniSitesActionId(id);
+    try {
+      const res = await fetch('/api/admin/minisites', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error || 'Failed to update mini-site');
+      toast.success(action === 'publish' ? 'Mini-site published.' : 'Mini-site blocked.');
+      await loadMyMiniSites(miniSitesPage);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMiniSitesActionId(null);
+    }
+  };
+
+  const deleteMiniSiteById = async (id: string) => {
+    const ok = window.confirm('Delete this mini-site permanently?');
+    if (!ok) return;
+    setMiniSitesActionId(id);
+    try {
+      const res = await fetch('/api/admin/minisites', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error || 'Failed to delete mini-site');
+      toast.success('Mini-site deleted.');
+      await loadMyMiniSites(miniSitesPage);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMiniSitesActionId(null);
+    }
+  };
+
+  const loadClassifieds = useCallback(async (page: number) => {
+    setClassifiedsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/classifieds?page=${page}&perPage=${CLASSIFIEDS_PER_PAGE}`, { cache: 'no-store' });
+      const j = (await res.json().catch(() => ({}))) as { rows?: any[]; total?: number; error?: string };
+      if (!res.ok) throw new Error(j.error || 'Failed to load classifieds');
+      setClassifiedsList(j.rows || []);
+      setClassifiedsTotal(typeof j.total === 'number' ? j.total : 0);
+      setClassifiedsPage(page);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClassifiedsLoading(false);
+    }
+  }, []);
+
+  const setClassifiedStatus = async (id: string, status: 'active' | 'blocked' | 'pending') => {
+    setClassifiedsActionId(id);
+    try {
+      const res = await fetch('/api/admin/classifieds', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error || 'Failed to update listing');
+      toast.success(`Listing set to ${status}.`);
+      await loadClassifieds(classifiedsPage);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClassifiedsActionId(null);
+    }
+  };
+
+  const deleteClassified = async (id: string) => {
+    const ok = window.confirm('Delete this listing permanently?');
+    if (!ok) return;
+    setClassifiedsActionId(id);
+    try {
+      const res = await fetch('/api/admin/classifieds', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error || 'Failed to delete listing');
+      toast.success('Listing deleted.');
+      await loadClassifieds(classifiedsPage);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClassifiedsActionId(null);
     }
   };
 
@@ -479,6 +580,12 @@ export default function AdminPage() {
     void loadMyMiniSites(miniSitesPage);
   }, [adminAllowed, tab, miniSitesPage, loadMyMiniSites]);
 
+  useEffect(() => {
+    if (adminAllowed !== true) return;
+    if (tab !== 'classifieds') return;
+    void loadClassifieds(classifiedsPage);
+  }, [adminAllowed, tab, classifiedsPage, loadClassifieds]);
+
   const loadAllSlugs = async (search = '') => {
     setAllSlugsLoading(true);
     let q = (supabase as any).from('slug_registrations').select('*').order('created_at', { ascending: false }).limit(100);
@@ -624,6 +731,7 @@ export default function AdminPage() {
       { id: 'analytics' as const, label: T('admin_tab_analytics'), icon: BarChart3 },
       { id: 'accounts' as const, label: T('admin_tab_accounts'), icon: Users },
       { id: 'minisites' as const, label: T('admin_tab_minisites'), icon: LayoutGrid },
+      { id: 'classifieds' as const, label: 'Classifieds', icon: Tag },
       { id: 'mystic' as const, label: T('admin_tab_mystic'), icon: Sparkles },
       { id: 'slugs' as const, label: T('admin_tab_slugs'), icon: Key },
       { id: 'pricing' as const, label: T('admin_tab_pricing'), icon: DollarSign },
@@ -804,6 +912,34 @@ export default function AdminPage() {
                               {accountsTogglingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : T('admin_accounts_block')}
                             </button>
                           )}
+                          <button
+                            type="button"
+                            disabled={accountsTogglingId === row.id || isSelf}
+                            onClick={async () => {
+                              const ok = window.confirm(`Delete account ${label}? This is permanent.`);
+                              if (!ok) return;
+                              setAccountsTogglingId(row.id);
+                              try {
+                                const res = await fetch('/api/admin/accounts', {
+                                  method: 'DELETE',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ userId: row.id }),
+                                });
+                                const j = (await res.json().catch(() => ({}))) as { error?: string };
+                                if (!res.ok) {
+                                  toast.error(j.error || 'Failed to delete account');
+                                  return;
+                                }
+                                toast.success('Account deleted.');
+                                await loadAccounts(accountsPage);
+                              } finally {
+                                setAccountsTogglingId(null);
+                              }
+                            }}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     );
@@ -948,6 +1084,33 @@ export default function AdminPage() {
                         <ExternalLink className="w-3.5 h-3.5" />
                         {T('admin_minisites_view')}
                       </a>
+                      {row.published ? (
+                        <button
+                          type="button"
+                          onClick={() => void setMiniSiteState(row.id, 'block')}
+                          disabled={miniSitesActionId === row.id}
+                          className="text-xs font-bold px-3 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                        >
+                          Block
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void setMiniSiteState(row.id, 'publish')}
+                          disabled={miniSitesActionId === row.id}
+                          className="text-xs font-bold px-3 py-2 rounded-lg border border-green-500/40 text-green-400 hover:bg-green-500/10 disabled:opacity-50"
+                        >
+                          Publish
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void deleteMiniSiteById(row.id)}
+                        disabled={miniSitesActionId === row.id}
+                        className="text-xs font-bold px-3 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -956,6 +1119,104 @@ export default function AdminPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {tab === 'classifieds' && (
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="font-black text-[var(--text)] text-lg">Classified moderation</h3>
+                <p className="text-xs text-[var(--text2)] mt-1">
+                  Approve, block or delete listings from one place.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadClassifieds(classifiedsPage)}
+                disabled={classifiedsLoading}
+                className="btn-secondary text-sm px-4 gap-2"
+              >
+                {classifiedsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Refresh
+              </button>
+            </div>
+
+            <p className="text-xs text-[var(--text2)]">
+              Page {classifiedsPage} · Total {classifiedsTotal}
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={classifiedsLoading || classifiedsPage <= 1}
+                onClick={() => setClassifiedsPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm font-semibold disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                disabled={classifiedsLoading || classifiedsPage * CLASSIFIEDS_PER_PAGE >= classifiedsTotal}
+                onClick={() => setClassifiedsPage((p) => p + 1)}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm font-semibold disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
+              {classifiedsList.map((row) => (
+                <div key={row.id} className="px-3 py-3 bg-[var(--bg2)]/50 hover:bg-[var(--bg2)]">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-[var(--text)] truncate">{row.title || 'Untitled'}</p>
+                      <p className="text-xs text-[var(--text2)]">
+                        {row.type} · {row.currency || 'USD'} {Number(row.price || 0).toLocaleString()} · {row.mini_sites?.slug ? `${row.mini_sites.slug}.trustbank.xyz` : row.site_id}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                        row.status === 'active'
+                          ? 'bg-green-500/15 text-green-400'
+                          : row.status === 'blocked'
+                            ? 'bg-red-500/15 text-red-400'
+                            : 'bg-amber-500/15 text-amber-400'
+                      }`}>
+                        {row.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void setClassifiedStatus(row.id, 'active')}
+                        disabled={classifiedsActionId === row.id}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-green-500/40 text-green-400 hover:bg-green-500/10 disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void setClassifiedStatus(row.id, 'blocked')}
+                        disabled={classifiedsActionId === row.id}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
+                      >
+                        Block
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteClassified(row.id)}
+                        disabled={classifiedsActionId === row.id}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {classifiedsList.length === 0 && !classifiedsLoading && (
+                <p className="text-sm text-[var(--text2)] text-center py-8">No classifieds found.</p>
+              )}
+            </div>
           </div>
         )}
 
