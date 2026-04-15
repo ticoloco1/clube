@@ -13,6 +13,29 @@ import { STRIPE_MIN_CHARGE_USD } from '@/lib/platformPricing';
 
 const SITE_URL = getSiteBaseUrl();
 
+/** Evita confusão comum: anon e service_role são ambos JWT (eyJ…); na Vercel não podem ser iguais. */
+function assertDistinctServiceRoleKey(): string | null {
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
+  const sr = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const anon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+  if (!sr) return 'SUPABASE_SERVICE_ROLE_KEY em falta no servidor.';
+  if (!url) return 'NEXT_PUBLIC_SUPABASE_URL em falta no servidor.';
+  if (anon && sr === anon) {
+    return 'SUPABASE_SERVICE_ROLE_KEY não pode ser igual à chave anon (NEXT_PUBLIC_SUPABASE_ANON_KEY). No Supabase: Project Settings → API → copia a chave service_role (secreta), não a anon.';
+  }
+  try {
+    const mid = sr.split('.')[1];
+    if (!mid) return null;
+    const payload = JSON.parse(Buffer.from(mid, 'base64').toString('utf8')) as { role?: string };
+    if (payload.role && payload.role !== 'service_role') {
+      return `SUPABASE_SERVICE_ROLE_KEY parece ser JWT com role "${payload.role}" — esperado "service_role". Cola a chave "service_role" do painel Supabase em SUPABASE_SERVICE_ROLE_KEY.`;
+    }
+  } catch {
+    /* chaves novas (ex. sb_…) podem não ser JWT; PostgREST valida na mesma */
+  }
+  return null;
+}
+
 function getDb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 }
@@ -76,6 +99,15 @@ function withCors(req: Request, res: NextResponse): NextResponse {
 
 export async function handleCheckoutPost(req: Request): Promise<NextResponse> {
   try {
+    const keyMisconfig = assertDistinctServiceRoleKey();
+    if (keyMisconfig) {
+      console.error('[Checkout]', keyMisconfig);
+      return withCors(
+        req,
+        NextResponse.json({ error: 'Configuração Supabase no servidor', details: { message: keyMisconfig } }, { status: 500 }),
+      );
+    }
+
     const secret = process.env.STRIPE_SECRET_KEY || '';
     if (!secret) {
       return withCors(req, NextResponse.json({ error: 'STRIPE_SECRET_KEY missing on server' }, { status: 500 }));
@@ -200,6 +232,7 @@ function webhookSecretCount(): number {
 /** GET público: diagnóstico seguro (sem valores) — usar em produção para ver o que a Vercel injectou neste deploy. */
 export async function handleCheckoutGet(req: Request): Promise<NextResponse> {
   const stripeOk = !!(process.env.STRIPE_SECRET_KEY || '').trim();
+  const srHint = assertDistinctServiceRoleKey();
   return withCors(
     req,
     NextResponse.json({
@@ -209,6 +242,8 @@ export async function handleCheckoutGet(req: Request): Promise<NextResponse> {
       stripeWebhookSecretsCount: webhookSecretCount(),
       supabaseUrlConfigured: !!(process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim(),
       supabaseServiceRoleConfigured: !!(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
+      /** Se não for null, a chave service_role está mal (ex.: igual à anon) — corrige na Vercel. */
+      supabaseServiceRoleHint: srHint,
       siteUrlConfigured: !!SITE_URL,
       publicSiteUrl: SITE_URL,
     }),
