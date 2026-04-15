@@ -12,7 +12,9 @@ const POLYGON_WALLET_LS = 'tb_checkout_polygon_wallet';
 const CHECKOUT_PROVIDER = (process.env.NEXT_PUBLIC_CHECKOUT_PROVIDER || 'stripe').toLowerCase();
 const MOONPAY_CHECKOUT_URL = (process.env.NEXT_PUBLIC_MOONPAY_CHECKOUT_URL || '').trim();
 const HELIO_PAYLINK_ID = (process.env.NEXT_PUBLIC_HELIO_PAYLINK_ID || '').trim();
+const HELIO_PAYLINK_URL = (process.env.NEXT_PUBLIC_HELIO_PAYLINK_URL || '').trim();
 const HELIO_EMBED_SRC = 'https://embed.hel.io/assets/index-v1.js';
+const HELIO_EMBED_INLINE = (process.env.NEXT_PUBLIC_HELIO_EMBED_INLINE || '').trim() === '1';
 
 function cartHasSlugNftEligibleItem(items: { id: string; type: string }[]): boolean {
   return items.some((i) => {
@@ -56,7 +58,7 @@ export function CartModal() {
   if (!isOpen) return null;
 
   useEffect(() => {
-    if (step !== 'paying' || CHECKOUT_PROVIDER !== 'helio') return;
+    if (step !== 'paying' || CHECKOUT_PROVIDER !== 'helio' || !HELIO_EMBED_INLINE) return;
     const mount = document.getElementById('tb-helio-checkout-container');
     if (!mount) return;
     setHelioBootError(null);
@@ -147,8 +149,17 @@ export function CartModal() {
           toast.error('Helio ativo: por agora so plano mensal/anual. Slugs e marketplace ficam desativados.');
           return;
         }
-        if (!HELIO_PAYLINK_ID) {
-          toast.error('Falta NEXT_PUBLIC_HELIO_PAYLINK_ID na Vercel.');
+        if (!HELIO_PAYLINK_URL && !HELIO_PAYLINK_ID) {
+          toast.error('Falta NEXT_PUBLIC_HELIO_PAYLINK_URL (ou NEXT_PUBLIC_HELIO_PAYLINK_ID) na Vercel.');
+          return;
+        }
+        const hostedUrl = HELIO_PAYLINK_URL || `https://app.hel.io/pay/${HELIO_PAYLINK_ID}`;
+        const u = new URL(hostedUrl);
+        u.searchParams.set('tb_amount_usd', total().toFixed(2));
+        u.searchParams.set('tb_user', user.id);
+        const w = window.open(u.toString(), '_blank');
+        if (!w || w.closed || typeof w.closed === 'undefined') {
+          window.location.href = u.toString();
           return;
         }
         setStep('paying');
@@ -343,6 +354,9 @@ export function CartModal() {
               ) : null}
               {CHECKOUT_PROVIDER === 'helio' ? (
                 <div className="rounded-xl border border-[var(--border)] p-3 bg-[var(--bg2)]">
+                  <p className="text-xs text-[var(--text2)]">
+                    Checkout Helio aberto em outra aba. Se nao abriu, desbloqueia pop-up e tenta novamente.
+                  </p>
                   <div id="tb-helio-checkout-container" />
                   {helioBootError ? (
                     <p className="text-xs text-red-400 mt-2">{helioBootError}</p>
