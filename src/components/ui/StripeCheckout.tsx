@@ -47,7 +47,12 @@ export function StripeCheckout({
       setCheckoutUrl(data.url);
       setPendingId(data.pendingId || null);
       setStep('pending');
-      window.open(data.url, '_blank', 'width=500,height=700');
+      const w = window.open(data.url, '_blank', 'width=500,height=700');
+      // Safari/anti-popup: fallback para mesma aba.
+      if (!w || w.closed || typeof w.closed === 'undefined') {
+        window.location.href = data.url;
+        return;
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : T('toast_checkout_error'));
     } finally {

@@ -87,7 +87,12 @@ export function CartModal() {
       );
       if (data.url) {
         setPendingId(data.pendingId || null);
-        window.open(data.url, '_blank');
+        const w = window.open(data.url, '_blank');
+        // Safari/anti-popup: se bloquear nova aba, navega na mesma aba para não perder o pagamento.
+        if (!w || w.closed || typeof w.closed === 'undefined') {
+          window.location.href = data.url;
+          return;
+        }
         setStep('paying');
       }
     } catch (err: any) {
