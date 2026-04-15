@@ -26,6 +26,7 @@ export function StripeCheckout({
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'idle'|'pending'|'done'>('idle');
   const [checkoutUrl, setCheckoutUrl] = useState('');
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const handlePay = async () => {
     if (!user) {
@@ -44,6 +45,7 @@ export function StripeCheckout({
       if (!data.url) throw new Error(data.error || 'No checkout URL');
 
       setCheckoutUrl(data.url);
+      setPendingId(data.pendingId || null);
       setStep('pending');
       window.open(data.url, '_blank', 'width=500,height=700');
     } catch (err: unknown) {
@@ -53,10 +55,29 @@ export function StripeCheckout({
     }
   };
 
-  const handleConfirm = () => {
-    setStep('done');
-    onSuccess?.();
-    toast.success(T('toast_payment_confirming'));
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      if (!pendingId) throw new Error('Sem pendingId para confirmar pagamento');
+      const res = await fetch('/api/checkout/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pendingId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { fulfilled?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+      if (!data.fulfilled) {
+        toast.error('Pagamento ainda não confirmado. Finaliza no Stripe e tenta novamente.');
+        return;
+      }
+      setStep('done');
+      onSuccess?.();
+      toast.success(T('toast_payment_confirming'));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : T('toast_checkout_error'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (step === 'done') return (
@@ -75,10 +96,10 @@ export function StripeCheckout({
         {T('stripe_co_complete_hint')}
       </p>
       <div className="flex gap-2">
-        <button onClick={handleConfirm}
+        <button onClick={handleConfirm} disabled={loading}
           className="btn-primary flex-1 justify-center text-sm py-2 gap-2"
           style={{ background: accentColor }}>
-          <CheckCircle className="w-4 h-4" /> {T('stripe_co_i_paid')}
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} {T('stripe_co_i_paid')}
         </button>
         <a href={checkoutUrl} target="_blank" rel="noopener"
           className="btn-secondary px-3 py-2">

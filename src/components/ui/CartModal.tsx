@@ -30,6 +30,7 @@ export function CartModal() {
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<'cart' | 'paying' | 'done'>('cart');
   const [polygonWallet, setPolygonWallet] = useState('');
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -82,6 +83,7 @@ export function CartModal() {
         CHECKOUT_FALLBACK_BASE || '',
       );
       if (data.url) {
+        setPendingId(data.pendingId || null);
         window.open(data.url, '_blank');
         setStep('paying');
       }
@@ -100,14 +102,35 @@ export function CartModal() {
   // Called after user returns from Stripe Checkout
   const handleConfirmPaid = async () => {
     setProcessing(true);
-    // Webhook handles activation automatically.
-    // Just clear cart and show success.
-    clear();
-    setStep('done');
-    setProcessing(false);
+    try {
+      if (!pendingId) {
+        toast.error('Ainda sem identificador de pagamento. Reabre o checkout.');
+        return;
+      }
+      const res = await fetch('/api/checkout/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pendingId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { fulfilled?: boolean; error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || `Erro ${res.status}`);
+      }
+      if (!data.fulfilled) {
+        toast.error('Pagamento ainda não confirmado. Termina no Stripe e tenta novamente em alguns segundos.');
+        return;
+      }
+      clear();
+      setStep('done');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao confirmar pagamento';
+      toast.error(message);
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const reset = () => { close(); setStep('cart'); };
+  const reset = () => { close(); setStep('cart'); setPendingId(null); };
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" style={{pointerEvents: isOpen ? 'auto' : 'none'}}>
