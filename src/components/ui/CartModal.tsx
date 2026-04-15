@@ -11,6 +11,8 @@ import { postCheckoutSession } from '@/lib/checkoutClient';
 const POLYGON_WALLET_LS = 'tb_checkout_polygon_wallet';
 const CHECKOUT_PROVIDER = (process.env.NEXT_PUBLIC_CHECKOUT_PROVIDER || 'stripe').toLowerCase();
 const MOONPAY_CHECKOUT_URL = (process.env.NEXT_PUBLIC_MOONPAY_CHECKOUT_URL || '').trim();
+const HELIO_PAYLINK_ID = (process.env.NEXT_PUBLIC_HELIO_PAYLINK_ID || '').trim();
+const HELIO_EMBED_SRC = 'https://embed.hel.io/assets/index-v1.js';
 
 function cartHasSlugNftEligibleItem(items: { id: string; type: string }[]): boolean {
   return items.some((i) => {
@@ -33,6 +35,7 @@ export function CartModal() {
   const [step, setStep] = useState<'cart' | 'paying' | 'done'>('cart');
   const [polygonWallet, setPolygonWallet] = useState('');
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [helioBootError, setHelioBootError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -51,6 +54,56 @@ export function CartModal() {
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   if (!isOpen) return null;
+
+  useEffect(() => {
+    if (step !== 'paying' || CHECKOUT_PROVIDER !== 'helio') return;
+    const mount = document.getElementById('tb-helio-checkout-container');
+    if (!mount) return;
+    setHelioBootError(null);
+
+    const startHelio = () => {
+      try {
+        const fn = (window as any).helioCheckout;
+        if (typeof fn !== 'function') {
+          setHelioBootError('Helio embed indisponivel no navegador.');
+          return;
+        }
+        mount.innerHTML = '';
+        fn(mount, {
+          paylinkId: HELIO_PAYLINK_ID,
+          theme: { themeMode: 'dark' },
+          primaryColor: '#818cf8',
+          neutralColor: '#5A6578',
+          amount: total().toFixed(2),
+          display: 'inline',
+          onSuccess: () => {
+            clear();
+            setStep('done');
+            toast.success('Pagamento confirmado via Helio.');
+          },
+          onError: () => setHelioBootError('Falha no checkout Helio. Tenta novamente.'),
+          onPending: () => toast.message('Pagamento pendente na rede. Aguarda confirmacao.'),
+          onCancel: () => toast.message('Pagamento cancelado.'),
+        });
+      } catch {
+        setHelioBootError('Nao foi possivel iniciar o Helio checkout.');
+      }
+    };
+
+    const existing = document.querySelector(`script[src="${HELIO_EMBED_SRC}"]`) as HTMLScriptElement | null;
+    if (existing) {
+      if ((window as any).helioCheckout) startHelio();
+      else existing.addEventListener('load', startHelio, { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = HELIO_EMBED_SRC;
+    script.crossOrigin = 'anonymous';
+    script.addEventListener('load', startHelio, { once: true });
+    script.addEventListener('error', () => setHelioBootError('Falha ao carregar script do Helio.'), { once: true });
+    document.head.appendChild(script);
+  }, [step, clear, total]);
 
   const handleCheckout = async () => {
     if (!user) { 
@@ -83,6 +136,19 @@ export function CartModal() {
         const w = window.open(u.toString(), '_blank');
         if (!w || w.closed || typeof w.closed === 'undefined') {
           window.location.href = u.toString();
+          return;
+        }
+        setStep('paying');
+        return;
+      }
+      if (CHECKOUT_PROVIDER === 'helio') {
+        const onlyPlan = items.every((i) => i.type === 'plan');
+        if (!onlyPlan) {
+          toast.error('Helio ativo: por agora so plano mensal/anual. Slugs e marketplace ficam desativados.');
+          return;
+        }
+        if (!HELIO_PAYLINK_ID) {
+          toast.error('Falta NEXT_PUBLIC_HELIO_PAYLINK_ID na Vercel.');
           return;
         }
         setStep('paying');
@@ -267,12 +333,22 @@ export function CartModal() {
               ))}
             </p>
             <div className="space-y-2">
-              <button onClick={handleConfirmPaid} disabled={processing}
-                className="btn-primary w-full justify-center py-3 gap-2">
-                {processing
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> {T('cart_processing')}</>
-                  : T('cart_i_completed')}
-              </button>
+              {CHECKOUT_PROVIDER !== 'helio' ? (
+                <button onClick={handleConfirmPaid} disabled={processing}
+                  className="btn-primary w-full justify-center py-3 gap-2">
+                  {processing
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> {T('cart_processing')}</>
+                    : T('cart_i_completed')}
+                </button>
+              ) : null}
+              {CHECKOUT_PROVIDER === 'helio' ? (
+                <div className="rounded-xl border border-[var(--border)] p-3 bg-[var(--bg2)]">
+                  <div id="tb-helio-checkout-container" />
+                  {helioBootError ? (
+                    <p className="text-xs text-red-400 mt-2">{helioBootError}</p>
+                  ) : null}
+                </div>
+              ) : null}
               <button onClick={() => setStep('cart')} className="w-full text-xs text-[var(--text2)] py-2 hover:text-[var(--text)]">
                 {T('cart_back')}
               </button>

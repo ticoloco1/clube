@@ -56,6 +56,9 @@ export function StripeCheckout({
         }
         return;
       }
+      if (CHECKOUT_PROVIDER === 'helio') {
+        throw new Error('Helio ativo: usa o checkout do carrinho (modal) para concluir pagamento.');
+      }
 
       const data = await postCheckoutSession(
         {
