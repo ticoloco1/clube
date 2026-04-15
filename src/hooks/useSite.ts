@@ -292,6 +292,7 @@ export function usePublicSite(
   );
   const [loading, setLoading] = useState(() => !(ssr !== undefined && ssr !== null));
   const [notFound, setNotFound] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     if (!normalizedSlug) return;
@@ -360,6 +361,15 @@ export function usePublicSite(
         return;
       }
 
+      // Sessão/cookies podem atrasar no preview (manage=1). Tenta mais uma vez
+      // antes de marcar definitivamente como não encontrado.
+      if (retryTick < 1) {
+        setLoading(true);
+        setNotFound(false);
+        setTimeout(() => setRetryTick((n) => n + 1), 1200);
+        return;
+      }
+
       setNotFound(true);
       setLoading(false);
     };
@@ -367,7 +377,7 @@ export function usePublicSite(
     return () => {
       cancelled = true;
     };
-  }, [normalizedSlug, authLoading]);
+  }, [normalizedSlug, authLoading, retryTick]);
 
   return { site, loading, notFound };
 }
