@@ -145,9 +145,27 @@ export async function validateCartCreatorsHaveStripe(
       }
       const site = await getMiniSiteStripeForUser(db, sellerId);
       if (!site?.stripe_connect_account_id || !site?.stripe_connect_charges_enabled) {
+        const { data: siteRows } = await db
+          .from('mini_sites')
+          .select('slug, stripe_connect_account_id, stripe_connect_charges_enabled')
+          .eq('user_id', sellerId)
+          .order('updated_at', { ascending: false })
+          .limit(5);
+        const summary = Array.isArray(siteRows)
+          ? siteRows
+              .map((r) => {
+                const s = r as {
+                  slug?: string | null;
+                  stripe_connect_account_id?: string | null;
+                  stripe_connect_charges_enabled?: boolean | null;
+                };
+                return `${s.slug || 'sem-slug'}:acct=${s.stripe_connect_account_id ? 'yes' : 'no'},charges=${s.stripe_connect_charges_enabled ? 'yes' : 'no'}`;
+              })
+              .join(' | ')
+          : 'no-sites';
         return {
           ok: false,
-          error: `O vendedor tem de ligar o Stripe antes desta compra (/${gate.row.slug}).`,
+          error: `O vendedor tem de ligar o Stripe antes desta compra (/${gate.row.slug}). seller=${sellerId}. sites=[${summary}]`,
         };
       }
     }
