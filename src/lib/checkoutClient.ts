@@ -32,7 +32,23 @@ export type CheckoutPostResult = {
   directToCreator?: boolean;
   pendingId?: string;
   error?: string;
+  /** Erro Supabase quando o insert em `checkout_pending` falha (só servidor). */
+  details?: {
+    message?: string | null;
+    code?: string | null;
+    hint?: string | null;
+    details?: string | null;
+  } | null;
 };
+
+function checkoutHttpErrorMessage(data: CheckoutPostResult, status: number): string {
+  const base = data.error || `Erro ${status}`;
+  const d = data.details;
+  if (!d) return base;
+  const parts = [d.message, d.hint, d.details, d.code].filter(Boolean);
+  if (parts.length === 0) return base;
+  return `${base}: ${parts.join(' · ')}`;
+}
 
 export async function postCheckoutSession(
   body: object,
@@ -61,7 +77,7 @@ export async function postCheckoutSession(
           lastErr = new Error(`checkout_404:${url}`);
           continue;
         }
-        const err = new Error((data as { error?: string }).error || `Erro ${res.status}`);
+        const err = new Error(checkoutHttpErrorMessage(data as CheckoutPostResult, res.status));
         err.name = 'CheckoutHttpError';
         throw err;
       }
