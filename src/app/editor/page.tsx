@@ -1622,10 +1622,12 @@ function EditorPageInner() {
               >
                 {T('ed_reload')}
               </button>
-              {createCanOpenPay ? (
+              {createSlugOkLen && !createReserved && createDue > 0 ? (
                 <button
                   type="button"
+                  disabled={!createCanOpenPay}
                   onClick={() => {
+                    if (!createCanOpenPay) return;
                     const clean = createSlugClean;
                     addToCart({
                       id: `slug_${clean}`,
@@ -1636,7 +1638,7 @@ function EditorPageInner() {
                     openCart();
                     toast.message(T('ed_create_pay_slug_toast'));
                   }}
-                  className="btn-primary bg-amber-600 hover:bg-amber-500 border-0"
+                  className="btn-primary bg-amber-600 hover:bg-amber-500 border-0 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {T('ed_create_checkout_slug_btn').replace('${price}', String(createDue))}
                 </button>
