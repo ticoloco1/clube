@@ -55,8 +55,12 @@ export function LivelyFaceSvg({
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     const fn = () => setReduceMotion(mq.matches);
     fn();
-    mq.addEventListener('change', fn);
-    return () => mq.removeEventListener('change', fn);
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', fn);
+      return () => mq.removeEventListener('change', fn);
+    }
+    mq.addListener(fn);
+    return () => mq.removeListener(fn);
   }, []);
 
   useEffect(() => {

@@ -27,8 +27,12 @@ export function Header() {
     const mq = window.matchMedia(`(max-width: ${MOBILE_MAX}px)`);
     const apply = () => setIsMobile(mq.matches);
     apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', apply);
+      return () => mq.removeEventListener('change', apply);
+    }
+    mq.addListener(apply);
+    return () => mq.removeListener(apply);
   }, []);
 
   useEffect(() => {
