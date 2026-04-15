@@ -5,6 +5,8 @@ import { Loader2, Zap, ExternalLink, CheckCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { postCheckoutSession } from '@/lib/checkoutClient';
+const CHECKOUT_PROVIDER = (process.env.NEXT_PUBLIC_CHECKOUT_PROVIDER || 'stripe').toLowerCase();
+const MOONPAY_CHECKOUT_URL = (process.env.NEXT_PUBLIC_MOONPAY_CHECKOUT_URL || '').trim();
 
 interface StripeCheckoutProps {
   itemId: string;
@@ -35,6 +37,26 @@ export function StripeCheckout({
     }
     setLoading(true);
     try {
+      if (CHECKOUT_PROVIDER === 'moonpay') {
+        if (type !== 'plan') {
+          throw new Error('MoonPay ativo: apenas planos do mini-site neste modo.');
+        }
+        if (!MOONPAY_CHECKOUT_URL) {
+          throw new Error('Falta NEXT_PUBLIC_MOONPAY_CHECKOUT_URL na Vercel.');
+        }
+        const u = new URL(MOONPAY_CHECKOUT_URL);
+        u.searchParams.set('tb_amount_usd', Number(price || 0).toFixed(2));
+        u.searchParams.set('tb_item', itemId);
+        setCheckoutUrl(u.toString());
+        setStep('pending');
+        const w = window.open(u.toString(), '_blank', 'width=500,height=700');
+        if (!w || w.closed || typeof w.closed === 'undefined') {
+          window.location.href = u.toString();
+          return;
+        }
+        return;
+      }
+
       const data = await postCheckoutSession(
         {
           userId: user.id,
@@ -63,6 +85,12 @@ export function StripeCheckout({
   const handleConfirm = async () => {
     setLoading(true);
     try {
+      if (CHECKOUT_PROVIDER === 'moonpay') {
+        setStep('done');
+        onSuccess?.();
+        toast.success('Pagamento enviado via MoonPay.');
+        return;
+      }
       if (!pendingId) throw new Error('Sem pendingId para confirmar pagamento');
       const res = await fetch('/api/checkout/status', {
         method: 'POST',

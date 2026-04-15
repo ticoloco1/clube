@@ -9,6 +9,8 @@ import { publicSiteUrlFromEnv } from '@/lib/publicSiteUrl';
 import { postCheckoutSession } from '@/lib/checkoutClient';
 
 const POLYGON_WALLET_LS = 'tb_checkout_polygon_wallet';
+const CHECKOUT_PROVIDER = (process.env.NEXT_PUBLIC_CHECKOUT_PROVIDER || 'stripe').toLowerCase();
+const MOONPAY_CHECKOUT_URL = (process.env.NEXT_PUBLIC_MOONPAY_CHECKOUT_URL || '').trim();
 
 function cartHasSlugNftEligibleItem(items: { id: string; type: string }[]): boolean {
   return items.some((i) => {
@@ -64,6 +66,29 @@ export function CartModal() {
     }
     setProcessing(true);
     try {
+      if (CHECKOUT_PROVIDER === 'moonpay') {
+        const onlyPlan = items.every((i) => i.type === 'plan');
+        if (!onlyPlan) {
+          toast.error('MoonPay ativo: por agora só plano mensal/anual. Slugs e marketplace ficam desativados.');
+          return;
+        }
+        if (!MOONPAY_CHECKOUT_URL) {
+          toast.error('Falta NEXT_PUBLIC_MOONPAY_CHECKOUT_URL na Vercel.');
+          return;
+        }
+        const u = new URL(MOONPAY_CHECKOUT_URL);
+        // Campos auxiliares para rastreio interno no retorno.
+        u.searchParams.set('tb_amount_usd', total().toFixed(2));
+        u.searchParams.set('tb_user', user.id);
+        const w = window.open(u.toString(), '_blank');
+        if (!w || w.closed || typeof w.closed === 'undefined') {
+          window.location.href = u.toString();
+          return;
+        }
+        setStep('paying');
+        return;
+      }
+
       const pw = polygonWallet.trim();
       if (slugNftCart && pw && !/^0x[a-fA-F0-9]{40}$/i.test(pw)) {
         toast.error('Polygon: use um endereço 0x com 40 caracteres hexadecimais.');
@@ -111,6 +136,12 @@ export function CartModal() {
   const handleConfirmPaid = async () => {
     setProcessing(true);
     try {
+      if (CHECKOUT_PROVIDER === 'moonpay') {
+        clear();
+        setStep('done');
+        toast.success('Pagamento enviado via MoonPay. Se não ativar em instantes, valida no painel MoonPay.');
+        return;
+      }
       if (!pendingId) {
         toast.error('Ainda sem identificador de pagamento. Reabre o checkout.');
         return;
