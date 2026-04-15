@@ -56,6 +56,11 @@ export async function postCheckoutSession(
         data = { error: raw || '' };
       }
       if (!res.ok) {
+        // Deploy antigo pode não ter `/api/pay/start`; 404 → tentar próximo candidato.
+        if (res.status === 404) {
+          lastErr = new Error(`checkout_404:${url}`);
+          continue;
+        }
         const err = new Error((data as { error?: string }).error || `Erro ${res.status}`);
         err.name = 'CheckoutHttpError';
         throw err;
