@@ -7,6 +7,7 @@ import {
   isValidEvmAddress,
   mintTrustBankSlugCertificateIfConfigured,
 } from '@/lib/slugNftThirdwebMint';
+import { validateSlugMarketFixedPrice } from '@/lib/slugMarketPurchaseValidation';
 
 /** Contexto opcional vindo do checkout (ex.: carteira Polygon para NFT do slug). */
 export type FulfillmentContext = {
@@ -422,26 +423,23 @@ export async function fulfillLine(
     }
     case 'slug_market': {
       if (!itemId) return;
-      const { data: row } = await db
-        .from('slug_registrations' as any)
-        .select('user_id, for_sale, sale_price, slug, status')
-        .eq('slug', itemId)
-        .eq('for_sale', true)
-        .maybeSingle();
-      if (!row || (row as any).status === 'auction') {
-        console.warn('[Fulfill] slug_market: not listed or is auction', itemId);
+      const gate = await validateSlugMarketFixedPrice(db, itemId);
+      if (!gate.ok) {
+        console.warn('[Fulfill] slug_market:', gate.error, itemId);
         return;
       }
-      const sellerId = (row as any).user_id as string;
+      const row = gate.row;
+      const sellerId = row.user_id;
       if (sellerId === userId) {
         console.warn('[Fulfill] slug_market: buyer is seller');
         return;
       }
-      const sp = Number((row as any).sale_price);
+      const sp = row.sale_price;
       if (!Number.isFinite(sp) || sp <= 0 || !priceApproxEqual(amountUsd, sp)) {
         console.warn('[Fulfill] slug_market: price mismatch', amountUsd, sp);
         return;
       }
+      const slugCanon = row.slug;
       await db
         .from('slug_registrations' as any)
         .update({
@@ -450,8 +448,8 @@ export async function fulfillLine(
           sale_price: null,
           status: 'active',
         })
-        .eq('slug', itemId);
-      await releaseMiniSiteSlugFromSeller(db, sellerId, itemId);
+        .eq('slug', slugCanon);
+      await releaseMiniSiteSlugFromSeller(db, sellerId, slugCanon);
 
       const sellerShare = amountUsd * PAYMENT_SPLITS.slug.creator;
       const siteRow = await getMiniSiteStripeForUser(db, sellerId);
@@ -460,14 +458,14 @@ export async function fulfillLine(
         try {
           await transferCreatorUsd(stripe, siteRow.stripe_connect_account_id, sellerShare, {
             kind: 'slug_market',
-            slug: itemId,
+            slug: slugCanon,
             ref: paymentRef.slice(0, 80),
           });
         } catch (err) {
           console.error('[Fulfill] Stripe transfer (slug_market)', err);
         }
       }
-      await maybeMintSlugCertificateNft(db, ctx, paymentRef, userId, itemId);
+      await maybeMintSlugCertificateNft(db, ctx, paymentRef, userId, slugCanon);
       break;
     }
     case 'slug_auction_settle': {

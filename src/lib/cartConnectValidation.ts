@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cartItemToFulfillmentLine } from '@/lib/cartFulfillment';
 import { getMiniSiteStripeForUser } from '@/lib/stripeConnectSite';
+import { validateSlugMarketFixedPrice } from '@/lib/slugMarketPurchaseValidation';
 
 const DUMMY_USER = '00000000-0000-0000-0000-000000000001';
 
@@ -130,28 +131,23 @@ export async function validateCartCreatorsHaveStripe(
     }
 
     if (line.kind === 'slug_market' && line.itemId) {
-      const { data: reg } = await db
-        .from('slug_registrations')
-        .select('user_id, slug, for_sale, sale_price, status')
-        .eq('slug', line.itemId)
-        .eq('for_sale', true)
-        .maybeSingle();
-      if (!reg || (reg as { status?: string }).status === 'auction') {
-        return { ok: false, error: `Slug /${line.itemId} is not listed for sale (or only in auction).` };
+      const gate = await validateSlugMarketFixedPrice(db, line.itemId);
+      if (!gate.ok) {
+        return { ok: false, error: gate.error };
       }
-      const sellerId = (reg as { user_id: string }).user_id;
+      const sellerId = gate.row.user_id;
       if (sellerId === payerUserId) {
-        return { ok: false, error: 'You cannot buy your own slug listing.' };
+        return { ok: false, error: 'Não podes comprar o teu próprio slug.' };
       }
-      const sp = Number((reg as { sale_price?: number }).sale_price);
-      if (!Number.isFinite(sp) || !priceClose(Number(item.price), sp)) {
-        return { ok: false, error: 'Sale price changed — refresh the page and try again.' };
+      const sp = gate.row.sale_price;
+      if (!priceClose(Number(item.price), sp)) {
+        return { ok: false, error: 'O preço mudou — atualiza a página e tenta de novo.' };
       }
       const site = await getMiniSiteStripeForUser(db, sellerId);
       if (!site?.stripe_connect_account_id || !site?.stripe_connect_charges_enabled) {
         return {
           ok: false,
-          error: `Seller must connect Stripe before this slug can be purchased (/${line.itemId}).`,
+          error: `O vendedor tem de ligar o Stripe antes desta compra (/${gate.row.slug}).`,
         };
       }
     }
