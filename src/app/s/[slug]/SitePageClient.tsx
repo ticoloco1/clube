@@ -444,6 +444,41 @@ export default function SitePageClient({
     });
   }, []);
   const isDark = !['ivory','editorial','sky','mint','lavender','peach','lemon','blush','paper','geo','cream','cloud','sand','nordic','sakura'].includes(site?.theme||'');
+  const livelyOpenBeta = !AI_DISABLED_TEMP && process.env.NEXT_PUBLIC_LIVELY_AVATAR_OPEN_BETA === 'true';
+  const livelyNftOk = !!(site as any)?.lively_avatar_nft_verified_at;
+  const livelyFeatureUnlocked =
+    !AI_DISABLED_TEMP && !!(site as any)?.lively_avatar_enabled && (livelyNftOk || livelyOpenBeta || isOwner);
+  const [livelyApiEligible, setLivelyApiEligible] = useState(false);
+  const [livelyEligibilityReady, setLivelyEligibilityReady] = useState(false);
+
+  useEffect(() => {
+    if (!safeSlug || !livelyFeatureUnlocked) {
+      setLivelyApiEligible(false);
+      setLivelyEligibilityReady(true);
+      return;
+    }
+    setLivelyEligibilityReady(false);
+    const ac = new AbortController();
+    void fetch(`/api/lively-avatar/eligibility?slug=${encodeURIComponent(safeSlug)}`, { signal: ac.signal })
+      .then((r) => r.json().catch(() => ({})))
+      .then((d: { eligible?: boolean }) => setLivelyApiEligible(d.eligible === true))
+      .catch(() => setLivelyApiEligible(false))
+      .finally(() => setLivelyEligibilityReady(true));
+    return () => ac.abort();
+  }, [safeSlug, livelyFeatureUnlocked]);
+
+  // Sem API/orçamento: não manter interruptor "ligado" no armazenamento local.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !safeSlug || !livelyEligibilityReady) return;
+    if (!livelyApiEligible) {
+      try {
+        localStorage.setItem(`tb_lively_assist_${safeSlug}`, '0');
+      } catch {
+        /* ignore */
+      }
+      setLivelyAssistVisitorOn(false);
+    }
+  }, [safeSlug, livelyEligibilityReady, livelyApiEligible]);
 
   // Auto-open cart if returning from auth with items pending
   useEffect(() => {
@@ -731,42 +766,6 @@ export default function SitePageClient({
     }
     return out;
   })();
-
-  const livelyOpenBeta = !AI_DISABLED_TEMP && process.env.NEXT_PUBLIC_LIVELY_AVATAR_OPEN_BETA === 'true';
-  const livelyNftOk = !!(site as any)?.lively_avatar_nft_verified_at;
-  const livelyFeatureUnlocked =
-    !AI_DISABLED_TEMP && !!(site as any)?.lively_avatar_enabled && (livelyNftOk || livelyOpenBeta || isOwner);
-  const [livelyApiEligible, setLivelyApiEligible] = useState(false);
-  const [livelyEligibilityReady, setLivelyEligibilityReady] = useState(false);
-
-  useEffect(() => {
-    if (!safeSlug || !livelyFeatureUnlocked) {
-      setLivelyApiEligible(false);
-      setLivelyEligibilityReady(true);
-      return;
-    }
-    setLivelyEligibilityReady(false);
-    const ac = new AbortController();
-    void fetch(`/api/lively-avatar/eligibility?slug=${encodeURIComponent(safeSlug)}`, { signal: ac.signal })
-      .then((r) => r.json().catch(() => ({})))
-      .then((d: { eligible?: boolean }) => setLivelyApiEligible(d.eligible === true))
-      .catch(() => setLivelyApiEligible(false))
-      .finally(() => setLivelyEligibilityReady(true));
-    return () => ac.abort();
-  }, [safeSlug, livelyFeatureUnlocked]);
-
-  /** Sem API/orçamento: não manter interruptor “ligado” no armazenamento local. */
-  useEffect(() => {
-    if (typeof window === 'undefined' || !safeSlug || !livelyEligibilityReady) return;
-    if (!livelyApiEligible) {
-      try {
-        localStorage.setItem(`tb_lively_assist_${safeSlug}`, '0');
-      } catch {
-        /* ignore */
-      }
-      setLivelyAssistVisitorOn(false);
-    }
-  }, [safeSlug, livelyEligibilityReady, livelyApiEligible]);
 
   const showLivelyAvatar = livelyFeatureUnlocked && livelyApiEligible;
   const floatingLivelyActive = showLivelyAvatar && livelyAssistVisitorOn;
