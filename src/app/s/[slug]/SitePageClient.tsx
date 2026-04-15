@@ -217,7 +217,7 @@ export default function SitePageClient({
 }) {
   const AI_DISABLED_TEMP = true;
   const safeSlug = slug || '';
-  const { site, loading, notFound } = usePublicSite(safeSlug, { ssrSite });
+  const { site, loading, notFound, timedOut } = usePublicSite(safeSlug, { ssrSite });
   const { user, loading: authLoading } = useAuth();
   const { add: addToCart, open: openCart } = useCart();
   const [links, setLinks] = useState<any[]>([]);
@@ -605,12 +605,36 @@ export default function SitePageClient({
     openCart();
   };
 
-  if (loading) return (
+  if (loading && !timedOut) return (
     <div style={{minHeight:'100vh',background:'#0d1117',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{width:40,height:40,border:'3px solid #818cf8',borderTopColor:'transparent',borderRadius:'50%',animation:'spin .8s linear infinite'}}/>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
+
+  if (loading && timedOut) {
+    const manageMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('manage') === '1';
+    return (
+      <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <p style={{ fontSize: 48, margin: 0 }}>⏳</p>
+        <h1 style={{ color: '#e6edf3', fontSize: 22, fontWeight: 900, margin: 0, textAlign: 'center' }}>
+          O preview demorou para carregar
+        </h1>
+        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, maxWidth: 420, textAlign: 'center', margin: 0 }}>
+          {manageMode
+            ? 'No modo manage, confirma login no mesmo dominio e recarrega a pagina.'
+            : 'Tenta recarregar a pagina em alguns segundos.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          style={{ border: 'none', borderRadius: 12, padding: '10px 16px', background: '#818cf8', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+        >
+          Recarregar
+        </button>
+      </div>
+    );
+  }
 
   if (notFound) return (
     <div style={{minHeight:'100vh',background:'#0d1117',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,fontFamily:'system-ui'}}>

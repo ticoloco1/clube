@@ -293,6 +293,16 @@ export function usePublicSite(
   const [loading, setLoading] = useState(() => !(ssr !== undefined && ssr !== null));
   const [notFound, setNotFound] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setTimedOut(false);
+      return;
+    }
+    const t = setTimeout(() => setTimedOut(true), 10000);
+    return () => clearTimeout(t);
+  }, [loading, normalizedSlug]);
 
   useEffect(() => {
     if (!normalizedSlug) return;
@@ -379,5 +389,5 @@ export function usePublicSite(
     };
   }, [normalizedSlug, authLoading, retryTick]);
 
-  return { site, loading, notFound };
+  return { site, loading, notFound, timedOut };
 }
