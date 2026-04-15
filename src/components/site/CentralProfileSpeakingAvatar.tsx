@@ -31,6 +31,10 @@ type Props = {
   ttsProvider?: LivelyTtsProvider;
   /** Foto de perfil ou retrato — quando existe, mostra a foto a “falar” em vez do rosto redondo cartoon. */
   photoSrc?: string | null;
+  /** Vídeo curto de boas-vindas (prioridade sobre foto). */
+  welcomeVideoUrl?: string | null;
+  /** Se true, tenta autoplay sem som (mais compatível). */
+  welcomeVideoMuted?: boolean;
   size: number;
   borderRadius: string;
   border: string;
@@ -48,6 +52,8 @@ export function CentralProfileSpeakingAvatar({
   voiceAgent,
   ttsProvider = 'auto',
   photoSrc,
+  welcomeVideoUrl,
+  welcomeVideoMuted = true,
   size,
   borderRadius,
   border,
@@ -69,6 +75,7 @@ export function CentralProfileSpeakingAvatar({
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   const usePhoto = Boolean(photoSrc && photoSrc.trim());
+  const useWelcomeVideo = Boolean(welcomeVideoUrl && welcomeVideoUrl.trim());
   const m = CARTOON_MOUTH[mouth];
 
   const stopLipSync = useCallback(() => {
@@ -297,10 +304,10 @@ export function CentralProfileSpeakingAvatar({
       : `Olá! Sou o assistente de ${siteName}. Abre o chat para falares comigo.`);
 
   useEffect(() => {
-    if (!speakOnEntry || entryPlayed.current) return;
+    if (!speakOnEntry || useWelcomeVideo || entryPlayed.current) return;
     entryPlayed.current = true;
     void playLine(entryText);
-  }, [speakOnEntry, entryText, playLine]);
+  }, [speakOnEntry, useWelcomeVideo, entryText, playLine]);
 
   const onTap = () => {
     const tap = speechTap.trim();
@@ -309,7 +316,24 @@ export function CentralProfileSpeakingAvatar({
 
   const svgSize = Math.min(size, 320);
 
-  const photoInner = usePhoto ? (
+  const photoInner = useWelcomeVideo ? (
+    <video
+      src={welcomeVideoUrl!.trim()}
+      autoPlay
+      loop
+      playsInline
+      muted={welcomeVideoMuted}
+      controls={false}
+      className="block"
+      style={{
+        width: svgSize,
+        height: svgSize,
+        objectFit: 'cover',
+        borderRadius: 'inherit',
+        background: '#000',
+      }}
+    />
+  ) : usePhoto ? (
     <div
       ref={wrapRef}
       className="relative overflow-hidden"

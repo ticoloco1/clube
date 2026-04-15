@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { uploadFile } from '@/lib/r2';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -223,12 +224,18 @@ export default function AdminPage() {
   };
 
   const uploadFavicon = async (file: File) => {
-    const path = `admin/favicon_${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('platform-assets').upload(path, file, { upsert: true });
-    if (error) { toast.error(error.message); return; }
-    const url = supabase.storage.from('platform-assets').getPublicUrl(path).data.publicUrl;
-    setFaviconUrl(url);
-    toast.success(T('gov_toast_favicon'));
+    if (!user?.id) {
+      toast.error('Login required');
+      return;
+    }
+    try {
+      const url = await uploadFile(file, 'admin', user.id);
+      setFaviconUrl(url);
+      toast.success(T('gov_toast_favicon'));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Upload failed';
+      toast.error(msg);
+    }
   };
 
   const saveApiKeys = async () => {

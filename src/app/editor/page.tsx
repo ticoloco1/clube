@@ -41,6 +41,7 @@ import { DEFAULT_BOOKING_SERVICES, DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSch
 import { normalizeLivelyTtsProvider, type LivelyTtsProvider } from '@/lib/livelyTtsPreference';
 import { PLATFORM_USD } from '@/lib/platformPricing';
 import { extractPageModulesLayout, isReservedPageModulesKey, type ProfilePhotoAlign } from '@/lib/pageModulesLayout';
+import { uploadFile } from '@/lib/r2';
 
 const LS_EDITOR_IA_API = 'tb_editor_ia_api_enabled';
 
@@ -196,6 +197,9 @@ function EditorPageInner() {
   const [livelyProfileSpeakOnEntry, setLivelyProfileSpeakOnEntry] = useState(true);
   const [livelyProfileSpeechTap, setLivelyProfileSpeechTap] = useState('');
   const [livelyProfileSpeechBeforeReply, setLivelyProfileSpeechBeforeReply] = useState('');
+  const [livelyProfileWelcomeVideoUrl, setLivelyProfileWelcomeVideoUrl] = useState('');
+  const [livelyProfileWelcomeVideoWithSound, setLivelyProfileWelcomeVideoWithSound] = useState(false);
+  const [uploadingWelcomeVideo, setUploadingWelcomeVideo] = useState(false);
   const [identityPortraitUrl, setIdentityPortraitUrl] = useState('');
   const [identityStylePreset, setIdentityStylePreset] = useState<IdentityStyleId>('buccaneer');
   const [identityVoiceEffect, setIdentityVoiceEffect] = useState<VoiceEffectId>('neutral');
@@ -507,6 +511,10 @@ function EditorPageInner() {
     setLivelyProfileSpeechBeforeReply(
       typeof (site as any).lively_profile_speech_before_reply === 'string' ? (site as any).lively_profile_speech_before_reply : '',
     );
+    setLivelyProfileWelcomeVideoUrl(
+      typeof (site as any).lively_profile_welcome_video_url === 'string' ? (site as any).lively_profile_welcome_video_url : '',
+    );
+    setLivelyProfileWelcomeVideoWithSound((site as any).lively_profile_welcome_video_with_sound === true);
     setIdentityPortraitUrl(typeof (site as any).identity_portrait_url === 'string' ? (site as any).identity_portrait_url : '');
     const isp = (site as any).identity_style_preset;
     setIdentityStylePreset(
@@ -753,7 +761,7 @@ function EditorPageInner() {
       cvExperience, cvEducation, cvProjects, cvLanguages, cvCertificates, sectionOrder,
       showFeed, feedCols, moduleOrder, sitePages, pageWidth, pageContents, pageModules, walletAddr, contactEmail, contactWhatsapp, published, seoTitle, seoDescription, seoOgImage, seoSearchTags, seoJsonLd,
       livelyAvatarEnabled, livelyAvatarModel, livelyAvatarWelcome, livelyCentralMagic, livelyFloatingExpressive, livelyDualAgent, livelyAgentInstructions, livelyElevenOwner, livelyElevenAgent, livelyTtsProvider,
-      livelyProfileAsAvatar, livelyProfileSpeakOnEntry, livelyProfileSpeechTap, livelyProfileSpeechBeforeReply,
+      livelyProfileAsAvatar, livelyProfileSpeakOnEntry, livelyProfileSpeechTap, livelyProfileSpeechBeforeReply, livelyProfileWelcomeVideoUrl, livelyProfileWelcomeVideoWithSound,
       identityPortraitUrl, identityStylePreset, identityVoiceEffect, magicPortraitEnabled, bannerFocusX, bannerFocusY, bannerZoom, bannerFit, bannerPlaceholderEnabled, bannerPlaceholderColor, tickerEnabled, tickerItems,
       adAskingPrice, adShowPricePublic, directoryProfileSlug, siteCategorySlug,
       mysticPublicEnabled, mysticTarotPrice, mysticLotteryPrice,
@@ -761,11 +769,52 @@ function EditorPageInner() {
 
   // ── Upload helper ─────────────────────────────────────────────────────────
   const uploadToStorage = async (file: File, folder: string): Promise<string> => {
-    const ext = file.name.split('.').pop() || 'jpg';
-    const path = `${user!.id}/${folder}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('platform-assets').upload(path, file, { upsert: true });
-    if (error) throw new Error(error.message);
-    return supabase.storage.from('platform-assets').getPublicUrl(path).data.publicUrl;
+    return uploadFile(file, folder, user!.id);
+  };
+
+  const readVideoDurationSec = async (file: File): Promise<number> => {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const duration = await new Promise<number>((resolve, reject) => {
+        const v = document.createElement('video');
+        v.preload = 'metadata';
+        v.src = objectUrl;
+        v.onloadedmetadata = () => resolve(Number(v.duration || 0));
+        v.onerror = () => reject(new Error('Invalid video file'));
+      });
+      return Number.isFinite(duration) ? duration : 0;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const onPickWelcomeVideo = async (file: File | null | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      toast.error('Select a video file');
+      return;
+    }
+    if (file.size > 60 * 1024 * 1024) {
+      toast.error('Video too large (max 60MB)');
+      return;
+    }
+    setUploadingWelcomeVideo(true);
+    try {
+      const duration = await readVideoDurationSec(file);
+      if (duration <= 0 || duration > 20.5) {
+        toast.error('Welcome video must be up to 20 seconds');
+        return;
+      }
+      const url = await uploadToStorage(file, 'welcome-video');
+      setLivelyProfileWelcomeVideoUrl(url);
+      markDirty();
+      toast.success('Welcome video uploaded to R2');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Upload failed';
+      toast.error(msg);
+    } finally {
+      setUploadingWelcomeVideo(false);
+    }
   };
 
   const seoAssistPayload = () => ({
@@ -1200,6 +1249,8 @@ function EditorPageInner() {
         lively_profile_speak_on_entry: livelyProfileSpeakOnEntry,
         lively_profile_speech_tap: livelyProfileSpeechTap.trim() || null,
         lively_profile_speech_before_reply: livelyProfileSpeechBeforeReply.trim() || null,
+        lively_profile_welcome_video_url: livelyProfileWelcomeVideoUrl.trim() || null,
+        lively_profile_welcome_video_with_sound: livelyProfileWelcomeVideoWithSound,
         identity_portrait_url: identityPortraitUrl.trim() || null,
         identity_style_preset: identityStylePreset || null,
         identity_voice_effect: identityVoiceEffect || 'neutral',
@@ -1244,6 +1295,8 @@ function EditorPageInner() {
         delete savePayload.lively_profile_speak_on_entry;
         delete savePayload.lively_profile_speech_tap;
         delete savePayload.lively_profile_speech_before_reply;
+        delete savePayload.lively_profile_welcome_video_url;
+        delete savePayload.lively_profile_welcome_video_with_sound;
         delete savePayload.identity_portrait_url;
         delete savePayload.identity_style_preset;
         delete savePayload.identity_voice_effect;
@@ -3419,6 +3472,60 @@ function EditorPageInner() {
                   rows={2}
                   placeholder={T('ed_ia_speech_before_reply_ph')}
                 />
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)]/40 p-3 space-y-2">
+                <label className="label block mb-1">Welcome video (max 20s, R2)</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--border)] text-sm font-semibold cursor-pointer hover:bg-[var(--bg2)]">
+                    {uploadingWelcomeVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    Upload video
+                    <input
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      disabled={uploadingWelcomeVideo}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        void onPickWelcomeVideo(f);
+                      }}
+                    />
+                  </label>
+                  {livelyProfileWelcomeVideoUrl ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-500/40 text-sm font-semibold text-red-400 hover:bg-red-500/10"
+                      onClick={() => {
+                        setLivelyProfileWelcomeVideoUrl('');
+                        markDirty();
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text2)]">
+                  <input
+                    type="checkbox"
+                    checked={livelyProfileWelcomeVideoWithSound}
+                    onChange={(e) => {
+                      setLivelyProfileWelcomeVideoWithSound(e.target.checked);
+                      markDirty();
+                    }}
+                    className="rounded border-[var(--border)] w-4 h-4"
+                  />
+                  Play with sound (off = muted autoplay)
+                </label>
+                {livelyProfileWelcomeVideoUrl ? (
+                  <video
+                    src={livelyProfileWelcomeVideoUrl}
+                    controls
+                    playsInline
+                    muted={!livelyProfileWelcomeVideoWithSound}
+                    className="w-full max-w-xs rounded-lg border border-[var(--border)]"
+                  />
+                ) : null}
               </div>
             </div>
           )}

@@ -1,16 +1,24 @@
 /**
- * Upload de arquivos públicos (feed, carros, imóveis).
- * Usa o bucket Supabase `platform-assets` (mesmo padrão do editor).
+ * Upload público para Cloudflare R2 via API interna.
+ * Requer sessão ativa (cookie Supabase) no browser.
  */
-import { supabase } from '@/lib/supabase';
-
-const BUCKET = 'platform-assets';
-
 export async function uploadFile(file: File, folder: string, userId: string): Promise<string> {
-  const ext = file.name.split('.').pop() || 'jpg';
   const safeFolder = folder.replace(/[^a-z0-9_-]/gi, '_');
-  const path = `${userId}/${safeFolder}/${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
-  if (error) throw new Error(error.message);
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  const form = new FormData();
+  form.append('file', file);
+  form.append('folder', safeFolder);
+  form.append('userId', String(userId || '').trim());
+
+  const res = await fetch('/api/upload/r2', {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+  });
+
+  const data = await res.json().catch(() => ({} as { error?: string; url?: string }));
+  if (!res.ok || !data?.url) {
+    const msg = data?.error || 'R2 upload failed';
+    throw new Error(msg);
+  }
+  return String(data.url);
 }

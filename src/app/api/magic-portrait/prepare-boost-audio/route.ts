@@ -7,6 +7,7 @@ import { polishMagicBoostScript, type MagicTone } from '@/lib/magicBoostPolish';
 import { applySiteAiBudgetDeduction, assertOwnerAiBudgetUsd, IA_USD, readSiteAiBudget } from '@/lib/aiUsdBudget';
 import { iaUsdBillingApplies } from '@/lib/iaBillingSubscription';
 import type { AiConfigRow } from '@/lib/aiOpenAiCompatible';
+import { putBufferToR2 } from '@/lib/r2Server';
 
 async function loadAiConfig(db: ReturnType<typeof getServiceDb>): Promise<AiConfigRow> {
   const { data } = await db.from('platform_settings' as never).select('value').eq('key', 'ai_config').maybeSingle();
@@ -131,18 +132,11 @@ export async function POST(req: NextRequest) {
     }
 
     const path = `magic-boost/${chosen.id}.mp3`;
-    const upload = await db.storage.from('platform-assets').upload(path, Buffer.from(buf), {
+    const ttsPublicUrl = await putBufferToR2({
+      key: path,
+      body: Buffer.from(buf),
       contentType: 'audio/mpeg',
-      upsert: true,
     });
-
-    if (upload.error) {
-      console.error('[prepare-boost-audio] storage', upload.error);
-      return NextResponse.json({ error: 'Falha no armazenamento' }, { status: 500 });
-    }
-
-    const { data: pub } = db.storage.from('platform-assets').getPublicUrl(path);
-    const ttsPublicUrl = pub?.publicUrl || '';
 
     const debOk = await applySiteAiBudgetDeduction(
       db,

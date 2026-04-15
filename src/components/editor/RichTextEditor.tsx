@@ -2,6 +2,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Bold, Italic, List, Heading1, Heading2, Video, Link2, Quote, Code, Image as ImgIcon, X, Loader2, Highlighter, Palette, StickyNote } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { uploadFile } from '@/lib/r2';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { resolveVideoEmbedUrl, safeIframeSrc } from '@/lib/embedHtml';
@@ -142,19 +143,7 @@ export function RichTextEditor({
         return;
       }
       for (const file of take) {
-        const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
-        const path = `${session.user.id}/pages/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from('platform-assets').upload(path, file, {
-          upsert: true,
-          cacheControl: '3600',
-          contentType: file.type || 'image/jpeg',
-        });
-        if (upErr) {
-          toast.error(upErr.message || T('rte_image_upload_fail'));
-          break;
-        }
-        const { data: pub } = supabase.storage.from('platform-assets').getPublicUrl(path);
-        const url = normalizeHttpsUrl(pub.publicUrl || '');
+        const url = normalizeHttpsUrl(await uploadFile(file, 'pages', session.user.id));
         if (!/^https:\/\//i.test(url)) {
           toast.error(T('rte_image_upload_fail'));
           break;

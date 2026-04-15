@@ -777,6 +777,9 @@ export default function SitePageClient({
   const livelySpeechTap = typeof (site as any)?.lively_profile_speech_tap === 'string' ? (site as any).lively_profile_speech_tap : '';
   const livelySpeechBeforeReply =
     typeof (site as any)?.lively_profile_speech_before_reply === 'string' ? (site as any).lively_profile_speech_before_reply : '';
+  const livelyProfileWelcomeVideoUrl =
+    typeof (site as any)?.lively_profile_welcome_video_url === 'string' ? (site as any).lively_profile_welcome_video_url : '';
+  const livelyProfileWelcomeVideoMuted = (site as any)?.lively_profile_welcome_video_with_sound !== true;
   const showProfileSpeakingAvatar = floatingLivelyActive && livelyProfileAsAvatar;
   /** Sempre a foto de perfil real no círculo do topo — nunca o retrato IA (evita “duas caras”). */
   const centerProfilePhotoUrl =
@@ -950,6 +953,8 @@ export default function SitePageClient({
                     voiceAgent={typeof (site as any).lively_elevenlabs_voice_agent === 'string' ? (site as any).lively_elevenlabs_voice_agent : ''}
                     ttsProvider={livelyTtsProvider}
                     photoSrc={speakingProfilePhotoUrl}
+                    welcomeVideoUrl={livelyProfileWelcomeVideoUrl}
+                    welcomeVideoMuted={livelyProfileWelcomeVideoMuted}
                     size={avatarSize}
                     borderRadius={profilePhotoRadiusCss}
                     border={`2px solid ${t.border}`}
