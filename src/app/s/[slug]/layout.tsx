@@ -66,14 +66,26 @@ function buildJsonLd(
 export async function generateMetadata(
   { params }: { params: { slug: string } },
 ): Promise<Metadata> {
-  const { data: site } = await getDb()
-    .from('mini_sites')
-    .select(
-      'site_name, bio, avatar_url, cv_headline, cv_skills, slug, seo_title, seo_description, seo_og_image, seo_search_tags, seo_json_ld, magic_portrait_enabled, identity_portrait_url',
-    )
-    .eq('slug', params.slug)
-    .eq('published', true)
-    .maybeSingle();
+  const query = () =>
+    getDb()
+      .from('mini_sites')
+      .select(
+        'site_name, bio, avatar_url, cv_headline, cv_skills, slug, seo_title, seo_description, seo_og_image, seo_search_tags, seo_json_ld, magic_portrait_enabled, identity_portrait_url, updated_at',
+      )
+      .eq('slug', params.slug)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+  const primary = await query().eq('published', true);
+  let site =
+    !primary.error && Array.isArray(primary.data) && primary.data[0]
+      ? primary.data[0]
+      : null;
+  if (!site) {
+    const fallback = await query();
+    if (!fallback.error && Array.isArray(fallback.data) && fallback.data[0]) {
+      site = fallback.data[0];
+    }
+  }
 
   if (!site) {
     return {

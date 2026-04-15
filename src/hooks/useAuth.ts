@@ -10,14 +10,41 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+    let mounted = true;
+    const loadingFailSafe = window.setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 8000);
+    supabase.auth.getSession().then(async ({ data, error }) => {
+      if (!mounted) return;
+      if (error) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      if (data.session?.user) {
+        setUser(data.session.user);
+        setLoading(false);
+        return;
+      }
+      const { data: userData } = await supabase.auth.getUser();
+      if (!mounted) return;
+      setUser(userData.user ?? null);
+      setLoading(false);
+    }).catch(() => {
+      if (!mounted) return;
+      setUser(null);
       setLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      if (!mounted) return;
       setUser(session?.user ?? null);
+      setLoading(false);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(loadingFailSafe);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
@@ -26,7 +53,11 @@ export function useAuth() {
   };
 
   const signInWithGoogle = (afterLoginPath?: string) => {
-    const base = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+    const originFromBrowser =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : null;
+    const base = normalizePublicSiteUrl(originFromBrowser || process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_URL);
     const next = sanitizeAppRedirect(afterLoginPath ?? null, '/editor');
     const cb = new URL('/auth/callback', base);
     cb.searchParams.set('next', next);

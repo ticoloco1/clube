@@ -42,6 +42,41 @@ export async function validateCartCreatorsHaveStripe(
       }
     }
 
+    if (line.kind === 'feed_post' && line.itemId) {
+      const { data: post } = await db
+        .from('feed_posts')
+        .select('site_id, user_id, paywall_locked, paywall_price_usd')
+        .eq('id', line.itemId)
+        .maybeSingle();
+      const fp = post as {
+        site_id?: string;
+        user_id?: string;
+        paywall_locked?: boolean | null;
+        paywall_price_usd?: number | string | null;
+      } | null;
+      if (!fp?.site_id || !fp.paywall_locked) {
+        return { ok: false, error: 'Este post do feed não está à venda ou não existe.' };
+      }
+      if (payerUserId && fp.user_id === payerUserId) {
+        return { ok: false, error: 'Não podes comprar o desbloqueio do teu próprio post.' };
+      }
+      const expected = Number(fp.paywall_price_usd);
+      if (!Number.isFinite(expected) || expected < 0.5 || !priceClose(Number(item.price), expected)) {
+        return { ok: false, error: 'O preço deste post mudou — atualiza a página e tenta de novo.' };
+      }
+      const { data: site } = await db
+        .from('mini_sites')
+        .select('slug, stripe_connect_account_id, stripe_connect_charges_enabled')
+        .eq('id', fp.site_id)
+        .maybeSingle();
+      if (!site?.stripe_connect_account_id || !site?.stripe_connect_charges_enabled) {
+        return {
+          ok: false,
+          error: `Feed pago: o criador tem de ligar o Stripe no editor (/${(site as { slug?: string })?.slug || '…'}).`,
+        };
+      }
+    }
+
     if (line.kind === 'cv' && line.itemId) {
       const { data: site } = await db
         .from('mini_sites')

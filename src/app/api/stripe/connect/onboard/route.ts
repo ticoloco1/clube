@@ -30,25 +30,48 @@ async function getSessionUser() {
   return user;
 }
 
+async function getUserFromBearer(req: Request) {
+  const auth = req.headers.get('authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (!token) return null;
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { get: () => undefined, set: () => {}, remove: () => {} } },
+  );
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
+
 /** Create/link Stripe Express account and return Account Link URL for onboarding. */
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const secret = process.env.STRIPE_SECRET_KEY || '';
     if (!secret) {
       return NextResponse.json({ error: 'STRIPE_SECRET_KEY missing' }, { status: 500 });
     }
 
-    const user = await getSessionUser();
+    const user = (await getSessionUser()) || (await getUserFromBearer(req));
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const reqBody = (await req.json().catch(() => ({}))) as { siteId?: string | null };
+
     const db = getDb();
-    const { data: site, error: siteErr } = await db
+    let siteQuery = db
       .from('mini_sites')
       .select('id, user_id, stripe_connect_account_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
+      .eq('user_id', user.id);
+    if (reqBody.siteId && typeof reqBody.siteId === 'string') {
+      siteQuery = siteQuery.eq('id', reqBody.siteId);
+    } else {
+      siteQuery = siteQuery.order('updated_at', { ascending: false }).limit(1);
+    }
+    const siteResp = await siteQuery;
+    const site = Array.isArray(siteResp.data) ? siteResp.data[0] : siteResp.data;
+    const siteErr = siteResp.error;
 
     if (siteErr || !site) {
       return NextResponse.json({ error: 'Create your mini-site in the editor first.' }, { status: 400 });

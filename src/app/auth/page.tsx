@@ -1,47 +1,23 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { sanitizeAppRedirect } from '@/lib/sanitizeAppRedirect';
-import { Mail, Lock, Eye, EyeOff, Loader2, Shield, Coins, Zap } from 'lucide-react';
+import { Shield, Coins, Zap } from 'lucide-react';
 
 function AuthForm() {
-  const { user, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { user, signInWithGoogle } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const redirect = sanitizeAppRedirect(params.get('redirect'), '/editor');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [loading, setLoading] = useState(false);
   const T = useT();
-
   useEffect(() => {
     if (user) router.replace(redirect);
   }, [user, redirect, router]);
 
   const handleGoogle = () => {
     signInWithGoogle(redirect);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = mode === 'signin'
-        ? await signInWithEmail(email, password)
-        : await signUpWithEmail(email, password);
-      if (error) throw error;
-      toast.success(mode === 'signin' ? T('toast_auth_welcome') : T('toast_auth_created'));
-      router.replace(redirect);
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -55,7 +31,10 @@ function AuthForm() {
           </div>
           <h1 className="font-black text-2xl text-[var(--text)]">TrustBank</h1>
           <p className="text-sm text-[var(--text2)] mt-1">
-            {mode === 'signin' ? T('auth_welcome_back') : T('auth_create_account')}
+            {T('auth_welcome_back')}
+          </p>
+          <p className="text-xs text-[var(--text2)] mt-2 max-w-[280px] mx-auto leading-relaxed">
+            {T('auth_google_only_hint')}
           </p>
         </div>
 
@@ -81,49 +60,6 @@ function AuthForm() {
               {T('auth_wallet_notice')}
             </p>
           </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-[var(--border)]" />
-            <span className="text-xs text-[var(--text2)]">{T('auth_or_email')}</span>
-            <div className="flex-1 h-px bg-[var(--border)]" />
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="label block mb-1">{T('auth_email_label')}</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  className="input pl-9" placeholder={T('auth_email_placeholder')} required />
-              </div>
-            </div>
-            <div>
-              <label className="label block mb-1">{T('auth_password')}</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text2)]" />
-                <input type={showPw ? 'text' : 'password'} value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="input pl-9 pr-9" placeholder={T('auth_password_placeholder')} required minLength={6} />
-                <button type="button" onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text2)]">
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-            <button type="submit" disabled={loading}
-              className="btn-primary w-full justify-center py-2.5">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {loading ? T('auth_loading') : mode === 'signin' ? T('auth_signin') : T('auth_signup')}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-[var(--text2)]">
-            {mode === 'signin' ? `${T('auth_no_account')} ` : `${T('auth_have_account')} `}
-            <button onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-              className="text-brand hover:underline font-semibold">
-              {mode === 'signin' ? T('auth_create_free') : T('auth_signin')}
-            </button>
-          </p>
         </div>
 
         {/* Security note */}

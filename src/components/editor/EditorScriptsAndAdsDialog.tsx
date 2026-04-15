@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2, Megaphone, MessageCircle, Wand2, X } from 'lucide-react';
-import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
+import { publicSiteUrlFromEnv } from '@/lib/publicSiteUrl';
 
 export type EditorScriptsAndAdsDialogProps = {
   open: boolean;
@@ -97,7 +97,7 @@ export function EditorScriptsAndAdsDialog(props: EditorScriptsAndAdsDialogProps)
 
   if (!open) return null;
 
-  const tbOrigin = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+  const tbOrigin = publicSiteUrlFromEnv();
   const marketplaceUrl = siteSlug
     ? `${tbOrigin}/marketplace/ads?slug=${encodeURIComponent(siteSlug)}&ref=editor-dialog`
     : `${tbOrigin}/marketplace/ads`;

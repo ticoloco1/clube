@@ -79,11 +79,14 @@ export function Header() {
     };
   }, [openMobileNav]);
 
+  useEffect(() => {
+    if (openMobileNav) setOpenMenu(false);
+  }, [openMobileNav]);
+
   const navItems = [
     { href: '/slugs', label: T('nav_slug_market') },
     { href: '/vault', label: T('nav_vault') },
     { href: '/sites', label: T('nav_sites') },
-    { href: '/videos', label: T('nav_videos') },
     { href: '/cv', label: T('nav_cvs') },
     { href: '/planos', label: T('nav_planos') },
     { href: '/mistico', label: T('nav_mistico') },
@@ -262,7 +265,10 @@ export function Header() {
           {user ? (
             <div ref={menuRef} style={{ position: 'relative' }}>
               <button
-                onClick={() => setOpenMenu((p) => !p)}
+                onClick={() => {
+                  setOpenMobileNav(false);
+                  setOpenMenu((p) => !p);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

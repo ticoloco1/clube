@@ -22,6 +22,17 @@ import { STORAGE_KEY } from './constants';
 import { isMachineTranslatedLang } from './constants';
 
 type MtMap = Record<string, string>;
+const BAD_MT_PATTERN = /mymemory|translated\.net|usage limits|available free translations|you used all available free translations/i;
+
+function sanitizeMtMap(map: MtMap): MtMap {
+  const out: MtMap = {};
+  for (const [k, v] of Object.entries(map || {})) {
+    const value = String(v || '').trim();
+    if (!value || BAD_MT_PATTERN.test(value)) continue;
+    out[k] = value;
+  }
+  return out;
+}
 
 const I18nContext = createContext<{
   lang: Lang;
@@ -36,7 +47,7 @@ function loadMtFromStorage(lang: Lang): MtMap {
     if (!raw) return {};
     const p = JSON.parse(raw) as { v?: number; map?: MtMap };
     if (p.v !== MT_CACHE_VERSION || !p.map || typeof p.map !== 'object') return {};
-    return p.map;
+    return sanitizeMtMap(p.map);
   } catch {
     return {};
   }
@@ -44,9 +55,10 @@ function loadMtFromStorage(lang: Lang): MtMap {
 
 function saveMtToStorage(lang: Lang, map: MtMap) {
   try {
+    const safe = sanitizeMtMap(map);
     localStorage.setItem(
       MT_CACHE_KEY_PREFIX + lang,
-      JSON.stringify({ v: MT_CACHE_VERSION, map })
+      JSON.stringify({ v: MT_CACHE_VERSION, map: safe })
     );
   } catch {
     /* quota */
@@ -118,8 +130,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
           });
           if (!res.ok) break;
           const data = (await res.json()) as { translations?: MtMap };
-          const batch = data.translations || {};
-          map = { ...map, ...batch };
+          const batch = sanitizeMtMap(data.translations || {});
+          map = sanitizeMtMap({ ...map, ...batch });
           saveMtToStorage(lang, map);
           if (!cancelled) setMt(map);
         } catch {

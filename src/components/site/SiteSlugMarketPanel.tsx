@@ -5,8 +5,6 @@ import { useCart } from '@/store/cart';
 import { useT } from '@/lib/i18n';
 import Link from 'next/link';
 import { ShoppingCart, ExternalLink } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-
 type Row = { slug?: string; sale_price?: unknown; status?: string | null; for_sale?: boolean | null };
 
 /**
@@ -48,20 +46,21 @@ export function SiteSlugMarketPanel({
     }
     let cancelled = false;
     setLoading(true);
-    void (supabase as any)
-      .from('slug_registrations')
-      .select('slug, sale_price, status, for_sale')
-      .eq('user_id', ownerUserId)
-      .eq('for_sale', true)
-      .order('created_at', { ascending: false })
-      .limit(400)
-      .then(({ data, error }: { data: Row[] | null; error: Error | null }) => {
+    void fetch(
+      `/api/public/slug-market-list?owner_user_id=${encodeURIComponent(ownerUserId)}&offset=0&limit=400`,
+      { cache: 'no-store' },
+    )
+      .then(async (res) => {
+        const j = (await res.json().catch(() => ({}))) as { rows?: Row[]; error?: string };
         if (cancelled) return;
-        if (error) {
+        if (!res.ok) {
           setRows([]);
           return;
         }
-        setRows(data || []);
+        setRows(Array.isArray(j.rows) ? j.rows : []);
+      })
+      .catch(() => {
+        if (!cancelled) setRows([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

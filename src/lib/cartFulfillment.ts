@@ -69,15 +69,18 @@ export function cartItemToFulfillmentLine(item: CartItemInput, userId: string): 
   }
 
   if (type === 'plan' && id.startsWith('plan_')) {
-    const m = id.match(/^plan_(.+)_(mo|yr)$/);
+    const m = id.match(/^plan_(.+)_(mo|yr|2yr)$/);
     const raw = (m?.[1] || 'pro').toLowerCase();
     const planId = raw === 'pro' || raw === 'pro_ia' || raw === 'studio' ? raw : 'pro';
+    const suffix = m?.[2];
+    const billingPeriod =
+      suffix === 'yr' ? 'yearly' : suffix === '2yr' ? 'two_year' : 'monthly';
     return {
       kind: 'subscription',
       userId,
       amountUsd: price,
       planId,
-      billingPeriod: m?.[2] === 'yr' ? 'yearly' : 'monthly',
+      billingPeriod,
     };
   }
 
@@ -144,6 +147,13 @@ export function cartItemToFulfillmentLine(item: CartItemInput, userId: string): 
     return { kind: 'brand_ad', userId, itemId: proposalId, amountUsd: price };
   }
 
+  if (type === 'feed_post') {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      throw new Error('Invalid feed post id');
+    }
+    return { kind: 'feed_post', userId, itemId: id, amountUsd: price };
+  }
+
   if (type === 'video' || id.startsWith('video_')) {
     const vid = id.startsWith('video_') ? id.replace(/^video_/, '') : id;
     return { kind: 'video', userId, itemId: vid, amountUsd: price };
@@ -175,6 +185,7 @@ export function cartItemToFulfillmentLine(item: CartItemInput, userId: string): 
 
 const KNOWN_KINDS: FulfillmentKind[] = [
   'video',
+  'feed_post',
   'cv',
   'cv_directory',
   'boost',

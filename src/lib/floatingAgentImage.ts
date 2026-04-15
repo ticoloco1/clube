@@ -2,12 +2,24 @@
  * Imagem do agente flutuante: prioridade à foto de perfil do mini-site;
  * se não houver, usa o retrato gerado no Identity Lab.
  */
+export function normalizePublicMediaUrl(raw?: string | null): string | null {
+  const v = typeof raw === 'string' ? raw.trim() : '';
+  if (!v) return null;
+  if (v.startsWith('http://') || v.startsWith('https://')) return v;
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
+  if (v.startsWith('/storage/v1/') && supabaseUrl) return `${supabaseUrl}${v}`;
+  if ((v.startsWith('profile-photos/') || v.startsWith('mini-site-media/')) && supabaseUrl) {
+    return `${supabaseUrl}/storage/v1/object/public/${v}`;
+  }
+  return v;
+}
+
 export function resolveFloatingAgentImageUrl(params: {
   avatarUrl?: string | null;
   identityPortraitUrl?: string | null;
 }): string | null {
-  const a = typeof params.avatarUrl === 'string' ? params.avatarUrl.trim() : '';
-  const p = typeof params.identityPortraitUrl === 'string' ? params.identityPortraitUrl.trim() : '';
+  const a = normalizePublicMediaUrl(params.avatarUrl) || '';
+  const p = normalizePublicMediaUrl(params.identityPortraitUrl) || '';
   if (a) return a;
   if (p) return p;
   return null;
@@ -22,8 +34,8 @@ export function resolvePublicSiteFaceUrl(params: {
   identityPortraitUrl?: string | null;
   magicPortraitEnabled: boolean;
 }): string | null {
-  const a = typeof params.avatarUrl === 'string' ? params.avatarUrl.trim() : '';
-  const p = typeof params.identityPortraitUrl === 'string' ? params.identityPortraitUrl.trim() : '';
+  const a = normalizePublicMediaUrl(params.avatarUrl) || '';
+  const p = normalizePublicMediaUrl(params.identityPortraitUrl) || '';
   if (params.magicPortraitEnabled) {
     if (a) return a;
     if (p) return p;

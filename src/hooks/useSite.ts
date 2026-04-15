@@ -281,6 +281,10 @@ export function usePublicSite(
   slug: string,
   opts?: { ssrSite?: MiniSite | null },
 ) {
+  const normalizedSlug = String(slug || '')
+    .trim()
+    .replace(/^@+/, '')
+    .toLowerCase();
   const ssr = opts?.ssrSite;
   const [site, setSite] = useState<MiniSite | null>(() =>
     ssr !== undefined && ssr !== null ? ssr : null,
@@ -289,24 +293,61 @@ export function usePublicSite(
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!slug) return;
-    supabase
-      .from('mini_sites')
-      .select('*')
-      .eq('slug', slug)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('Error loading public site:', error);
-          setNotFound(true);
-        } else if (!data) {
-          setNotFound(true);
-        } else {
-          setSite(data as MiniSite);
-        }
+    if (!normalizedSlug) return;
+    let cancelled = false;
+    const loadPublic = async () => {
+      const primary = await supabase
+        .from('mini_sites')
+        .select('*')
+        .eq('slug', normalizedSlug)
+        .eq('published', true)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (!cancelled && !primary.error && Array.isArray(primary.data) && primary.data[0]) {
+        setSite(primary.data[0] as MiniSite);
+        setNotFound(false);
         setLoading(false);
-      });
-  }, [slug]);
+        return;
+      }
+
+      const fallback = await supabase
+        .from('mini_sites')
+        .select('*')
+        .eq('slug', normalizedSlug)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (cancelled) return;
+      if (!fallback.error && Array.isArray(fallback.data) && fallback.data[0]) {
+        setSite(fallback.data[0] as MiniSite);
+        setNotFound(false);
+        setLoading(false);
+        return;
+      }
+
+      const caseInsensitive = await supabase
+        .from('mini_sites')
+        .select('*')
+        .ilike('slug', normalizedSlug)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (cancelled) return;
+
+      if (caseInsensitive.error) {
+        console.error('Error loading public site:', caseInsensitive.error);
+        setNotFound(true);
+      } else if (!Array.isArray(caseInsensitive.data) || !caseInsensitive.data[0]) {
+        setNotFound(true);
+      } else {
+        setSite(caseInsensitive.data[0] as MiniSite);
+        setNotFound(false);
+      }
+      setLoading(false);
+    };
+    void loadPublic();
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedSlug]);
 
   return { site, loading, notFound };
 }

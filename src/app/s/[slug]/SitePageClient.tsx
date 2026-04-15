@@ -19,7 +19,9 @@ import { MagicPortraitOutOfFrame } from '@/components/site/MagicPortraitOutOfFra
 import { SiteBookingWidget } from '@/components/site/SiteBookingWidget';
 import { SiteSlugMarketPanel } from '@/components/site/SiteSlugMarketPanel';
 import { SiteClassifiedsPanel } from '@/components/site/SiteClassifiedsPanel';
-import { resolvePublicSiteFaceUrl } from '@/lib/floatingAgentImage';
+import { SiteMysticSales } from '@/components/site/SiteMysticSales';
+import { MiniSiteErrorBoundary } from '@/components/site/MiniSiteErrorBoundary';
+import { normalizePublicMediaUrl, resolvePublicSiteFaceUrl } from '@/lib/floatingAgentImage';
 import { normalizeLivelyTtsProvider } from '@/lib/livelyTtsPreference';
 import { CentralProfileSpeakingAvatar } from '@/components/site/CentralProfileSpeakingAvatar';
 import { CVView } from '@/components/editor/CVEditor';
@@ -28,7 +30,9 @@ import { DIRECTORY_PROFILE_I18N_KEYS } from '@/lib/directoryProfileLabels';
 import { PLATFORM_USD } from '@/lib/platformPricing';
 import { hasDisplayableRichHtml, normalizeRichEmbeds, youtubeWatchUrlToEmbedUrl } from '@/lib/embedHtml';
 import { trackSiteVisit, trackLinkClick, trackPageView } from '@/lib/publicAnalytics';
+import { extractPageModulesLayout, isReservedPageModulesKey } from '@/lib/pageModulesLayout';
 import { FeedPostImpression } from '@/components/site/FeedPostImpression';
+import { StripeCheckout } from '@/components/ui/StripeCheckout';
 import { Lock, Unlock, Shield, Clock, CheckCircle, ExternalLink, Play, Users, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -113,6 +117,38 @@ function getPostMedia(post: any): string[] {
   return post?.image_url ? [post.image_url] : [];
 }
 
+function isFeedPostPaywallLocked(p: any): boolean {
+  return Boolean(p?.paywall_locked) && p?.feed_viewer_unlocked === false && Number(p?.paywall_price_usd) > 0;
+}
+
+async function fetchFeedPostsSafe(siteId: string): Promise<any[]> {
+  try {
+    const res = await fetch(`/api/public/mini-site-feed?site_id=${encodeURIComponent(siteId)}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => ({}));
+    return Array.isArray(data.posts) ? data.posts : [];
+  } catch {
+    return [];
+  }
+}
+
+async function waitMs(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function retryQuery<T>(fn: () => Promise<{ data: T | null; error: any }>, tries = 3): Promise<{ data: T | null; error: any }> {
+  let last: { data: T | null; error: any } = { data: null, error: new Error('unknown') };
+  for (let i = 0; i < tries; i += 1) {
+    last = await fn();
+    if (!last.error) return last;
+    if (i < tries - 1) await waitMs(220 * (i + 1));
+  }
+  return last;
+}
+
 function Countdown({ expiresAt, accent }: { expiresAt: string; accent: string }) {
   const [label, setLabel] = useState('');
   useEffect(() => {
@@ -129,6 +165,47 @@ function Countdown({ expiresAt, accent }: { expiresAt: string; accent: string })
   return <span style={{ fontFamily:'monospace', fontSize:11, fontWeight:900, color: urgent ? '#ff4444' : '#00ff41', background:'rgba(0,0,0,0.4)', padding:'2px 8px', borderRadius:4 }}>⏱ {label}</span>;
 }
 
+function parseJsonArray(raw: unknown): any[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function parseStringArray(raw: unknown): string[] {
+  return parseJsonArray(raw).map((x) => String(x || '').trim()).filter(Boolean);
+}
+
+function parseSectionOrder(raw: unknown): string[] {
+  const allowed = new Set(['summary', 'experience', 'education', 'skills', 'projects', 'languages', 'certificates', 'contact']);
+  const order = parseJsonArray(raw)
+    .map((x) => String(x || '').trim())
+    .filter((x) => allowed.has(x));
+  return order.length ? order : ['summary', 'experience', 'education', 'skills', 'projects', 'languages', 'certificates', 'contact'];
+}
+
+function safeSessionGet(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSessionSet(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // Some browsers/privacy modes can deny storage.
+  }
+}
+
 export default function SitePageClient({
   slug,
   ssrSite,
@@ -137,6 +214,7 @@ export default function SitePageClient({
   /** Linha publicada vinda do servidor (HTML inicial + SEO); null = sem publicado no SSR. */
   ssrSite: MiniSite | null;
 }) {
+  const AI_DISABLED_TEMP = true;
   const safeSlug = slug || '';
   const { site, loading, notFound } = usePublicSite(safeSlug, { ssrSite });
   const { user, loading: authLoading } = useAuth();
@@ -163,11 +241,23 @@ export default function SitePageClient({
   const accent = site?.accent_color || t.accent;
   const isOwner = user?.id === site?.user_id;
   const isAdminViewer = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
-  const canManageFeed = isOwner || isAdminViewer || ((user?.email || '').toLowerCase() === (site?.contact_email || '').toLowerCase());
+  const canManageFeed =
+    isOwner ||
+    isAdminViewer ||
+    (
+      Boolean(user?.email) &&
+      Boolean(site?.contact_email) &&
+      (user!.email || '').toLowerCase() === (site?.contact_email || '').toLowerCase()
+    );
   const trackPublicAnalytics = Boolean(site?.published && user?.id !== site?.user_id);
   const T = useT();
   const feedCols: 1|2|3 = (site as any)?.feed_cols || 1;
+  const profileBandAlign = extractPageModulesLayout((site as any)?.page_modules).profile_photo_align;
+  const profileBandSide = profileBandAlign === 'left' || profileBandAlign === 'right';
   const pageMaxWidth = Math.min(1010, Math.max(320, Number((site as any)?.page_width || 600)));
+  const feedWindowMaxPx =
+    feedCols >= 3 ? pageMaxWidth : feedCols === 2 ? Math.min(820, pageMaxWidth) : Math.min(560, pageMaxWidth);
+  const feedMediaCols = Math.max(1, Math.min(3, feedCols));
   const photoSizeRaw = String((site as any)?.photo_size || 'md');
   /** Legado `site` → XL; só 4 tamanhos fixos, alinhados à coluna da página (não largura do banner). */
   const photoSizeKey = photoSizeRaw === 'site' ? 'xl' : photoSizeRaw;
@@ -193,6 +283,7 @@ export default function SitePageClient({
       if (parsed && typeof parsed === 'object') {
         const out: Record<string, string[]> = {};
         Object.entries(parsed).forEach(([pageId, raw]: any) => {
+          if (isReservedPageModulesKey(pageId)) return;
           if (Array.isArray(raw)) out[pageId] = raw;
           else out[pageId] = Array.isArray(raw?.modules) ? raw.modules : [];
         });
@@ -207,6 +298,7 @@ export default function SitePageClient({
       if (parsed && typeof parsed === 'object') {
         const out: Record<string, 1|2|3> = {};
         Object.entries(parsed).forEach(([pageId, raw]: any) => {
+          if (isReservedPageModulesKey(pageId)) return;
           const c = Number(raw?.columns);
           out[pageId] = [1,2,3].includes(c) ? (c as 1|2|3) : 1;
         });
@@ -221,6 +313,7 @@ export default function SitePageClient({
       if (parsed && typeof parsed === 'object') {
         const out: Record<string, Record<string, 1|2|3>> = {};
         Object.entries(parsed).forEach(([pageId, raw]: any) => {
+          if (isReservedPageModulesKey(pageId)) return;
           out[pageId] = {
             pages: [1,2,3].includes(Number(raw?.moduleColumns?.pages)) ? Number(raw.moduleColumns.pages) as 1|2|3 : 1,
             links: [1,2,3].includes(Number(raw?.moduleColumns?.links)) ? Number(raw.moduleColumns.links) as 1|2|3 : 1,
@@ -240,14 +333,31 @@ export default function SitePageClient({
     return { home: { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 } };
   })();
   const sitePages: {id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[] = (() => {
-    try { return JSON.parse((site as any)?.site_pages || '[{"id":"home","label":"Home","template":"default"}]'); }
-    catch { return [{id:'home',label:'Home',template:'default'}]; }
+    const fallback = [{ id: 'home', label: 'Home', template: 'default' as const }];
+    try {
+      const parsed = JSON.parse((site as any)?.site_pages || JSON.stringify(fallback));
+      if (!Array.isArray(parsed)) return fallback;
+      const normalized = parsed
+        .map((p: any) => ({
+          id: typeof p?.id === 'string' && p.id.trim() ? p.id.trim() : '',
+          label: typeof p?.label === 'string' && p.label.trim() ? p.label.trim() : '',
+          template: p?.template === 'videos_3' || p?.template === 'videos_4' ? p.template : 'default',
+        }))
+        .filter((p: any) => p.id && p.label);
+      return normalized.length ? normalized : fallback;
+    } catch {
+      return fallback;
+    }
   })();
-  const [activePage, setActivePage] = useState('home');
+  const [activePage, setActivePage] = useState(sitePages[0]?.id || 'home');
   const [pageContents, setPageContents] = useState<Record<string,string>>({});
-  const activeModules = (pageModulesMap[activePage] || (activePage === 'home' ? moduleOrder : [])).filter(
-    (m) => m !== 'mystic',
-  );
+  const baseActiveModules = (
+    Array.isArray(pageModulesMap[activePage])
+      ? pageModulesMap[activePage]
+      : activePage === 'home'
+        ? moduleOrder
+        : []
+  ).filter((m) => typeof m === 'string');
   const activeColumns = pageColumnsMap[activePage] || 1;
   const activeModuleCols = pageModuleColumnsMap[activePage] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 };
   const pageTabsNav =
@@ -344,8 +454,8 @@ export default function SitePageClient({
     if (user?.id === site.user_id) return;
     if (typeof window === 'undefined') return;
     const k = `tb_visit_${site.id}`;
-    if (sessionStorage.getItem(k)) return;
-    sessionStorage.setItem(k, '1');
+    if (safeSessionGet(k)) return;
+    safeSessionSet(k, '1');
     const params = new URLSearchParams(window.location.search);
     const utmNow = {
       source: params.get('utm_source') || '',
@@ -387,18 +497,49 @@ export default function SitePageClient({
 
   useEffect(() => {
     if (!site?.id) return;
-    supabase.from('mini_site_links').select('*').eq('site_id', site.id).order('sort_order').then(r => setLinks(r.data||[]));
-    supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order').then(r => setVideos(r.data||[]));
-    const now = new Date().toISOString();
-    (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
-      .or(`pinned.eq.true,expires_at.gt.${now}`)
-      .order('pinned',{ascending:false}).order('created_at',{ascending:false}).limit(20)
-      .then((r:any) => setPosts(r.data||[]));
+    let cancelled = false;
+
+    const loadPublicModules = async () => {
+      const [linksRes, videosRes] = await Promise.all([
+        retryQuery<any[]>(() => supabase.from('mini_site_links').select('*').eq('site_id', site.id).order('sort_order') as any),
+        retryQuery<any[]>(() => supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order') as any),
+      ]);
+
+      if (!cancelled && !linksRes.error && Array.isArray(linksRes.data)) {
+        setLinks(linksRes.data);
+      }
+      if (!cancelled && !videosRes.error && Array.isArray(videosRes.data)) {
+        setVideos(videosRes.data);
+      }
+
+      const feedData = await fetchFeedPostsSafe(site.id);
+      if (!cancelled && Array.isArray(feedData) && feedData.length >= 0) {
+        const clean = feedData.filter((p: any) => !/mymemory|translated\.net|usage limits|available free translations/i.test(String(p?.text || '')));
+        // Keep prior posts if backend returns empty during transient failures.
+        if (clean.length > 0 || posts.length === 0) {
+          setPosts(clean);
+        }
+      }
+    };
+
+    void loadPublicModules();
+
     if (user) {
-      (supabase as any).from('cv_unlocks').select('id').eq('unlocker_id', user.id).eq('site_id', site.id).maybeSingle()
-        .then(({ data }: any) => { if (data) setCvUnlocked(true); });
+      (supabase as any)
+        .from('cv_unlocks')
+        .select('id')
+        .eq('unlocker_id', user.id)
+        .eq('site_id', site.id)
+        .maybeSingle()
+        .then(({ data }: any) => {
+          if (!cancelled && data) setCvUnlocked(true);
+        });
     }
-  }, [site?.id, user]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [site?.id, user?.id]);
 
   useEffect(() => {
     if (!isOwner || !site?.user_id || !user?.id) return;
@@ -495,11 +636,56 @@ export default function SitePageClient({
   const r = Number(t.radius) || 16;
 
   const activePageTemplate = sitePages.find(p => p.id === activePage)?.template || 'default';
+  const cvSkills = parseStringArray((site as any)?.cv_skills);
+  const cvExperience = parseJsonArray((site as any)?.cv_experience);
+  const cvEducation = parseJsonArray((site as any)?.cv_education);
+  const cvProjects = parseJsonArray((site as any)?.cv_projects);
+  const cvLanguages = parseJsonArray((site as any)?.cv_languages);
+  const cvCertificates = parseJsonArray((site as any)?.cv_certificates);
+  const cvSectionOrder = parseSectionOrder((site as any)?.section_order);
+  const hasAnyCvData =
+    Boolean((site as any)?.cv_content) ||
+    Boolean((site as any)?.cv_headline) ||
+    Boolean((site as any)?.cv_location) ||
+    cvSkills.length > 0 ||
+    cvExperience.length > 0 ||
+    cvEducation.length > 0 ||
+    cvProjects.length > 0 ||
+    cvLanguages.length > 0 ||
+    cvCertificates.length > 0;
+  const hasCvLockConfigured =
+    (site as any)?.cv_locked === true ||
+    (site as any)?.cv_contact_locked === true ||
+    Number((site as any)?.cv_price || 0) > 0;
+  const hasCvConfigFields =
+    ['show_cv', 'cv_free', 'cv_locked', 'cv_contact_locked', 'cv_price']
+      .some((k) => Object.prototype.hasOwnProperty.call((site as any) || {}, k));
+  const feedVideoFallback = posts
+    .filter((p: any) => p?.video_embed_url)
+    .slice(0, 8)
+    .map((p: any, idx: number) => ({
+      id: `feed_video_${p.id || idx}`,
+      title: p.text ? String(p.text).slice(0, 80) : 'Feed video',
+      video_embed_url: p.video_embed_url,
+      paywall_enabled: false,
+      paywall_price: 0,
+    }));
+  const videosForDisplay = videos.length > 0 ? videos : feedVideoFallback;
+  const activeModules = (() => {
+    const out = [...baseActiveModules];
+    if ((site.show_cv || hasAnyCvData || hasCvLockConfigured || hasCvConfigFields) && !out.includes('cv')) {
+      out.push('cv');
+    }
+    if (videosForDisplay.length > 0 && !out.includes('videos')) {
+      out.push('videos');
+    }
+    return out;
+  })();
 
-  const livelyOpenBeta = process.env.NEXT_PUBLIC_LIVELY_AVATAR_OPEN_BETA === 'true';
+  const livelyOpenBeta = !AI_DISABLED_TEMP && process.env.NEXT_PUBLIC_LIVELY_AVATAR_OPEN_BETA === 'true';
   const livelyNftOk = !!(site as any)?.lively_avatar_nft_verified_at;
   const livelyFeatureUnlocked =
-    !!(site as any)?.lively_avatar_enabled && (livelyNftOk || livelyOpenBeta || isOwner);
+    !AI_DISABLED_TEMP && !!(site as any)?.lively_avatar_enabled && (livelyNftOk || livelyOpenBeta || isOwner);
   const [livelyApiEligible, setLivelyApiEligible] = useState(false);
   const [livelyEligibilityReady, setLivelyEligibilityReady] = useState(false);
 
@@ -535,9 +721,9 @@ export default function SitePageClient({
   const showLivelyAvatar = livelyFeatureUnlocked && livelyApiEligible;
   const floatingLivelyActive = showLivelyAvatar && livelyAssistVisitorOn;
 
-  const livelyCentralMagic = (site as any)?.lively_central_magic === true;
-  const magicPortraitEnabled = (site as any)?.magic_portrait_enabled === true;
-  const livelyProfileAsAvatar = (site as any)?.lively_profile_as_avatar === true;
+  const livelyCentralMagic = !AI_DISABLED_TEMP && (site as any)?.lively_central_magic === true;
+  const magicPortraitEnabled = !AI_DISABLED_TEMP && (site as any)?.magic_portrait_enabled === true;
+  const livelyProfileAsAvatar = !AI_DISABLED_TEMP && (site as any)?.lively_profile_as_avatar === true;
   const livelyProfileSpeakOnEntry = (site as any)?.lively_profile_speak_on_entry !== false;
   const livelySpeechTap = typeof (site as any)?.lively_profile_speech_tap === 'string' ? (site as any).lively_profile_speech_tap : '';
   const livelySpeechBeforeReply =
@@ -545,7 +731,7 @@ export default function SitePageClient({
   const showProfileSpeakingAvatar = floatingLivelyActive && livelyProfileAsAvatar;
   /** Sempre a foto de perfil real no círculo do topo — nunca o retrato IA (evita “duas caras”). */
   const centerProfilePhotoUrl =
-    typeof site?.avatar_url === 'string' && site.avatar_url.trim() ? site.avatar_url.trim() : null;
+    normalizePublicMediaUrl(site?.avatar_url);
   const floatingAgentImageUrl = site
     ? resolvePublicSiteFaceUrl({
         avatarUrl: site.avatar_url,
@@ -578,6 +764,7 @@ export default function SitePageClient({
       : null;
 
   return (
+    <MiniSiteErrorBoundary>
     <div style={{minHeight:'100vh',background:pageBg,fontFamily:t.font,position:'relative',overflowX:'hidden'}}>
       {t.aurora && auroraOverlayCss ? (
         <div
@@ -670,12 +857,16 @@ export default function SitePageClient({
             marginLeft: 'auto',
             marginRight: 'auto',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
+            flexDirection: profileBandSide ? (profileBandAlign === 'right' ? 'row-reverse' : 'row') : 'column',
+            flexWrap: profileBandSide ? 'wrap' : undefined,
+            justifyContent: profileBandSide ? 'center' : undefined,
+            alignItems: profileBandSide ? 'flex-start' : 'center',
+            textAlign: profileBandSide ? 'left' : 'center',
+            gap: profileBandSide ? 18 : undefined,
             boxSizing: 'border-box',
           }}
         >
+          <div style={{ flexShrink: 0 }}>
           <CentralProfileMagicAvatar
             enabled={
               floatingLivelyActive && livelyCentralMagic && magicPortraitEnabled && !livelyProfileAsAvatar
@@ -694,7 +885,7 @@ export default function SitePageClient({
                         ? Math.max(12, Math.round(avatarSize * 0.06))
                         : Math.max(16, Math.round(avatarSize * 0.12)),
                   background: `linear-gradient(135deg,${accent},${accent}60,rgba(255,255,255,0.12))`,
-                  marginBottom: 12,
+                  marginBottom: profileBandSide ? 0 : 12,
                   boxShadow: `0 8px 28px rgba(0,0,0,0.2)`,
                 }}
               >
@@ -756,8 +947,16 @@ export default function SitePageClient({
               </div>
             </AvatarTiltShell>
           </CentralProfileMagicAvatar>
+          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6 }}>
+          <div
+            style={{
+              flex: profileBandSide ? '1 1 220px' : undefined,
+              minWidth: profileBandSide ? 0 : undefined,
+              width: profileBandSide ? 'auto' : '100%',
+            }}
+          >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: profileBandSide ? 'flex-start' : 'center', gap: 8, marginBottom: 6 }}>
             <h1
               style={{
                 margin: 0,
@@ -773,10 +972,11 @@ export default function SitePageClient({
             {site.is_verified && <CheckCircle style={{ width: 22, height: 22, color: accent, flexShrink: 0 }} />}
           </div>
           {site.cv_headline && (
-            <p style={{ margin: '0 0 8px', fontSize: 15, color: textSub, fontWeight: 700, maxWidth: 420 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 15, color: textSub, fontWeight: 700, maxWidth: profileBandSide ? 560 : 420 }}>
               {site.cv_headline}
             </p>
           )}
+          </div>
         </div>
       </div>
 
@@ -833,7 +1033,7 @@ export default function SitePageClient({
             <span>{T('site_followers_count').replace('{n}', String(Number((site as any).follower_count) || 0))}</span>
           </div>
 
-          {showLivelyAvatar && (
+          {!AI_DISABLED_TEMP && showLivelyAvatar && (
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, maxWidth: 420, marginLeft: 'auto', marginRight: 'auto' }}>
               <div
                 style={{
@@ -927,7 +1127,7 @@ export default function SitePageClient({
             </div>
           )}
 
-          {!livelyProfileAsAvatar ? (
+          {!AI_DISABLED_TEMP && !livelyProfileAsAvatar ? (
             <MagicPortraitOutOfFrame
               slug={slug}
               isOwner={isOwner}
@@ -945,6 +1145,23 @@ export default function SitePageClient({
 
         {/* ── DYNAMIC MODULE ORDER ── */}
         {(() => {
+          const renderPostText = (raw: string, allowExternal: boolean) => {
+            const text = String(raw || '');
+            if (!allowExternal) {
+              return <p style={{margin:0,color:t.text,fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{text}</p>;
+            }
+            const parts = text.split(/(https?:\/\/[^\s]+)/g);
+            return (
+              <p style={{margin:0,color:t.text,fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>
+                {parts.map((part, i) => {
+                  if (/^https?:\/\//i.test(part)) {
+                    return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: accent, textDecoration: 'underline' }}>{part}</a>;
+                  }
+                  return <span key={i}>{part}</span>;
+                })}
+              </p>
+            );
+          };
           const renderModule = (mod: string) => {
           if (mod === 'pages') {
             if (!pageTabsNav) return null;
@@ -1008,42 +1225,15 @@ export default function SitePageClient({
               })}
             </div>
           );
-          if (mod === 'cv' && site.show_cv) {
-            const cvContactLocked = (site as any).cv_contact_locked === true;
-            const cvFree = (site as any).cv_free === true;
-            const hasCvContact = Boolean((site as any).contact_email || (site as any).cv_contact_whatsapp);
-            const cvUnlockedOrOwner = cvUnlocked || isOwner;
-            const contactGated =
-              hasCvContact &&
-              !cvUnlockedOrOwner &&
-              !cvFree &&
-              (site.cv_locked || cvContactLocked);
-            const contactLockOnlyInBody =
-              !site.cv_locked &&
-              cvContactLocked &&
-              !cvUnlockedOrOwner &&
-              !cvFree &&
-              hasCvContact;
+          if (mod === 'cv' && (site.show_cv || hasAnyCvData || hasCvLockConfigured || hasCvConfigFields)) {
+            const cvContactLocked = false;
+            const cvFree = true;
+            const contactGated = false;
+            const contactLockOnlyInBody = false;
 
             return (
             <div key="cv" style={{marginBottom:32}}>
-              {(site.cv_locked && !cvUnlocked && !cvFree) ? (
-                <div style={{padding:20,borderRadius:r,border:`1.5px solid ${accent}35`,background:`${accent}0a`}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
-                    <div>
-                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-                        <Lock style={{width:16,height:16,color:accent}}/>
-                        <span style={{fontWeight:800,color:t.text,fontSize:16}}>CV / Resume</span>
-                      </div>
-                      {site.cv_headline && <p style={{color:t.text2,fontSize:13,margin:0}}>{site.cv_headline}</p>}
-                    </div>
-                    <button onClick={handleCvUnlock} style={{padding:'11px 22px',borderRadius:999,background:`linear-gradient(135deg,${accent},${accent}cc)`,color:'#fff',fontWeight:800,fontSize:13,border:'none',cursor:'pointer',whiteSpace:'nowrap'}}>
-                      🔓 ${site.cv_price ?? PLATFORM_USD.cvUnlockDefault} USD (unlock contacts · Stripe)
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              <div style={{padding:20,borderRadius:r,border:`1.5px solid ${t.border}`,background:t.btn,marginTop:(site.cv_locked && !cvUnlocked && !cvFree) ? 10 : 0}}>
+              <div style={{padding:20,borderRadius:r,border:`1.5px solid ${t.border}`,background:t.btn,marginTop:0}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
                   <Unlock style={{width:16,height:16,color:'#22c55e'}}/>
                   <span style={{fontWeight:800,color:t.text,fontSize:16}}>CV / Resume</span>
@@ -1057,18 +1247,18 @@ export default function SitePageClient({
                     cv_headline: site.cv_headline || '',
                     cv_location: (site as any).cv_location || '',
                     cv_content: site.cv_content || '',
-                    cv_skills: site.cv_skills || [],
-                    cv_experience: (site as any).cv_experience || [],
-                    cv_education: (site as any).cv_education || [],
-                    cv_projects: (site as any).cv_projects || [],
-                    cv_languages: (site as any).cv_languages || [],
-                    cv_certificates: (site as any).cv_certificates || [],
+                    cv_skills: cvSkills,
+                    cv_experience: cvExperience,
+                    cv_education: cvEducation,
+                    cv_projects: cvProjects,
+                    cv_languages: cvLanguages,
+                    cv_certificates: cvCertificates,
                     contact_email: contactGated ? '' : ((site as any).contact_email || ''),
                     cv_contact_whatsapp: contactGated ? '' : ((site as any).cv_contact_whatsapp || ''),
                     cv_hire_price: Number((site as any).cv_hire_price || 0),
                     cv_hire_currency: (site as any).cv_hire_currency || 'USD',
                     cv_hire_type: (site as any).cv_hire_type || 'hour',
-                    section_order: (site as any).section_order || ['summary','experience','education','skills','projects','languages','certificates','contact'],
+                    section_order: cvSectionOrder,
                   }}
                   accentColor={accent}
                   contactLockActive={contactLockOnlyInBody}
@@ -1078,7 +1268,7 @@ export default function SitePageClient({
             </div>
             );
           }
-          if (mod === 'videos' && videos.length > 0) return (
+          if (mod === 'videos' && videosForDisplay.length > 0) return (
             <div key="videos" style={{marginBottom:32}}>
               <h2 style={{color:t.text,fontSize:16,fontWeight:800,margin:'0 0 12px',display:'flex',alignItems:'center',gap:8}}>
                 <span style={{width:24,height:24,borderRadius:6,background:'#ff0000',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
@@ -1086,19 +1276,30 @@ export default function SitePageClient({
                 </span>
                 Videos
               </h2>
-              <div style={{display:'grid',gridTemplateColumns:videos.length===1?'1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
-                {videos.map((v:any) => (
+              <div style={{display:'grid',gridTemplateColumns:videosForDisplay.length===1?'1fr':'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
+                {videosForDisplay.map((v:any) => (
                   <div key={v.id} style={{borderRadius:r,overflow:'hidden',border:`1.5px solid ${t.border}`}}>
-                    <SecureVideoPlayer
-                      videoId={v.id}
-                      title={v.title}
-                      paywallEnabled={v.paywall_enabled}
-                      paywallPrice={v.paywall_price}
-                      accentColor={accent}
-                      siteSlug={slug}
-                      previewImageUrl={v.preview_image_url}
-                      previewEmbedUrl={v.preview_embed_url}
-                    />
+                    {v.video_embed_url ? (
+                      <iframe
+                        src={youtubeWatchUrlToEmbedUrl(v.video_embed_url)}
+                        width="100%"
+                        height="215"
+                        allowFullScreen
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        style={{ border: 'none', display: 'block' }}
+                      />
+                    ) : (
+                      <SecureVideoPlayer
+                        videoId={v.id}
+                        title={v.title}
+                        paywallEnabled={v.paywall_enabled}
+                        paywallPrice={v.paywall_price}
+                        accentColor={accent}
+                        siteSlug={slug}
+                        previewImageUrl={v.preview_image_url}
+                        previewEmbedUrl={v.preview_embed_url}
+                      />
+                    )}
                     {v.title && <div style={{padding:'8px 12px',background:t.btn}}><p style={{margin:0,fontWeight:700,fontSize:13,color:t.text}}>{v.title}</p></div>}
                   </div>
                 ))}
@@ -1107,14 +1308,14 @@ export default function SitePageClient({
           );
           if (mod === 'feed' && (site as any).show_feed !== false) return (
             <div key="feed" style={{marginBottom:32}}>
+            <div style={{ width: '100%', maxWidth: feedWindowMaxPx, marginLeft: 'auto', marginRight: 'auto' }}>
               {/* Owner composer */}
               {canManageFeed && site.id && activeModules.includes('feed') && (
                 <FeedSection siteId={site.id} canPost={canManageFeed} accentColor={accent} isDark={isDark} textColor={textMain} onPost={() => {
-                  const now = new Date().toISOString();
-                  (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
-                    .or(`pinned.eq.true,expires_at.gt.${now}`)
-                    .order('pinned',{ascending:false}).order('created_at',{ascending:false}).limit(20)
-                    .then((r:any) => setPosts(r.data||[]));
+                  void fetchFeedPostsSafe(site.id).then((data) => {
+                    const clean = data.filter((p: any) => !/mymemory|translated\.net|usage limits|available free translations/i.test(String(p?.text || '')));
+                    setPosts(clean);
+                  });
                 }}/>
               )}
               {/* Pinned posts — outside window, highlighted */}
@@ -1122,10 +1323,35 @@ export default function SitePageClient({
                 <FeedPostImpression key={p.id} postId={p.id} siteId={site.id} track={trackPublicAnalytics}>
                 <div style={{padding:'14px 16px',borderRadius:r,border:`2px solid ${accent}`,background:`${accent}10`,marginBottom:10}}>
                   <p style={{color:accent,fontSize:11,fontWeight:800,margin:'0 0 6px'}}>📌 FIXADO</p>
-                  <p style={{margin:0,color:t.text,fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{p.text}</p>
+                  {renderPostText(p.text, true)}
+                  {isFeedPostPaywallLocked(p) ? (
+                    <div style={{ marginTop: 12, padding: 14, borderRadius: r, border: `1.5px dashed ${accent}`, background: `${accent}12` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Lock style={{ width: 18, height: 18, color: accent }} />
+                        <span style={{ fontWeight: 800, color: t.text, fontSize: 14 }}>{T('paywall_feed_title')}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: t.text2, margin: '0 0 10px', lineHeight: 1.45 }}>{T('paywall_feed_body')}</p>
+                      <StripeCheckout
+                        itemId={String(p.id)}
+                        label={T('paywall_feed_cart_label')}
+                        price={Number(p.paywall_price_usd)}
+                        type="feed_post"
+                        accentColor={accent}
+                        buttonText={T('paywall_feed_cta')}
+                        compact
+                        onSuccess={() => {
+                          void fetchFeedPostsSafe(site.id).then((data) => {
+                            const clean = data.filter((x: any) => !/mymemory|translated\.net|usage limits|available free translations/i.test(String(x?.text || '')));
+                            setPosts(clean);
+                          });
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <>
                   {getPostMedia(p).length > 0 && (
-                    <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).length, 3)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
-                      {getPostMedia(p).slice(0, 3).map((url:string, i:number) => (
+                    <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).slice(0, 5).length, feedMediaCols)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
+                      {getPostMedia(p).slice(0, 5).map((url:string, i:number) => (
                         <img key={i} src={url} onClick={() => setLightboxImage(url)} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)',cursor:'zoom-in'}}/>
                       ))}
                     </div>
@@ -1135,6 +1361,8 @@ export default function SitePageClient({
                       <iframe src={youtubeWatchUrlToEmbedUrl(p.video_embed_url)} width="100%" height="215" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" style={{border:'none',display:'block'}} />
                     </div>
                   )}
+                    </>
+                  )}
                   {(canManageFeed || user?.id === p.user_id) && (
                     <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
                       <button
@@ -1142,11 +1370,10 @@ export default function SitePageClient({
                           const ok = window.confirm('Delete this post?');
                           if (!ok) return;
                           await (supabase as any).from('feed_posts').delete().eq('id', p.id).eq('site_id', site.id);
-                          const now = new Date().toISOString();
-                          (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
-                            .or(`pinned.eq.true,expires_at.gt.${now}`)
-                            .order('pinned',{ascending:false}).order('created_at',{ascending:false}).limit(20)
-                            .then((r:any) => setPosts(r.data||[]));
+                          void fetchFeedPostsSafe(site.id).then((data) => {
+                            const clean = data.filter((x: any) => !/mymemory|translated\.net|usage limits|available free translations/i.test(String(x?.text || '')));
+                            setPosts(clean);
+                          });
                         }}
                         style={{fontSize:11,padding:'6px 10px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:'#f87171',cursor:'pointer'}}
                       >
@@ -1159,7 +1386,7 @@ export default function SitePageClient({
               ))}
               {/* Feed window (Instagram-like) */}
               {posts.filter((p:any) => !p.pinned).length > 0 && (
-                <div style={{ width: '100%', maxWidth: 580, minWidth: Math.min(580, pageMaxWidth), margin: '0 auto' }}>
+                <div style={{ width: '100%', maxWidth: feedWindowMaxPx, minWidth: Math.min(feedWindowMaxPx, pageMaxWidth), margin: '0 auto' }}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
                     <h2 style={{color:t.text,fontSize:14,fontWeight:800,margin:0}}>{T('site_posts')}</h2>
                     <span style={{fontSize:11,color:t.text2}}>{posts.filter((p:any)=>!p.pinned).length} posts</span>
@@ -1189,9 +1416,34 @@ export default function SitePageClient({
                         background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                         flexShrink:0,
                       }}>
-                        <p style={{margin:0,color:t.text,fontSize:14,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{p.text}</p>
+                        {renderPostText(p.text, false)}
+                        {isFeedPostPaywallLocked(p) ? (
+                          <div style={{ marginTop: 12, padding: 14, borderRadius: Math.max(r - 4, 6), border: `1.5px dashed ${accent}`, background: `${accent}10` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                              <Lock style={{ width: 18, height: 18, color: accent }} />
+                              <span style={{ fontWeight: 800, color: t.text, fontSize: 14 }}>{T('paywall_feed_title')}</span>
+                            </div>
+                            <p style={{ fontSize: 12, color: t.text2, margin: '0 0 10px', lineHeight: 1.45 }}>{T('paywall_feed_body')}</p>
+                            <StripeCheckout
+                              itemId={String(p.id)}
+                              label={T('paywall_feed_cart_label')}
+                              price={Number(p.paywall_price_usd)}
+                              type="feed_post"
+                              accentColor={accent}
+                              buttonText={T('paywall_feed_cta')}
+                              compact
+                              onSuccess={() => {
+                                void fetchFeedPostsSafe(site.id).then((data) => {
+                                  const clean = data.filter((x: any) => !/mymemory|translated\.net|usage limits|available free translations/i.test(String(x?.text || '')));
+                                  setPosts(clean);
+                                });
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <>
                         {getPostMedia(p).length > 0 && (
-                          <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).length, 3)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
+                          <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(getPostMedia(p).slice(0, 3).length, feedMediaCols)}, minmax(0,1fr))`,gap:8,marginTop:8}}>
                             {getPostMedia(p).slice(0, 3).map((url:string, i:number) => (
                               <img key={i} src={url} onClick={() => setLightboxImage(url)} style={{width:'100%',aspectRatio:'1 / 1',borderRadius:8,objectFit:'contain',background:'rgba(0,0,0,0.08)',cursor:'zoom-in'}}/>
                             ))}
@@ -1201,6 +1453,8 @@ export default function SitePageClient({
                           <div style={{marginTop:8,borderRadius:8,overflow:'hidden'}}>
                             <iframe src={youtubeWatchUrlToEmbedUrl(p.video_embed_url)} width="100%" height="215" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" style={{border:'none',display:'block'}} />
                           </div>
+                        )}
+                          </>
                         )}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:8,paddingTop:6,borderTop:`1px solid ${t.border}`}}>
                           <span style={{fontSize:10,color:t.text2}}>{new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
@@ -1212,11 +1466,10 @@ export default function SitePageClient({
                                   const ok = window.confirm('Delete this post?');
                                   if (!ok) return;
                                   await (supabase as any).from('feed_posts').delete().eq('id', p.id).eq('site_id', site.id);
-                                  const now = new Date().toISOString();
-                                  (supabase as any).from('feed_posts').select('*').eq('site_id', site.id)
-                                    .or(`pinned.eq.true,expires_at.gt.${now}`)
-                                    .order('pinned',{ascending:false}).order('created_at',{ascending:false}).limit(20)
-                                    .then((r:any) => setPosts(r.data||[]));
+                                  void fetchFeedPostsSafe(site.id).then((data) => {
+                                    const clean = data.filter((x: any) => !/mymemory|translated\.net|usage limits|available free translations/i.test(String(x?.text || '')));
+                                    setPosts(clean);
+                                  });
                                 }}
                                 style={{fontSize:10,padding:'4px 8px',borderRadius:8,border:`1px solid ${t.border}`,background:'transparent',color:'#f87171',cursor:'pointer'}}
                               >
@@ -1231,6 +1484,7 @@ export default function SitePageClient({
                   </div>
                 </div>
               )}
+            </div>
             </div>
           );
           if (mod === 'booking') {
@@ -1310,6 +1564,19 @@ export default function SitePageClient({
               />
             );
           }
+          if (mod === 'mystic') {
+            return (
+              <div key="mystic" style={{ marginBottom: 32 }}>
+                <SiteMysticSales
+                  site={site}
+                  isOwner={isOwner}
+                  accentColor={accent}
+                  textColor={t.text}
+                  textMuted={t.text2}
+                />
+              </div>
+            );
+          }
           return null;
           };
 
@@ -1319,7 +1586,8 @@ export default function SitePageClient({
 
           const columns: Record<number, string[]> = { 1: [], 2: [], 3: [] };
           activeModules.forEach((mod) => {
-            const c = activeModuleCols[mod] || 1;
+            const rawC = activeModuleCols[mod] || 1;
+            const c = Math.min(Math.max(1, rawC), activeColumns) as 1 | 2 | 3;
             columns[c].push(mod);
           });
 
@@ -1437,7 +1705,7 @@ export default function SitePageClient({
             <img src={lightboxImage} style={{maxWidth:'95vw',maxHeight:'92vh',objectFit:'contain',borderRadius:10}} />
           </button>
         )}
-        {floatingLivelyActive && (
+        {!AI_DISABLED_TEMP && floatingLivelyActive && (
           <LivelyAvatarWidget
             slug={slug}
             siteName={site.site_name}
@@ -1481,5 +1749,6 @@ export default function SitePageClient({
       .rich-content .tb-paper-dark{background:linear-gradient(135deg,#0f172a,#1e1b4b);color:#e2e8f0;border-color:#4f46e5}
       `}</style>
     </div>
+    </MiniSiteErrorBoundary>
   );
 }

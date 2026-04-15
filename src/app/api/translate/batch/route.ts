@@ -3,6 +3,7 @@ import { MT_TARGET_PAIR } from '@/lib/i18n/constants';
 import { isMachineLang } from '@/lib/i18n/types';
 
 const MAX_LEN = 450;
+const BAD_MT_PATTERN = /mymemory|translated\.net|usage limits|available free translations|you used all available free translations/i;
 
 /** Tradução em lote (EN → idioma). Usa MyMemory (grátis, com limites); cache no cliente. */
 export async function POST(req: Request) {
@@ -32,7 +33,11 @@ export async function POST(req: Request) {
       const res = await fetch(url, { next: { revalidate: 0 } });
       const data = await res.json();
       const out = data?.responseData?.translatedText as string | undefined;
-      translations[id] = out && out !== q ? out : text;
+      const candidate = (out || '').trim();
+      translations[id] =
+        candidate && candidate !== q && !BAD_MT_PATTERN.test(candidate)
+          ? candidate
+          : text;
     } catch {
       translations[id] = text;
     }

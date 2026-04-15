@@ -33,9 +33,10 @@ async function maybeMintSlugCertificateNft(
   }
 }
 
-/** Revenue splits (USD) — paywall vídeo 80/20, CV 50/50 */
+/** Revenue splits (USD) — vídeo 80/20; post do feed pago 90/10 (plataforma 10%). */
 export const PAYMENT_SPLITS = {
   video: { creator: 0.8, platform: 0.2 },
+  feed_post: { creator: 0.9, platform: 0.1 },
   cv: { creator: 0.5, platform: 0.5 },
   cv_directory: { creator: 0, platform: 1 },
   slug: { creator: 0.9, platform: 0.1 },
@@ -50,6 +51,7 @@ export const PAYMENT_SPLITS = {
 
 export type FulfillmentKind =
   | 'video'
+  | 'feed_post'
   | 'cv'
   | 'cv_directory'
   | 'boost'
@@ -128,6 +130,53 @@ export async function fulfillLine(
   const { kind, userId, amountUsd, itemId, planId, billingPeriod, targetType, faceValueUsd, mysticService } = line;
 
   switch (kind) {
+    case 'feed_post': {
+      if (!itemId) return;
+      const { data: post } = await db
+        .from('feed_posts')
+        .select('id, site_id, paywall_locked, paywall_price_usd')
+        .eq('id', itemId)
+        .maybeSingle();
+      const p = post as {
+        id?: string;
+        site_id?: string;
+        paywall_locked?: boolean | null;
+        paywall_price_usd?: number | string | null;
+      } | null;
+      if (!p?.site_id || !p.paywall_locked) {
+        console.warn('[Fulfill] feed_post: missing or not paywalled', itemId);
+        return;
+      }
+      const expected = Number(p.paywall_price_usd);
+      if (!Number.isFinite(expected) || expected < 0.5 || !priceApproxEqual(amountUsd, expected)) {
+        console.warn('[Fulfill] feed_post: price mismatch', amountUsd, expected);
+        return;
+      }
+      const creatorShare = amountUsd * PAYMENT_SPLITS.feed_post.creator;
+      await db.from('feed_post_unlocks' as any).upsert(
+        { user_id: userId, post_id: itemId, amount_paid: creatorShare },
+        { onConflict: 'user_id,post_id' },
+      );
+      const { data: siteRow } = await db
+        .from('mini_sites')
+        .select('stripe_connect_account_id, stripe_connect_charges_enabled')
+        .eq('id', p.site_id)
+        .maybeSingle();
+      const row = siteRow as { stripe_connect_account_id: string | null; stripe_connect_charges_enabled: boolean | null } | null;
+      const stripe = getStripeAdmin();
+      if (stripe && row?.stripe_connect_account_id && row?.stripe_connect_charges_enabled) {
+        try {
+          await transferCreatorUsd(stripe, row.stripe_connect_account_id, creatorShare, {
+            kind: 'feed_post_unlock',
+            post_id: itemId,
+            ref: paymentRef.slice(0, 80),
+          });
+        } catch (err) {
+          console.error('[Fulfill] Stripe transfer (feed_post)', err);
+        }
+      }
+      break;
+    }
     case 'video': {
       if (!itemId) return;
       const creatorShare = amountUsd * PAYMENT_SPLITS.video.creator;
@@ -290,7 +339,9 @@ export async function fulfillLine(
     }
     case 'subscription': {
       const billing = (billingPeriod || 'monthly') as string;
-      const days = billing === 'yearly' || billing === 'annual' ? 365 : 30;
+      let days = 30;
+      if (billing === 'yearly' || billing === 'annual') days = 365;
+      else if (billing === 'two_year' || billing === 'biennial' || billing === '2yr') days = 730;
       const resolvedPlan = planId || 'pro';
       await db.from('subscriptions' as any).upsert(
         {

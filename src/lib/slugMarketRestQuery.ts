@@ -26,6 +26,7 @@ export async function fetchSlugMarketRowsRest(
   serviceKey: string,
   offset: number,
   limit: number,
+  ownerUserId?: string | null,
 ): Promise<{ rows: Record<string, unknown>[]; error: string | null }> {
   const root = baseUrl.replace(/\/$/, '');
   const buildUrl = (withOr: boolean, fetchLimit: number, fetchOffset: number) => {
@@ -33,7 +34,8 @@ export async function fetchSlugMarketRowsRest(
     u.searchParams.set('select', SELECT_COLS);
     u.searchParams.set('for_sale', 'eq.true');
     u.searchParams.set('sale_price', 'gt.0');
-    if (withOr) u.searchParams.set('or', '(status.is.null,status.neq.auction)');
+    if (ownerUserId) u.searchParams.set('user_id', `eq.${ownerUserId}`);
+    if (withOr) u.searchParams.set('or', '(status.is.null,status.not.eq.auction)');
     u.searchParams.set('order', 'sale_price.asc');
     u.searchParams.set('offset', String(Math.max(0, fetchOffset)));
     u.searchParams.set('limit', String(Math.min(500, Math.max(1, fetchLimit))));
@@ -104,7 +106,7 @@ export async function fetchSlugMarketCountRest(
   };
 
   try {
-    let res = await fetch(buildCountUrl({ or: '(status.is.null,status.neq.auction)' }), {
+    let res = await fetch(buildCountUrl({ or: '(status.is.null,status.not.eq.auction)' }), {
       headers: restHeaders(serviceKey, true),
       cache: 'no-store',
     });

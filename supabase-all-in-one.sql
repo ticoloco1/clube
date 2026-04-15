@@ -263,6 +263,21 @@ create table if not exists feed_posts (
 
 create index if not exists idx_feed_posts_site on feed_posts (site_id);
 
+alter table feed_posts add column if not exists paywall_locked boolean not null default false;
+alter table feed_posts add column if not exists paywall_price_usd numeric;
+alter table feed_posts add column if not exists paywall_teaser text;
+
+create table if not exists feed_post_unlocks (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  post_id      uuid not null references feed_posts (id) on delete cascade,
+  amount_paid  numeric default 0,
+  created_at   timestamptz default now(),
+  unique (user_id, post_id)
+);
+create index if not exists idx_feed_post_unlocks_post on feed_post_unlocks (post_id);
+create index if not exists idx_feed_post_unlocks_user on feed_post_unlocks (user_id);
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Slugs, subscrições, planos
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -306,7 +321,7 @@ create table if not exists platform_plans (
 insert into platform_plans (name, slug, price_monthly, price_yearly, color, emoji, features, sort_order)
 values
   ('Pro', 'pro', 29.99, 288.00, '#818cf8', '⚡',
-   '["Unlimited links","3 site pages","Video paywall","CV unlock","30 themes","Analytics","1 free slug included"]'::jsonb, 1)
+   '["Unlimited links","3 site pages","Feed & paid posts (Stripe)","CV unlock","30 themes","Analytics","1 free slug included"]'::jsonb, 1)
 on conflict (slug) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -767,8 +782,21 @@ drop policy if exists "fp_select" on feed_posts;
 drop policy if exists "fp_ins" on feed_posts;
 drop policy if exists "fp_upd" on feed_posts;
 drop policy if exists "fp_del" on feed_posts;
+alter table if exists feed_post_unlocks enable row level security;
+drop policy if exists "fpu_select_own" on feed_post_unlocks;
+create policy "fpu_select_own" on feed_post_unlocks for select using (auth.uid() = user_id);
 create policy "fp_select" on feed_posts for select using (
-  is_published_mini_site(site_id) or is_mini_site_owner(site_id)
+  is_mini_site_owner(site_id)
+  or (
+    is_published_mini_site(site_id)
+    and (
+      not coalesce(paywall_locked, false)
+      or exists (
+        select 1 from feed_post_unlocks fpu
+        where fpu.post_id = feed_posts.id and fpu.user_id = auth.uid()
+      )
+    )
+  )
 );
 create policy "fp_ins" on feed_posts for insert with check (
   auth.uid() = user_id and is_mini_site_owner(site_id)
@@ -1709,9 +1737,12 @@ select 'mystic_lottery opcional (histórico admin) OK' as status;
 -- Corrige cenários em que PostgREST acusa relação slug_registrations ↔ mini_sites no .select().
 
 drop function if exists public.slug_market_listings(int, int);
+drop function if exists public.slug_market_listings(int, int, uuid);
 drop function if exists public.slug_market_listings_count();
+drop function if exists public.slug_market_listings_count(uuid);
 
-create function public.slug_market_listings(p_offset int default 0, p_limit int default 500)
+-- security definer: mercado público precisa de ver linhas de todos os vendedores (ver supabase-slug-market-rpc.sql).
+create function public.slug_market_listings(p_offset int default 0, p_limit int default 500, p_owner_user_id uuid default null)
 returns table (
   id uuid,
   user_id uuid,
@@ -1725,7 +1756,7 @@ returns table (
 )
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select
@@ -1743,16 +1774,17 @@ as $$
     and sr.sale_price is not null
     and coalesce(sr.sale_price, 0) > 0
     and coalesce(sr.status, '') <> 'auction'
+    and (p_owner_user_id is null or sr.user_id = p_owner_user_id)
   order by sr.sale_price asc nulls last
   offset greatest(0, p_offset)
   limit least(500, greatest(1, p_limit));
 $$;
 
-create function public.slug_market_listings_count()
+create function public.slug_market_listings_count(p_owner_user_id uuid default null)
 returns bigint
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select count(*)::bigint
@@ -1760,11 +1792,12 @@ as $$
   where sr.for_sale = true
     and sr.sale_price is not null
     and coalesce(sr.sale_price, 0) > 0
-    and coalesce(sr.status, '') <> 'auction';
+    and coalesce(sr.status, '') <> 'auction'
+    and (p_owner_user_id is null or sr.user_id = p_owner_user_id);
 $$;
 
-grant execute on function public.slug_market_listings(int, int) to anon, authenticated;
-grant execute on function public.slug_market_listings_count() to anon, authenticated;
+grant execute on function public.slug_market_listings(int, int, uuid) to anon, authenticated;
+grant execute on function public.slug_market_listings_count(uuid) to anon, authenticated;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -1786,8 +1819,8 @@ comment on column public.mini_sites.cv_contact_locked is
 -- FILE: supabase-plan-studio.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Linha legado `studio` em platform_plans (metadados / admin). Checkout actual: só `pro` (US$29,90/mês); IA via BYOK.
--- Mantém active = false para não voltar a mostrar cartão Studio na UI antiga. Bónus IA em pagamentos: `pro_ia` ou `studio` no webhook.
+-- Linha legado `studio` em platform_plans (metadados / admin). Checkout actual: só `pro` (US$29,90/mês).
+-- Mantém active = false. Bónus legado em pagamentos: `pro_ia` ou `studio` no webhook.
 
 insert into platform_plans (name, slug, price_monthly, price_yearly, color, emoji, features, active, sort_order)
 values (
@@ -1798,11 +1831,9 @@ values (
   '#22d3ee',
   '🤖',
   '[
-    "Tudo do Pro",
-    "Crédito IA mensal no mini-site (ver IA_STUDIO_BONUS_USD_PER_CYCLE)",
-    "Trust Genesis Hub + Copilot DeepSeek",
-    "Assistente Lively no site (avatar) + horários de agendamento",
-    "Recarga extra IA: 2× o custo (margem 100%)"
+    "Everything in Pro",
+    "Legacy Studio tier — inactive in checkout",
+    "Not sold separately; subscription is Pro only"
   ]'::jsonb,
   false,
   2
@@ -1815,7 +1846,7 @@ on conflict (slug) do update set
   active = false,
   sort_order = excluded.sort_order;
 
-select 'platform_plans studio: upsert OK (active=false — usar Pro + IA em /planos)' as status;
+select 'platform_plans studio: upsert OK (active=false — checkout só Pro)' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -1824,14 +1855,14 @@ select 'platform_plans studio: upsert OK (active=false — usar Pro + IA em /pla
 
 -- Cartão "Studio" separado desligado. Subscrição: plano `pro`; `pro_ia` só legado.
 update platform_plans set active = false where lower(slug) = 'studio';
-select 'studio plan card deactivated — use Pro + IA toggle on /planos' as status;
+select 'studio plan card deactivated — checkout só Pro' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FILE: supabase-plan-pro-pricing.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Pro: alinhado a `src/lib/platformPricing.ts` — US$29,90/mês; US$299,90/ano. Sem add-on IA na subscrição (BYOK).
+-- Pro: alinhado a `src/lib/platformPricing.ts` — US$29,90/mês; US$299,90/ano. Subscrição sem pack de IA incluído.
 
 update platform_plans
 set price_monthly = 29.90, price_yearly = 299.90, active = true
@@ -1839,7 +1870,7 @@ where lower(slug) = 'pro';
 
 update platform_plans set active = false where lower(slug) <> 'pro';
 
-select 'platform_plans pro: US$29.90/mo, US$299.90/yr — IA via chave própria (BYOK), sem pack pago no plano' as status;
+select 'platform_plans pro: US$29.90/mo, US$299.90/yr — Pro sem bundle de IA na subscrição' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

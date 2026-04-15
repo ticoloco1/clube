@@ -6,15 +6,21 @@ import { sanitizeAppRedirect } from '@/lib/sanitizeAppRedirect';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
+  const redirectTo = sanitizeAppRedirect(searchParams.get('next'), '/editor');
   if (code) {
     const cookieStore = cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { get: (n: string) => cookieStore.get(n)?.value, set: (n: string, v: string, o: any) => cookieStore.set({ name: n, value: v, ...o }), remove: (n: string, o: any) => cookieStore.set({ name: n, value: '', ...o }) } }
+      {
+        cookies: {
+          get: (n: string) => cookieStore.get(n)?.value,
+          set: (n: string, v: string, o: any) => cookieStore.set({ name: n, value: v, ...o }),
+          remove: (n: string, o: any) => cookieStore.set({ name: n, value: '', ...o }),
+        },
+      },
     );
     await supabase.auth.exchangeCodeForSession(code);
   }
-  const redirectTo = sanitizeAppRedirect(searchParams.get('next'), '/editor');
   return NextResponse.redirect(new URL(redirectTo, request.url));
 }

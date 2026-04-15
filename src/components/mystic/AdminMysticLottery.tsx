@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Settings, Sparkles, Globe, ChevronRight, Check, Lock } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Settings, Sparkles, Globe, ChevronRight, Check, Lock, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT, type MessageKey } from '@/lib/i18n';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+
+const ADMIN_BYPASS_EMAIL = 'arytcf@gmail.com';
 
 const MYSTIC_MOD_KEYS: Record<string, MessageKey> = {
   tarot: 'mystic_mod_tarot',
@@ -65,6 +69,34 @@ const LOTTERY_OPTIONS: LotteryOption[] = [
 
 export function AdminMysticLottery() {
   const T = useT();
+  const { user } = useAuth();
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setIsPlatformAdmin(false);
+      return;
+    }
+    const byEmail = (user.email || '').toLowerCase() === ADMIN_BYPASS_EMAIL;
+    if (byEmail) {
+      setIsPlatformAdmin(true);
+      return;
+    }
+    let cancelled = false;
+    void (supabase as any)
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle()
+      .then(({ data }: { data: { role?: string } | null }) => {
+        if (!cancelled) setIsPlatformAdmin(!!data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.email]);
+
   const [activeTab, setActiveTab] = useState<'mystic' | 'lottery'>('mystic');
   const [selectedMystic, setSelectedMystic] = useState<string[]>(['tarot', 'numerology', 'astrology']);
   const [selectedLotteries, setSelectedLotteries] = useState<string[]>([
@@ -108,6 +140,18 @@ export function AdminMysticLottery() {
       const item = LOTTERY_OPTIONS.find((l) => l.id === id);
       return total + (item?.price || 0);
     }, 0);
+
+  /** Custos ilustrativos: isentos para admin da plataforma; subscritores pagam add-ons. */
+  const mysticCostShown = isPlatformAdmin ? 0 : calculateMysticCost();
+  const lotteryCostShown = isPlatformAdmin ? 0 : calculateLotteryCost();
+  const totalExtraShown = mysticCostShown + lotteryCostShown;
+
+  const addonLabel = (price: number | undefined, isIncluded: boolean | undefined) => {
+    if (isIncluded) return T('mystic_admin_plan_included');
+    if (isPlatformAdmin && price != null)
+      return T('mystic_admin_addon_waived').replace('{price}', String(price));
+    return T('mystic_admin_plan_addon').replace('{price}', String(price ?? 0));
+  };
 
   const lotterySections = useMemo(
     () =>
@@ -154,6 +198,12 @@ export function AdminMysticLottery() {
             </div>
             <Settings className="w-10 h-10 text-purple-300 shrink-0 hidden sm:block" />
           </div>
+          {isPlatformAdmin && (
+            <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              <Shield className="w-5 h-5 shrink-0 text-emerald-300 mt-0.5" />
+              <span>{T('mystic_admin_banner_admin')}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 md:gap-4 mb-6">
@@ -193,8 +243,10 @@ export function AdminMysticLottery() {
                 </p>
               </div>
               <div className="text-left sm:text-right">
-                <p className="text-sm text-purple-200">{T('mystic_admin_extra_cost')}</p>
-                <p className="text-2xl font-bold text-green-400">US$ {calculateMysticCost().toFixed(2)}</p>
+                <p className="text-sm text-purple-200">
+                  {isPlatformAdmin ? T('mystic_admin_extra_cost_admin') : T('mystic_admin_extra_cost')}
+                </p>
+                <p className="text-2xl font-bold text-green-400">US$ {mysticCostShown.toFixed(2)}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -221,7 +273,7 @@ export function AdminMysticLottery() {
                       {MYSTIC_MOD_KEYS[option.id] ? T(MYSTIC_MOD_KEYS[option.id]) : option.name}
                     </h3>
                     <p className={`text-sm ${isIncluded ? 'text-green-400' : 'text-purple-300'}`}>
-                      {isIncluded ? T('mystic_admin_plan_included') : T('mystic_admin_plan_addon').replace('{price}', String(option.price))}
+                      {addonLabel(option.price, isIncluded)}
                     </p>
                   </button>
                 );
@@ -258,9 +310,7 @@ export function AdminMysticLottery() {
                         <h4 className="text-lg font-bold text-white mb-1">{lottery.name}</h4>
                         <p className="text-sm text-gray-300 mb-2">{lottery.numbers}</p>
                         <p className={`text-sm font-semibold ${isIncluded ? 'text-green-400' : 'text-yellow-400'}`}>
-                          {isIncluded
-                            ? T('mystic_admin_included_short')
-                            : T('mystic_admin_plan_addon').replace('{price}', String(lottery.price))}
+                          {isIncluded ? T('mystic_admin_included_short') : addonLabel(lottery.price, false)}
                         </p>
                       </button>
                     );
@@ -282,10 +332,10 @@ export function AdminMysticLottery() {
               </p>
             </div>
             <div className="text-left md:text-right">
-              <p className="text-sm text-purple-100 mb-1">{T('mystic_admin_example_extra')}</p>
-              <p className="text-3xl font-bold text-white">
-                {(calculateMysticCost() + calculateLotteryCost()).toFixed(2)}
+              <p className="text-sm text-purple-100 mb-1">
+                {isPlatformAdmin ? T('mystic_admin_example_extra_admin') : T('mystic_admin_example_extra')}
               </p>
+              <p className="text-3xl font-bold text-white">{totalExtraShown.toFixed(2)}</p>
             </div>
           </div>
           <button

@@ -102,6 +102,19 @@ export const EXTRA_UI_MESSAGES: Record<string, MessageRow> = {
   paywall_connection_error: { en: 'Connection error. Try again.', pt: 'Erro de conexão. Tente novamente.' },
   paywall_cart_label: { en: 'Video unlock: {title}', pt: 'Desbloqueio de vídeo: {title}' },
   paywall_premium: { en: 'Premium', pt: 'Premium' },
+  paywall_feed_title: { en: 'Locked post', pt: 'Post bloqueado' },
+  paywall_feed_body: {
+    en: 'Photos and full text unlock after payment. About 90% goes to the creator (Stripe Connect).',
+    pt: 'Fotos e texto completo após pagamento. Cerca de 90% para o criador (Stripe Connect).',
+  },
+  paywall_feed_cta: { en: 'Unlock with card (Stripe)', pt: 'Desbloquear com cartão (Stripe)' },
+  paywall_feed_cart_label: { en: 'Feed post unlock', pt: 'Desbloqueio de post do feed' },
+  fd_paywall_toggle: { en: 'Paid post (paywall)', pt: 'Post pago (paywall)' },
+  fd_paywall_price: { en: 'Price (USD)', pt: 'Preço (USD)' },
+  fd_paywall_hint: {
+    en: 'Minimum US$0.50 — requires Stripe Connect on this mini-site.',
+    pt: 'Mínimo US$0,50 — exige Stripe Connect neste mini-site.',
+  },
 
   cart_title: { en: 'Cart', pt: 'Carrinho' },
   cart_empty: { en: 'Your cart is empty', pt: 'Seu carrinho está vazio' },

@@ -40,6 +40,7 @@ import type { IdentityStyleId, VoiceEffectId } from '@/lib/identityStylePresets'
 import { DEFAULT_BOOKING_SERVICES, DEFAULT_WEEKLY_HOURS } from '@/lib/bookingSchedule';
 import { normalizeLivelyTtsProvider, type LivelyTtsProvider } from '@/lib/livelyTtsPreference';
 import { PLATFORM_USD } from '@/lib/platformPricing';
+import { extractPageModulesLayout, isReservedPageModulesKey, type ProfilePhotoAlign } from '@/lib/pageModulesLayout';
 
 const LS_EDITOR_IA_API = 'tb_editor_ia_api_enabled';
 
@@ -117,6 +118,7 @@ const SOCIAL_URL_TEMPLATES: Record<string, string> = {
 };
 
 function EditorPageInner() {
+  const AI_DISABLED_TEMP = true;
   const searchParams = useSearchParams();
   const editorSiteId = searchParams.get('site');
   const editorPreferNew = searchParams.get('new') === '1';
@@ -132,6 +134,7 @@ function EditorPageInner() {
   const iaBudget = useMemo(() => readSiteAiBudget(site ?? undefined), [site]);
   const modLab = useMemo(
     () => ({
+      pages: T('ed_mod_pages'),
       links: T('ed_mod_links'),
       videos: T('ed_mod_videos'),
       cv: T('ed_mod_cv'),
@@ -141,7 +144,6 @@ function EditorPageInner() {
       slug_market: T('ed_mod_slug_market'),
       classified: T('ed_mod_classified'),
       booking: T('ed_mod_booking'),
-      pages: T('ed_mod_pages'),
     }),
     [T, lang],
   );
@@ -238,6 +240,7 @@ function EditorPageInner() {
   // ── Feed state ───────────────────────────────────────────────────────────
   const [showFeed,    setShowFeed]    = useState(true);
   const [feedCols,    setFeedCols]    = useState<1|2|3>(1);
+  const [profilePhotoAlign, setProfilePhotoAlign] = useState<ProfilePhotoAlign>('center');
   const [moduleOrder, setModuleOrder] = useState<string[]>(['links', 'feed']);
   const [pageWidth, setPageWidth] = useState<number>(600);
   const [sitePages,   setSitePages]   = useState<{id:string;label:string;template?:'default'|'videos_3'|'videos_4'}[]>([{id:'home',label:'Home',template:'default'}]);
@@ -334,8 +337,22 @@ function EditorPageInner() {
     return false;
   }, [editorIaApiEnabled, T]);
 
-  /** Ordem livre: só remove duplicados (links/feed já não ficam fixos no topo). */
-  const normalizeModuleList = useCallback((mods: string[]) => Array.from(new Set(mods)), []);
+  /** Ordem livre: só remove duplicados. Inclui vídeos, místico e agenda para aparecerem no mini-site. */
+  const normalizeModuleList = useCallback((mods: string[]) => {
+    const allowed = new Set([
+      'pages',
+      'links',
+      'videos',
+      'cv',
+      'feed',
+      'ads',
+      'mystic',
+      'slug_market',
+      'classified',
+      'booking',
+    ]);
+    return Array.from(new Set(mods.filter((m) => allowed.has(m))));
+  }, []);
 
   useEffect(() => {
     if (site) {
@@ -587,18 +604,20 @@ function EditorPageInner() {
     if ((site as any).page_modules) {
       try {
         const parsed = JSON.parse((site as any).page_modules);
+        setProfilePhotoAlign(extractPageModulesLayout((site as any).page_modules).profile_photo_align);
         const pm: Record<string, string[]> = {};
         const pc: Record<string, 1|2|3> = {};
         const mc: Record<string, Record<string, 1|2|3>> = {};
         if (parsed && typeof parsed === 'object') {
           Object.entries(parsed).forEach(([pageId, raw]: any) => {
+            if (isReservedPageModulesKey(pageId)) return;
             if (Array.isArray(raw)) {
               pm[pageId] = raw;
               pc[pageId] = 1;
               mc[pageId] = { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 };
               return;
             }
-            const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','videos','cv','feed'];
+            const modules = Array.isArray(raw?.modules) ? raw.modules : ['links','cv','feed'];
             const cols = [1,2,3].includes(Number(raw?.columns)) ? Number(raw.columns) as 1|2|3 : 1;
             pm[pageId] = pageId === 'home' ? normalizeModuleList(modules) : modules;
             pc[pageId] = cols;
@@ -619,7 +638,11 @@ function EditorPageInner() {
         if (Object.keys(pm).length) setPageModules(pm);
         if (Object.keys(pc).length) setPageColumns(pc);
         if (Object.keys(mc).length) setModuleColumns(mc);
-      } catch {}
+      } catch {
+        setProfilePhotoAlign('center');
+      }
+    } else {
+      setProfilePhotoAlign('center');
     }
   }, [site]);
 
@@ -1089,6 +1112,9 @@ function EditorPageInner() {
           moduleColumns: moduleColumns[p.id] || { pages: 1, links: 1, videos: 1, cv: 1, feed: 1, ads: 1, mystic: 1, slug_market: 1, classified: 1, booking: 1 },
         };
       });
+      combinedPageModules._layout = {
+        profile_photo_align: profilePhotoAlign,
+      };
 
       let weeklyHoursPayload: Record<string, unknown> = { ...DEFAULT_WEEKLY_HOURS };
       try {
@@ -1105,7 +1131,7 @@ function EditorPageInner() {
         /* mantém default */
       }
 
-      await save({
+      const savePayload: any = {
         site_name:     siteName,
         bio,
         avatar_url:    avatarUrl,
@@ -1123,9 +1149,9 @@ function EditorPageInner() {
         font_style:    fontStyle,
         text_color:    textColor || null,
         show_cv:       showCv,
-        cv_locked:     cvLocked,
-        cv_contact_locked: cvContactLocked,
-        cv_price:      parseFloat(cvPrice) || PLATFORM_USD.cvUnlockDefault,
+        cv_locked:     false,
+        cv_contact_locked: false,
+        cv_price:      0,
         cv_headline:   cvHeadline,
         cv_content:    cvContent,
         cv_location:   cvLocation,
@@ -1198,7 +1224,33 @@ function EditorPageInner() {
         booking_weekly_hours: weeklyHoursPayload,
         booking_services: servicesPayload,
         booking_vertical: bookingVertical,
-      } as any);
+      } as any;
+
+      if (AI_DISABLED_TEMP) {
+        // Temporarily disable AI persistence to avoid schema drift breakages.
+        delete savePayload.lively_avatar_enabled;
+        delete savePayload.lively_avatar_model;
+        delete savePayload.lively_avatar_welcome;
+        delete savePayload.lively_central_magic;
+        delete savePayload.lively_floating_preset;
+        delete savePayload.lively_floating_expressive;
+        delete savePayload.lively_dual_agent;
+        delete savePayload.lively_agent_instructions;
+        delete savePayload.lively_elevenlabs_voice_owner;
+        delete savePayload.lively_elevenlabs_voice_agent;
+        delete savePayload.lively_tts_provider;
+        delete savePayload.lively_use_deepseek_byok;
+        delete savePayload.lively_profile_as_avatar;
+        delete savePayload.lively_profile_speak_on_entry;
+        delete savePayload.lively_profile_speech_tap;
+        delete savePayload.lively_profile_speech_before_reply;
+        delete savePayload.identity_portrait_url;
+        delete savePayload.identity_style_preset;
+        delete savePayload.identity_voice_effect;
+        delete savePayload.magic_portrait_enabled;
+      }
+
+      await save(savePayload);
 
       // Handle slug change
       if (slug !== site.slug) {
@@ -1310,14 +1362,25 @@ function EditorPageInner() {
     }
     const ytId = extractYouTubeId(ytUrl);
     if (!ytId) { toast.error(T('toast_invalid_youtube')); return; }
-    await supabase.from('mini_site_videos').insert({
+    const basePayload = {
       site_id: site.id, youtube_video_id: ytId,
       title: ytTitle || 'Video', paywall_enabled: paywallEnabled,
       paywall_price: parseFloat(paywallPrice) || PLATFORM_USD.videoPaywallDefault,
       preview_image_url: videoPreviewImageUrl.trim() || null,
-      preview_embed_url: videoPreviewEmbedUrl.trim() || null,
       sort_order: videos.length
+    };
+    let { error } = await (supabase as any).from('mini_site_videos').insert({
+      ...basePayload,
+      preview_embed_url: videoPreviewEmbedUrl.trim() || null,
     });
+    if (error && /preview_embed_url/i.test(String(error.message || ''))) {
+      const retry = await (supabase as any).from('mini_site_videos').insert(basePayload);
+      error = retry.error;
+    }
+    if (error) {
+      toast.error(error.message || T('toast_error_prefix'));
+      return;
+    }
     supabase.from('mini_site_videos').select('*').eq('site_id', site.id).order('sort_order')
       .then(r => setVideos(r.data || []));
     setYtUrl(''); setYtTitle(''); setVideoPreviewImageUrl(''); setVideoPreviewEmbedUrl('');
@@ -1372,16 +1435,20 @@ function EditorPageInner() {
       { id: 'profile' as const, label: T('ed_profile'), icon: Globe },
       { id: 'theme' as const, label: T('ed_theme'), icon: ImageIcon },
       { id: 'links' as const, label: T('ed_links'), icon: Link2 },
-      { id: 'videos' as const, label: T('ed_videos'), icon: Video },
       { id: 'cv' as const, label: T('ed_cv'), icon: FileText },
       { id: 'feed' as const, label: T('ed_feed'), icon: ChevronDown },
       { id: 'pages' as const, label: T('ed_pages'), icon: LayoutTemplate },
       { id: 'seo' as const, label: T('ed_seo'), icon: Search },
-      { id: 'ia' as const, label: T('ed_ia_tab'), icon: Cpu },
       { id: 'verify' as const, label: T('ed_verify'), icon: Shield },
     ],
     [T],
   );
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/auth?redirect=%2Feditor');
+    }
+  }, [authLoading, user, router]);
 
   // ── Guards ────────────────────────────────────────────────────────────────
   if (authLoading || siteLoading) return (
@@ -1389,7 +1456,11 @@ function EditorPageInner() {
       <Loader2 className="w-8 h-8 animate-spin text-brand" />
     </div>
   );
-  if (!user) { router.push('/auth'); return null; }
+  if (!user) return (
+    <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-brand" />
+    </div>
+  );
   if (editorSiteId && !site) {
     return (
       <div className="min-h-screen bg-[var(--bg)]">
@@ -2002,6 +2073,33 @@ function EditorPageInner() {
                 </div>
               </div>
 
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg2)] p-4 space-y-2">
+                <p className="text-sm font-bold text-[var(--text)]">{T('ed_layout_profile_photo_align')}</p>
+                <div className="flex flex-wrap gap-2">
+                  {(['center', 'left', 'right'] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        setProfilePhotoAlign(v);
+                        markDirty();
+                      }}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                        profilePhotoAlign === v
+                          ? 'border-brand bg-brand/10 text-brand'
+                          : 'border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)]'
+                      }`}
+                    >
+                      {v === 'center'
+                        ? T('ed_layout_profile_photo_center')
+                        : v === 'left'
+                          ? T('ed_layout_profile_photo_left')
+                          : T('ed_layout_profile_photo_right')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="label block mb-1">{T('ed_label_bio')}</label>
                 <textarea value={bio} onChange={e => { setBio(e.target.value); markDirty(); }}
@@ -2044,13 +2142,39 @@ function EditorPageInner() {
                 )}
                 <button
                   type="button"
-                  disabled={stripeOnboarding}
+                  disabled={stripeOnboarding || !user || !site?.id}
                   onClick={async () => {
+                    if (!site?.id) {
+                      toast.error('Salve o mini-site antes de conectar Stripe.');
+                      return;
+                    }
                     setStripeOnboarding(true);
                     try {
-                      const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' });
-                      const data = await res.json();
+                      const buildHeaders = async () => {
+                        const { data: authData } = await supabase.auth.getSession();
+                        let token = authData.session?.access_token || '';
+                        if (!token) {
+                          const refreshed = await supabase.auth.refreshSession();
+                          token = refreshed.data.session?.access_token || '';
+                        }
+                        const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                        if (token) reqHeaders.Authorization = `Bearer ${token}`;
+                        return reqHeaders;
+                      };
+
+                      const doRequest = async () => fetch('/api/stripe/connect/onboard', {
+                        method: 'POST',
+                        headers: await buildHeaders(),
+                        body: JSON.stringify({ siteId: site?.id || null }),
+                      });
+
+                      let res = await doRequest();
+                      if (res.status === 401) {
+                        res = await doRequest();
+                      }
+                      const data = await res.json().catch(() => ({} as { error?: string; url?: string }));
                       if (!res.ok) throw new Error(data.error || T('err_stripe_generic'));
+                      if (!data.url) throw new Error(T('err_stripe_generic'));
                       window.location.href = data.url;
                     } catch (e) {
                       toast.error(e instanceof Error ? e.message : T('err_stripe_generic'));
@@ -2496,6 +2620,7 @@ function EditorPageInner() {
                         </button>
                       ))}
                     </div>
+                    <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed">{T('ed_feed_layout_hint')}</p>
                   </div>
                 )}
               </div>
@@ -2595,7 +2720,13 @@ function EditorPageInner() {
                   {moduleOrder.map((mod, idx) => {
                     const labels: Record<string,string> = {
                       pages: `📑 ${modLab.pages}`,
-                      links:'🔗 Links', videos:'🎬 Videos', cv:'📄 CV', feed:'📝 Feed', ads:'📣 Ads', mystic:'🔮 Mystic', slug_market:'🏷️ Slugs',
+                      links: '🔗 Links',
+                      videos: `🎬 ${modLab.videos}`,
+                      cv: '📄 CV',
+                      feed: '📝 Feed',
+                      ads: '📣 Ads',
+                      mystic: `🔮 ${modLab.mystic}`,
+                      slug_market: '🏷️ Slugs',
                       classified: `🚗 ${modLab.classified}`,
                       booking: `📅 ${modLab.booking}`,
                     };
@@ -2814,7 +2945,20 @@ function EditorPageInner() {
                         </select>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {(['pages', 'links', 'videos', 'cv', 'feed', 'ads', 'mystic', 'slug_market', 'classified', 'booking'] as const).map((mod) => {
+                        {(
+                          [
+                            'pages',
+                            'links',
+                            'videos',
+                            'cv',
+                            'feed',
+                            'ads',
+                            'mystic',
+                            'slug_market',
+                            'classified',
+                            'booking',
+                          ] as const
+                        ).map((mod) => {
                           const currentModules = pageModules[page.id] || (page.id === 'home' ? moduleOrder : []);
                           const enabled = currentModules.includes(mod);
                           return (

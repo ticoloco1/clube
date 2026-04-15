@@ -329,7 +329,7 @@ export default function HomePage() {
                     <span className="text-sm text-[var(--text2)] font-normal">{T('home_slash_mo')}</span>
                   </div>
                   <p className="text-xs text-[var(--text2)] mb-4 leading-relaxed">
-                    {planHomeHintOverride.trim() ? planHomeHintOverride : T('home_pricing_ia_hint')}
+                    {planHomeHintOverride.trim() ? planHomeHintOverride : T('home_pricing_pro_hint')}
                   </p>
                   <ul className="space-y-2 mb-6">
                     {(Array.isArray(plan.features) ? plan.features : []).slice(0, 5).map((f: string, i: number) => (

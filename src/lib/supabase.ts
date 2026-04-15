@@ -9,7 +9,7 @@ export const supabase = createBrowserClient(
       persistSession: true,
       storageKey: 'tb_auth',
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      detectSessionInUrl: false,
     },
   }
 );

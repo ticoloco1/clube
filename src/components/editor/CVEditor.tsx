@@ -610,20 +610,9 @@ export function CVEditor({ data, onChange, onSave, saving = false }: CVEditorPro
           <p style={{ margin: 0, fontSize: 12, color: muted }}>{T('cv_editor_subtitle')}</p>
         </div>
 
-        {/* Lock toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 12, background: data.cv_free ? '#34d39920' : '#f59e0b20', border: `1.5px solid ${data.cv_free ? '#34d39940' : '#f59e0b40'}` }}>
-          {data.cv_free
-            ? <Unlock style={{ width: 15, height: 15, color: '#34d399' }} />
-            : <Lock style={{ width: 15, height: 15, color: '#f59e0b' }} />}
-          <button type="button" onClick={() => onChange({ cv_free: !data.cv_free })}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: data.cv_free ? '#34d399' : '#f59e0b', padding: 0 }}>
-            {data.cv_free ? T('cv_free') : T('cv_paid').replace('${price}', String(data.cv_price ?? '?'))}
-          </button>
-          {!data.cv_free && (
-            <Input dark={dark} type="number" min={0} step={0.5} value={data.cv_price}
-              onChange={e => onChange({ cv_price: parseFloat(e.target.value) || 0 })}
-              placeholder={T('cv_ph_usdc_price')} style={{ width: 90, padding: '4px 8px', fontSize: 13 }} />
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 12, background: '#34d39920', border: '1.5px solid #34d39940' }}>
+          <Unlock style={{ width: 15, height: 15, color: '#34d399' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>{T('cv_free')}</span>
         </div>
 
         {/* Show/hide toggle */}

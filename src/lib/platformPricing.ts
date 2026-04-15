@@ -1,15 +1,17 @@
 /**
  * Preços em USD — site e checkout alinhados aos EUA (Stripe `currency: 'usd'`).
- * Pro único = `proMonthly` (entrada barata). IA no editor: BYOK (chave própria); sem add-on pago na subscrição.
+ * Pro único = `proMonthly` (entrada barata). Subscrição sem pack de IA incluído.
  * Legado: `proIaAddon*` a 0 — checkout usa só `pro`. `pro_ia` em subs antigas ainda reconhecido.
  * Alinhar `platform_plans` no Supabase com `supabase-plan-pro-pricing.sql`.
  */
 export const PLATFORM_USD = {
   /** Pro — alinhar `supabase-plan-pro-pricing.sql` na BD. */
   proMonthly: 29.9,
-  /** Anual (~10× mensal). */
+  /** Anual (~10× mensal) — 365 dias no fulfill. */
   proYearly: 299.9,
-  /** Add-on IA na subscrição: desligado (IA com API própria / créditos opcionais). */
+  /** Biénio (2×365 dias): pré-pago. */
+  proTwoYear: 520,
+  /** Add-on IA na subscrição: desligado (legado). */
   proIaAddonMonthly: 0,
   proIaAddonYearly: 0,
   /** % do paywall de vídeo para o criador (marketing / hero / stats). */
@@ -34,7 +36,7 @@ export const PLATFORM_USD = {
   cvDirectoryMonthly: 199,
   cvDirectoryYearly: 1990,
   cvDirectoryExtraCv: 10,
-  classifiedListingMonthly: 1.49,
+  classifiedListingMonthly: 5,
   feedPinPost: 10,
   slugRenewal: 7,
 } as const;

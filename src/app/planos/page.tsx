@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { useCart } from '@/store/cart';
-import { Check, Loader2, Zap, Sparkles } from 'lucide-react';
+import { Check, Loader2, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useI18n, useT } from '@/lib/i18n';
 import { PLATFORM_USD } from '@/lib/platformPricing';
@@ -10,11 +10,14 @@ import { PLAN_MARKETING_PLANOS_EN_KEY } from '@/lib/planMarketingSettings';
 
 const PRO_M = PLATFORM_USD.proMonthly;
 const PRO_Y = PLATFORM_USD.proYearly;
+const PRO_2Y = PLATFORM_USD.proTwoYear;
+
+type ProBilling = 'monthly' | 'yearly' | 'two_year';
 
 const PRO_FEATURES_FALLBACK = [
   'Unlimited links',
   '3 site pages',
-  'Video paywall',
+  'Feed & paid posts (Stripe)',
   'CV unlock',
   '30 themes',
   'Analytics',
@@ -35,7 +38,7 @@ const PRO_FALLBACK_PLAN = {
 export default function PlanosPage() {
   const T = useT();
   const { lang } = useI18n();
-  const [annual, setAnnual] = useState(false);
+  const [billing, setBilling] = useState<ProBilling>('monthly');
   const [proPlan, setProPlan] = useState<any>(PRO_FALLBACK_PLAN);
   const [loading, setLoading] = useState(true);
   const [planosNoteOverride, setPlanosNoteOverride] = useState('');
@@ -82,12 +85,18 @@ export default function PlanosPage() {
     };
   }, []);
 
-  const total = annual ? PRO_Y : PRO_M;
+  const total = billing === 'yearly' ? PRO_Y : billing === 'two_year' ? PRO_2Y : PRO_M;
 
   const handleBuy = () => {
-    const periodLabel = annual ? T('plans_period_yearly') : T('plans_period_monthly');
+    const periodLabel =
+      billing === 'yearly'
+        ? T('plans_period_yearly')
+        : billing === 'two_year'
+          ? T('plans_period_two_year')
+          : T('plans_period_monthly');
+    const idSuffix = billing === 'yearly' ? 'yr' : billing === 'two_year' ? '2yr' : 'mo';
     add({
-      id: `plan_pro_${annual ? 'yr' : 'mo'}`,
+      id: `plan_pro_${idSuffix}`,
       label: `${proPlan.name || 'Pro'} (${periodLabel})`,
       price: total,
       type: 'plan',
@@ -96,15 +105,17 @@ export default function PlanosPage() {
   };
 
   const period =
-    lang === 'pt' ? (annual ? T('plans_suffix_yr') : T('plans_suffix_mo')) : annual ? '/yr' : '/mo';
-
-  const iaFeatures = [
-    T('plans_ia_f1'),
-    T('plans_ia_f2'),
-    T('plans_ia_f3'),
-    T('plans_ia_f4'),
-    T('plans_ia_f5'),
-  ];
+    lang === 'pt'
+      ? billing === 'yearly'
+        ? T('plans_suffix_yr')
+        : billing === 'two_year'
+          ? T('plans_suffix_2yr')
+          : T('plans_suffix_mo')
+      : billing === 'yearly'
+        ? '/yr'
+        : billing === 'two_year'
+          ? '/2 yr'
+          : '/mo';
 
   const baseFeatures: string[] = Array.isArray(proPlan.features) ? proPlan.features : PRO_FEATURES_FALLBACK;
 
@@ -119,18 +130,19 @@ export default function PlanosPage() {
           <p className="text-sm text-[var(--text2)] mt-4 leading-relaxed max-w-md mx-auto">
             {planosNoteOverride.trim() ? planosNoteOverride : T('plans_pro_only_note')}
           </p>
-          <div className="flex items-center justify-center gap-3 mt-6">
-            <span className={`text-sm font-semibold ${!annual ? 'text-[var(--text)]' : 'text-[var(--text2)]'}`}>{T('plans_monthly')}</span>
-            <button
-              type="button"
-              onClick={() => setAnnual(!annual)}
-              className={`relative w-14 h-7 rounded-full transition-colors ${annual ? 'bg-brand' : 'bg-[var(--border)]'}`}
-            >
-              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${annual ? 'left-8' : 'left-1'}`} />
-            </button>
-            <span className={`text-sm font-semibold ${annual ? 'text-[var(--text)]' : 'text-[var(--text2)]'}`}>
-              {T('plans_yearly')}
-            </span>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+            {(['monthly', 'yearly', 'two_year'] as const).map((b) => (
+              <button
+                key={b}
+                type="button"
+                onClick={() => setBilling(b)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                  billing === b ? 'bg-brand text-white' : 'text-[var(--text2)] bg-[var(--border)]/60 hover:opacity-90'
+                }`}
+              >
+                {b === 'monthly' ? T('plans_monthly') : b === 'yearly' ? T('plans_yearly') : T('plans_two_year')}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -164,22 +176,6 @@ export default function PlanosPage() {
                 </li>
               ))}
             </ul>
-
-            <div className="rounded-xl border border-cyan-400/45 bg-cyan-500/10 p-4 mb-6">
-              <p className="text-sm font-black text-[var(--text)] flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-cyan-400" />
-                {T('plans_ia_byok_title')}
-              </p>
-              <p className="text-xs text-[var(--text2)] mt-2 leading-relaxed">{T('plans_ia_byok_body')}</p>
-              <ul className="mt-4 pt-3 border-t border-cyan-500/20 space-y-2">
-                {iaFeatures.map((f, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-cyan-100/90">
-                    <Check className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
 
             <button
               type="button"

@@ -5,6 +5,22 @@ import { trackFeedPostView } from '@/lib/publicAnalytics';
 
 type Utm = { source: string; medium: string; campaign: string };
 
+function safeSessionGet(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSessionSet(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // Firefox/strict privacy may block storage for some users.
+  }
+}
+
 export function FeedPostImpression({
   postId,
   siteId,
@@ -21,7 +37,7 @@ export function FeedPostImpression({
   useEffect(() => {
     if (!track || typeof window === 'undefined') return;
     const key = `tb_fpv_${siteId}_${postId}`;
-    if (sessionStorage.getItem(key)) return;
+    if (safeSessionGet(key)) return;
     const el = ref.current;
     if (!el) return;
 
@@ -37,7 +53,7 @@ export function FeedPostImpression({
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
-        sessionStorage.setItem(key, '1');
+        safeSessionSet(key, '1');
         const r = document.referrer || '';
         trackFeedPostView({
           post_id: postId,

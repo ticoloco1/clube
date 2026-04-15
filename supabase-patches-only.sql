@@ -801,9 +801,11 @@ select 'mystic_lottery opcional (histórico admin) OK' as status;
 -- Corrige cenários em que PostgREST acusa relação slug_registrations ↔ mini_sites no .select().
 
 drop function if exists public.slug_market_listings(int, int);
+drop function if exists public.slug_market_listings(int, int, uuid);
 drop function if exists public.slug_market_listings_count();
+drop function if exists public.slug_market_listings_count(uuid);
 
-create function public.slug_market_listings(p_offset int default 0, p_limit int default 500)
+create function public.slug_market_listings(p_offset int default 0, p_limit int default 500, p_owner_user_id uuid default null)
 returns table (
   id uuid,
   user_id uuid,
@@ -817,7 +819,7 @@ returns table (
 )
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select
@@ -835,16 +837,17 @@ as $$
     and sr.sale_price is not null
     and coalesce(sr.sale_price, 0) > 0
     and coalesce(sr.status, '') <> 'auction'
+    and (p_owner_user_id is null or sr.user_id = p_owner_user_id)
   order by sr.sale_price asc nulls last
   offset greatest(0, p_offset)
   limit least(500, greatest(1, p_limit));
 $$;
 
-create function public.slug_market_listings_count()
+create function public.slug_market_listings_count(p_owner_user_id uuid default null)
 returns bigint
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select count(*)::bigint
@@ -852,11 +855,12 @@ as $$
   where sr.for_sale = true
     and sr.sale_price is not null
     and coalesce(sr.sale_price, 0) > 0
-    and coalesce(sr.status, '') <> 'auction';
+    and coalesce(sr.status, '') <> 'auction'
+    and (p_owner_user_id is null or sr.user_id = p_owner_user_id);
 $$;
 
-grant execute on function public.slug_market_listings(int, int) to anon, authenticated;
-grant execute on function public.slug_market_listings_count() to anon, authenticated;
+grant execute on function public.slug_market_listings(int, int, uuid) to anon, authenticated;
+grant execute on function public.slug_market_listings_count(uuid) to anon, authenticated;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -878,8 +882,8 @@ comment on column public.mini_sites.cv_contact_locked is
 -- FILE: supabase-plan-studio.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Linha legado `studio` em platform_plans (metadados / admin). Checkout actual: só `pro` (US$29,90/mês); IA via BYOK.
--- Mantém active = false para não voltar a mostrar cartão Studio na UI antiga. Bónus IA em pagamentos: `pro_ia` ou `studio` no webhook.
+-- Linha legado `studio` em platform_plans (metadados / admin). Checkout actual: só `pro` (US$29,90/mês).
+-- Mantém active = false. Bónus legado em pagamentos: `pro_ia` ou `studio` no webhook.
 
 insert into platform_plans (name, slug, price_monthly, price_yearly, color, emoji, features, active, sort_order)
 values (
@@ -890,11 +894,9 @@ values (
   '#22d3ee',
   '🤖',
   '[
-    "Tudo do Pro",
-    "Crédito IA mensal no mini-site (ver IA_STUDIO_BONUS_USD_PER_CYCLE)",
-    "Trust Genesis Hub + Copilot DeepSeek",
-    "Assistente Lively no site (avatar) + horários de agendamento",
-    "Recarga extra IA: 2× o custo (margem 100%)"
+    "Everything in Pro",
+    "Legacy Studio tier — inactive in checkout",
+    "Not sold separately; subscription is Pro only"
   ]'::jsonb,
   false,
   2
@@ -907,7 +909,7 @@ on conflict (slug) do update set
   active = false,
   sort_order = excluded.sort_order;
 
-select 'platform_plans studio: upsert OK (active=false — usar Pro + IA em /planos)' as status;
+select 'platform_plans studio: upsert OK (active=false — checkout só Pro)' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -916,14 +918,14 @@ select 'platform_plans studio: upsert OK (active=false — usar Pro + IA em /pla
 
 -- Cartão "Studio" separado desligado. Subscrição: plano `pro`; `pro_ia` só legado.
 update platform_plans set active = false where lower(slug) = 'studio';
-select 'studio plan card deactivated — use Pro + IA toggle on /planos' as status;
+select 'studio plan card deactivated — checkout só Pro' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FILE: supabase-plan-pro-pricing.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Pro: alinhado a `src/lib/platformPricing.ts` — US$29,90/mês; US$299,90/ano. Sem add-on IA na subscrição (BYOK).
+-- Pro: alinhado a `src/lib/platformPricing.ts` — US$29,90/mês; US$299,90/ano. Subscrição sem pack de IA incluído.
 
 update platform_plans
 set price_monthly = 29.90, price_yearly = 299.90, active = true
@@ -931,7 +933,7 @@ where lower(slug) = 'pro';
 
 update platform_plans set active = false where lower(slug) <> 'pro';
 
-select 'platform_plans pro: US$29.90/mo, US$299.90/yr — IA via chave própria (BYOK), sem pack pago no plano' as status;
+select 'platform_plans pro: US$29.90/mo, US$299.90/yr — Pro sem bundle de IA na subscrição' as status;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

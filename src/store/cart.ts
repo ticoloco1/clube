@@ -16,6 +16,7 @@ export interface CartItem {
     | 'brand_ad'
     | 'directory_company'
     | 'video'
+    | 'feed_post'
     | 'ai_topup'
     | 'mystic_tarot'
     | 'mystic_lottery';
