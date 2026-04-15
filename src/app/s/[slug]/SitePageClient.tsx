@@ -620,7 +620,26 @@ export default function SitePageClient({
     </div>
   );
 
-  if (!site) return null;
+  if (!site) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, fontFamily: 'system-ui', padding: 24 }}>
+        <p style={{ fontSize: 52, margin: 0 }}>⚠️</p>
+        <h1 style={{ color: '#e6edf3', fontSize: 22, fontWeight: 900, margin: 0, textAlign: 'center' }}>
+          Falha ao carregar o preview
+        </h1>
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, maxWidth: 420, textAlign: 'center', margin: 0 }}>
+          O mini-site ainda nao chegou ao cliente. Recarrega a pagina ou abre novamente pelo editor (manage=1).
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          style={{ border: 'none', borderRadius: 12, padding: '10px 16px', background: '#818cf8', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+        >
+          Recarregar
+        </button>
+      </div>
+    );
+  }
 
   if (!site.published && !isOwner) {
     return (
