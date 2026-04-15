@@ -6,19 +6,30 @@ export type StripeConnectSiteRow = {
   stripe_connect_charges_enabled: boolean | null;
 };
 
-/** Primeiro mini-site do utilizador (mais recente) para Connect / payouts. */
+/** Escolhe mini-site com Connect ativo; fallback para o mais recente. */
 export async function getMiniSiteStripeForUser(
   db: SupabaseClient,
   userId: string,
 ): Promise<StripeConnectSiteRow | null> {
-  const { data } = await db
+  const { data: connected } = await db
+    .from('mini_sites')
+    .select('slug, stripe_connect_account_id, stripe_connect_charges_enabled')
+    .eq('user_id', userId)
+    .not('stripe_connect_account_id', 'is', null)
+    .eq('stripe_connect_charges_enabled', true)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (connected) return connected as StripeConnectSiteRow;
+
+  const { data: anySite } = await db
     .from('mini_sites')
     .select('slug, stripe_connect_account_id, stripe_connect_charges_enabled')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  return (data as StripeConnectSiteRow) || null;
+  return (anySite as StripeConnectSiteRow) || null;
 }
 
 /** Liberta `slug` no mini-site do vendedor para o comprador poder aplicar o slug. */
