@@ -2118,11 +2118,33 @@ function EditorPageInner() {
                   <p className="text-xs text-amber-500 mt-1">{T('err_slug_reserved')}</p>
                 )}
                 {slug && slug !== site?.slug && (isAdminBypass || !isSlugReservedAdminOnly(slug)) && slugRegistrationDueUsd(slug, isAdminBypass ? 0 : userSlugRegCount) > 0 && (
-                  <p className="text-xs text-amber-400 mt-1">
-                    ⚡ {slugLengthTierUsd(slug) > 0
-                      ? `${T('editor_slug_premium_hint')} $${slugLengthTierUsd(slug)} USD`
-                      : `${T('editor_slug_extra_hint')} $${SLUG_EXTRA_REGISTRATION_USD} USD`}
-                  </p>
+                  <div className="mt-1 space-y-2">
+                    <p className="text-xs text-amber-400">
+                      ⚡ {slugLengthTierUsd(slug) > 0
+                        ? `${T('editor_slug_premium_hint')} $${slugLengthTierUsd(slug)} USD`
+                        : `${T('editor_slug_extra_hint')} $${SLUG_EXTRA_REGISTRATION_USD} USD`}
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-primary text-xs py-2 px-3"
+                      onClick={() => {
+                        const clean = slug.trim().toLowerCase();
+                        if (!clean) return;
+                        const due = slugRegistrationDueUsd(clean, isAdminBypass ? 0 : userSlugRegCount);
+                        if (due <= 0) return;
+                        addToCart({
+                          id: `slug_${clean}`,
+                          label: `Slug: ${clean}.trustbank.xyz`,
+                          price: due,
+                          type: 'slug',
+                        });
+                        openCart();
+                        toast.message(T('ed_create_pay_slug_toast'));
+                      }}
+                    >
+                      {T('ed_create_checkout_slug_btn').replace('${price}', String(slugRegistrationDueUsd(slug.trim().toLowerCase(), isAdminBypass ? 0 : userSlugRegCount)))}
+                    </button>
+                  </div>
                 )}
               </div>
 
