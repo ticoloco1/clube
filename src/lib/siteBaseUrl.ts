@@ -1,11 +1,15 @@
 import { headers } from 'next/headers';
-import { normalizePublicSiteUrl, parseAlternatePublicSiteUrls } from '@/lib/publicSiteUrl';
+import {
+  normalizePublicSiteUrl,
+  parseAlternatePublicSiteUrls,
+  publicSiteUrlFromEnv,
+} from '@/lib/publicSiteUrl';
 
-export { normalizePublicSiteUrl, parseAlternatePublicSiteUrls } from '@/lib/publicSiteUrl';
+export { normalizePublicSiteUrl, parseAlternatePublicSiteUrls, publicSiteUrlFromEnv } from '@/lib/publicSiteUrl';
 
 /** URL canónica do site (apex), sem barra final. */
 export function getSiteBaseUrl(): string {
-  return normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+  return publicSiteUrlFromEnv();
 }
 
 /**
@@ -58,8 +62,8 @@ export async function getCanonicalSiteBaseUrl(): Promise<string> {
     }
   }
 
-  const envRaw = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL || undefined);
-  if (process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
+  const envRaw = publicSiteUrlFromEnv();
+  if ((process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_URL || '').trim()) {
     try {
       const host = new URL(envRaw).hostname;
       if (!isVercelDeployHost(host) && host !== 'localhost' && !host.startsWith('127.')) {

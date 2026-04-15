@@ -13,6 +13,15 @@ export function normalizePublicSiteUrl(raw?: string | null): string {
 }
 
 /**
+ * URL pública na Vercel: o código espera `NEXT_PUBLIC_SITE_URL`.
+ * Projetos antigos costumam ter só `NEXT_PUBLIC_URL` — aceitamos os dois.
+ */
+export function publicSiteUrlFromEnv(): string {
+  const raw = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_URL || '').trim();
+  return normalizePublicSiteUrl(raw || null);
+}
+
+/**
  * URLs alternativas do mesmo site (ex.: apex se o canónico for `www`).
  * Vercel: `NEXT_PUBLIC_SITE_URL_ALT` — uma URL ou várias separadas por vírgula.
  */

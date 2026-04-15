@@ -9,11 +9,32 @@ function getDb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 }
 
+/** Cada URL de webhook no Stripe tem o seu próprio `whsec_`. Tentamos todos (conta principal + Connect). */
+function webhookSigningSecrets(): string[] {
+  const raw = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_WEBHOOK_SECRET_CONNECT,
+    process.env.STRIPE_WEBHOOK_SECRET_PLATFORM,
+  ];
+  const out: string[] = [];
+  for (const s of raw) {
+    const t = (s || '').trim();
+    if (t.startsWith('whsec_')) out.push(t);
+  }
+  return [...new Set(out)];
+}
+
 export async function POST(req: NextRequest) {
   const secret = process.env.STRIPE_SECRET_KEY || '';
-  const whSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
-  if (!secret || !whSecret) {
-    return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
+  const whSecrets = webhookSigningSecrets();
+  if (!secret || whSecrets.length === 0) {
+    return NextResponse.json(
+      {
+        error:
+          'Stripe webhook: define STRIPE_WEBHOOK_SECRET (whsec_...) na Vercel. Opcional: STRIPE_WEBHOOK_SECRET_CONNECT para outro endpoint.',
+      },
+      { status: 500 },
+    );
   }
 
   const stripe = new Stripe(secret);
@@ -23,11 +44,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
   }
 
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, whSecret);
-  } catch (e) {
-    console.error('[Stripe webhook] signature', e);
+  let event: Stripe.Event | undefined;
+  let lastSigErr: unknown;
+  for (const wh of whSecrets) {
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, wh);
+      break;
+    } catch (e) {
+      lastSigErr = e;
+    }
+  }
+  if (!event) {
+    console.error('[Stripe webhook] Invalid signature (tried', whSecrets.length, 'secret(s))', lastSigErr);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 

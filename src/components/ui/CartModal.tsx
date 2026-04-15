@@ -5,7 +5,8 @@ import { X, Coins, Check, Loader2, ShoppingCart, ExternalLink, Zap } from 'lucid
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
-import { normalizePublicSiteUrl } from '@/lib/publicSiteUrl';
+import { publicSiteUrlFromEnv } from '@/lib/publicSiteUrl';
+import { postCheckoutSession } from '@/lib/checkoutClient';
 
 const POLYGON_WALLET_LS = 'tb_checkout_polygon_wallet';
 
@@ -40,7 +41,7 @@ export function CartModal() {
   }, []);
 
   const slugNftCart = cartHasSlugNftEligibleItem(items);
-  const CHECKOUT_FALLBACK_BASE = normalizePublicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+  const CHECKOUT_FALLBACK_BASE = publicSiteUrlFromEnv();
   const isAdminBypass = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
 
   if (!isOpen) return null;
@@ -72,33 +73,14 @@ export function CartModal() {
           /* ignore */
         }
       }
-      const payload = JSON.stringify({
-        userId: user.id,
-        items,
-        ...(slugNftCart && pw ? { polygonWallet: pw } : {}),
-      });
-      const urls = ['/api/checkout', CHECKOUT_FALLBACK_BASE ? `${CHECKOUT_FALLBACK_BASE}/api/checkout` : ''].filter(Boolean);
-      let data: any = {};
-      let lastErr: any = null;
-
-      for (const url of urls) {
-        try {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: payload,
-          });
-          const raw = await res.text();
-          try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw || '' }; }
-          if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
-          lastErr = null;
-          break;
-        } catch (e: any) {
-          lastErr = e;
-        }
-      }
-      if (lastErr) throw lastErr;
+      const data = await postCheckoutSession(
+        {
+          userId: user.id,
+          items,
+          ...(slugNftCart && pw ? { polygonWallet: pw } : {}),
+        },
+        CHECKOUT_FALLBACK_BASE || '',
+      );
       if (data.url) {
         window.open(data.url, '_blank');
         setStep('paying');

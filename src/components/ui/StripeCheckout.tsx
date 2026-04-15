@@ -4,12 +4,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Zap, ExternalLink, CheckCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { postCheckoutSession } from '@/lib/checkoutClient';
 
 interface StripeCheckoutProps {
   itemId: string;
   label: string;
   price: number;
-  type: 'video' | 'cv' | 'slug' | 'plan' | 'boost' | 'classified' | 'credits' | 'brand_ad' | 'directory_company';
+  type: 'video' | 'feed_post' | 'cv' | 'slug' | 'plan' | 'boost' | 'classified' | 'credits' | 'brand_ad' | 'directory_company';
   accentColor?: string;
   onSuccess?: () => void;
   buttonText?: string;
@@ -33,16 +34,14 @@ export function StripeCheckout({
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await postCheckoutSession(
+        {
           userId: user.id,
           items: [{ id: itemId, label, price, type }],
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+        },
+        '',
+      );
+      if (!data.url) throw new Error(data.error || 'No checkout URL');
 
       setCheckoutUrl(data.url);
       setStep('pending');

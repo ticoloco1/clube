@@ -4,6 +4,7 @@ import { Lock, Play, X, CreditCard, CheckCircle, Loader2, Shield } from 'lucide-
 import { supabase } from '@/lib/supabase';
 import { useT } from '@/lib/i18n';
 import { isDbPaywallEnabled } from '@/lib/utils';
+import { postCheckoutSession } from '@/lib/checkoutClient';
 
 interface PaywallModalProps {
   video: {
@@ -37,10 +38,8 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
       if (!session) { setError(T('paywall_login_required')); setLoading(false); return; }
 
       const titleFallback = video.title || T('paywall_premium');
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await postCheckoutSession(
+        {
           userId: session.user.id,
           items: [{
             id: video.id,
@@ -48,9 +47,9 @@ export function PaywallModal({ video, creatorWallet, creatorName, onClose, onUnl
             price,
             label: T('paywall_cart_label').replace('{title}', titleFallback),
           }],
-        }),
-      });
-      const data = await res.json();
+        },
+        '',
+      );
       if (data.url) {
         window.location.href = data.url;
       } else {
