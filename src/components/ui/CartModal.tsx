@@ -105,8 +105,6 @@ export function CartModal() {
     document.head.appendChild(script);
   }, [step, clear, total]);
 
-  if (!isOpen) return null;
-
   useEffect(() => {
     if (step !== 'paying' || !pendingId || CHECKOUT_PROVIDER !== 'stripe') return;
     let cancelled = false;
@@ -139,6 +137,8 @@ export function CartModal() {
       clearInterval(timer);
     };
   }, [step, pendingId, clear]);
+
+  if (!isOpen) return null;
 
   const handleCheckout = async () => {
     if (!user) { 
