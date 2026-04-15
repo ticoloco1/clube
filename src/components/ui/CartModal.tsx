@@ -55,8 +55,6 @@ export function CartModal() {
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-  if (!isOpen) return null;
-
   useEffect(() => {
     if (step !== 'paying' || CHECKOUT_PROVIDER !== 'helio' || !HELIO_EMBED_INLINE) return;
     const mount = document.getElementById('tb-helio-checkout-container');
@@ -106,6 +104,8 @@ export function CartModal() {
     script.addEventListener('error', () => setHelioBootError('Falha ao carregar script do Helio.'), { once: true });
     document.head.appendChild(script);
   }, [step, clear, total]);
+
+  if (!isOpen) return null;
 
   useEffect(() => {
     if (step !== 'paying' || !pendingId || CHECKOUT_PROVIDER !== 'stripe') return;
