@@ -43,7 +43,10 @@ export function CartModal() {
 
   const slugNftCart = cartHasSlugNftEligibleItem(items);
   const CHECKOUT_FALLBACK_BASE = publicSiteUrlFromEnv();
-  const isAdminBypass = (user?.email || '').toLowerCase() === 'arytcf@gmail.com';
+  const isAdminBypass =
+    (user?.email || '').toLowerCase() === 'arytcf@gmail.com' &&
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   if (!isOpen) return null;
 
