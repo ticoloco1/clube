@@ -128,8 +128,15 @@ export async function handleCheckoutPost(req: Request): Promise<NextResponse> {
         req,
         NextResponse.json(
           {
-            error:
-              'Could not start checkout. Run supabase-stripe-tables.sql and supabase-minisite-mystic-tarot-loteria.sql.',
+            error: 'Could not start checkout',
+            details: pErr
+              ? {
+                  message: (pErr as { message?: string }).message || null,
+                  code: (pErr as { code?: string }).code || null,
+                  hint: (pErr as { hint?: string }).hint || null,
+                  details: (pErr as { details?: string }).details || null,
+                }
+              : null,
           },
           { status: 500 },
         ),
