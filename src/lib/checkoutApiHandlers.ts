@@ -10,6 +10,7 @@ import {
   publicSiteUrlFromEnv,
 } from '@/lib/siteBaseUrl';
 import { STRIPE_MIN_CHARGE_USD } from '@/lib/platformPricing';
+import { isAdminOwnerUserId } from '@/lib/adminOwnerEmail';
 
 const SITE_URL = getSiteBaseUrl();
 
@@ -126,6 +127,20 @@ export async function handleCheckoutPost(req: Request): Promise<NextResponse> {
 
     const db = getDb();
     const lines = items.map((item) => cartItemToFulfillmentLine(item, userId));
+    for (const line of lines) {
+      if (await lineRequiresWalletOnlySlugSettlement(db, line)) {
+        return withCors(
+          req,
+          NextResponse.json(
+            {
+              error:
+                'User slugs are now settled only via Polygon USDC wallet. Official site domains and admin premium domains still pay with Stripe.',
+            },
+            { status: 400 },
+          ),
+        );
+      }
+    }
     const connectOk = await validateCartCreatorsHaveStripe(db, items, userId);
     if (!connectOk.ok) {
       return withCors(req, NextResponse.json({ error: connectOk.error }, { status: 400 }));

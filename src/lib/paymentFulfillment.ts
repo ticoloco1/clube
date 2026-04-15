@@ -8,6 +8,7 @@ import {
   mintTrustBankSlugCertificateIfConfigured,
 } from '@/lib/slugNftThirdwebMint';
 import { validateSlugMarketFixedPrice } from '@/lib/slugMarketPurchaseValidation';
+import { isAdminOwnerUserId } from '@/lib/adminOwnerEmail';
 
 /** Contexto opcional vindo do checkout (ex.: carteira Polygon para NFT do slug). */
 export type FulfillmentContext = {
@@ -451,18 +452,21 @@ export async function fulfillLine(
         .eq('slug', slugCanon);
       await releaseMiniSiteSlugFromSeller(db, sellerId, slugCanon);
 
-      const sellerShare = amountUsd * PAYMENT_SPLITS.slug.creator;
-      const siteRow = await getMiniSiteStripeForUser(db, sellerId);
-      const stripe = getStripeAdmin();
-      if (stripe && siteRow?.stripe_connect_account_id && siteRow?.stripe_connect_charges_enabled) {
-        try {
-          await transferCreatorUsd(stripe, siteRow.stripe_connect_account_id, sellerShare, {
-            kind: 'slug_market',
-            slug: slugCanon,
-            ref: paymentRef.slice(0, 80),
-          });
-        } catch (err) {
-          console.error('[Fulfill] Stripe transfer (slug_market)', err);
+      const adminOwned = await isAdminOwnerUserId(db, sellerId);
+      if (!adminOwned) {
+        const sellerShare = amountUsd * PAYMENT_SPLITS.slug.creator;
+        const siteRow = await getMiniSiteStripeForUser(db, sellerId);
+        const stripe = getStripeAdmin();
+        if (stripe && siteRow?.stripe_connect_account_id && siteRow?.stripe_connect_charges_enabled) {
+          try {
+            await transferCreatorUsd(stripe, siteRow.stripe_connect_account_id, sellerShare, {
+              kind: 'slug_market',
+              slug: slugCanon,
+              ref: paymentRef.slice(0, 80),
+            });
+          } catch (err) {
+            console.error('[Fulfill] Stripe transfer (slug_market)', err);
+          }
         }
       }
       await maybeMintSlugCertificateNft(db, ctx, paymentRef, userId, slugCanon);
@@ -503,18 +507,21 @@ export async function fulfillLine(
         .eq('slug', slugStr);
       await releaseMiniSiteSlugFromSeller(db, sellerId, slugStr);
 
-      const sellerShare = amountUsd * PAYMENT_SPLITS.slug.creator;
-      const siteRow = await getMiniSiteStripeForUser(db, sellerId);
-      const stripe = getStripeAdmin();
-      if (stripe && siteRow?.stripe_connect_account_id && siteRow?.stripe_connect_charges_enabled) {
-        try {
-          await transferCreatorUsd(stripe, siteRow.stripe_connect_account_id, sellerShare, {
-            kind: 'slug_auction',
-            slug: slugStr,
-            ref: paymentRef.slice(0, 80),
-          });
-        } catch (err) {
-          console.error('[Fulfill] Stripe transfer (slug_auction_settle)', err);
+      const adminOwnedAuction = await isAdminOwnerUserId(db, sellerId);
+      if (!adminOwnedAuction) {
+        const sellerShare = amountUsd * PAYMENT_SPLITS.slug.creator;
+        const siteRow = await getMiniSiteStripeForUser(db, sellerId);
+        const stripe = getStripeAdmin();
+        if (stripe && siteRow?.stripe_connect_account_id && siteRow?.stripe_connect_charges_enabled) {
+          try {
+            await transferCreatorUsd(stripe, siteRow.stripe_connect_account_id, sellerShare, {
+              kind: 'slug_auction',
+              slug: slugStr,
+              ref: paymentRef.slice(0, 80),
+            });
+          } catch (err) {
+            console.error('[Fulfill] Stripe transfer (slug_auction_settle)', err);
+          }
         }
       }
 

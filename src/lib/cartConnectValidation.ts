@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { cartItemToFulfillmentLine } from '@/lib/cartFulfillment';
 import { getMiniSiteStripeForUser } from '@/lib/stripeConnectSite';
 import { validateSlugMarketFixedPrice } from '@/lib/slugMarketPurchaseValidation';
+import { isAdminOwnerUserId } from '@/lib/adminOwnerEmail';
 
 const DUMMY_USER = '00000000-0000-0000-0000-000000000001';
 
@@ -143,6 +144,9 @@ export async function validateCartCreatorsHaveStripe(
       if (!priceClose(Number(item.price), sp)) {
         return { ok: false, error: 'O preço mudou — atualiza a página e tenta de novo.' };
       }
+      if (await isAdminOwnerUserId(db, sellerId)) {
+        continue;
+      }
       const site = await getMiniSiteStripeForUser(db, sellerId);
       if (!site?.stripe_connect_account_id || !site?.stripe_connect_charges_enabled) {
         const { data: siteRows } = await db
@@ -191,6 +195,9 @@ export async function validateCartCreatorsHaveStripe(
         return { ok: false, error: 'Amount must match the winning bid. Refresh and try again.' };
       }
       const sellerId = (auc as any).seller_id as string;
+      if (await isAdminOwnerUserId(db, sellerId)) {
+        continue;
+      }
       const site = await getMiniSiteStripeForUser(db, sellerId);
       if (!site?.stripe_connect_account_id || !site?.stripe_connect_charges_enabled) {
         return {

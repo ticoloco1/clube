@@ -18,6 +18,35 @@ export function isAdminOwnerEmail(email: string | null | undefined): boolean {
   return getAdminOwnerEmails().includes(email.toLowerCase());
 }
 
+export async function isAdminOwnerUserId(
+  db: SupabaseClient | null,
+  userId: string | null | undefined,
+): Promise<boolean> {
+  if (!db || !userId) return false;
+
+  try {
+    const authAdmin = (db as any)?.auth?.admin;
+    if (authAdmin?.getUserById) {
+      const { data, error } = await authAdmin.getUserById(userId);
+      if (!error && isAdminOwnerEmail(data?.user?.email)) return true;
+    }
+  } catch {
+    /* ignore auth lookup failure */
+  }
+
+  try {
+    const { data } = await db
+      .from('user_roles' as never)
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+    return !!data;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Acesso às rotas /api/admin/* alinhado ao painel: email dono ou role `admin` em user_roles.
  */
